@@ -1,0 +1,11 @@
+{
+  "name": "plc-ladder-mcp",
+  "private": true,
+  "version": "0.1.0",
+  "packageManager": "npm@11",
+  "scripts": {
+    "dev": "npm --workspace apps/web run dev",
+    "build": "npm --workspace apps/web run build"
+  },
+  "workspaces": ["apps/*", "packages/*", "services/*"]
+}
