@@ -42,8 +42,10 @@ export function validateProject(project: LadderProject) {
   if (!schema.success) issues.push(...schema.error.issues.map(i => i.message));
   for (const program of project.programs) for (const network of program.networks) {
     const coils = network.elements.filter(e => e.type === "coil");
-    if (coils.length !== 1) issues.push(`Network ${network.id} must contain exactly one output coil in MVP`);
-    if (network.elements.at(-1)?.type !== "coil") issues.push(`Network ${network.id} must end with a coil`);
+    if (coils.length < 1) issues.push(`Network ${network.id} must contain at least one output coil`);
+    const firstCoil = network.elements.findIndex(e => e.type === "coil");
+    if (firstCoil >= 0 && network.elements.slice(firstCoil).some(e => e.type !== "coil"))
+      issues.push(`Network ${network.id} cannot place contacts after output coils in the current topology subset`);
   }
   return { valid: issues.length === 0, issues };
 }
