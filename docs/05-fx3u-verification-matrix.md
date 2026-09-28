@@ -25,3 +25,10 @@ After the simple rows pass:
 3. Parallel branches containing conditions and outputs.
 4. Multiple action branches mixed with SET/RST/instructions.
 5. Compare contacts / compare instructions according to the FX3U manual.
+
+
+## Verified combined batch — 2026-09-28
+GX Works2 real import/render PASS: NC, series AND, SET, RST, T0 K10, C0 K10, MOV K100 D0, ADD D0 D1 D2, END. Imported as editable Ladder.
+
+## Advanced batch
+Pending real GX Works2 verification: OR, mixed AND/OR/NC using ORB, MPS/MRD/MPP with mixed actions, CMP, ZCP, SUB, MUL, DIV, INC, DEC, WAND, WOR, WXOR.
