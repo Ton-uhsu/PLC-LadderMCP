@@ -58,8 +58,6 @@ export default function App() {
     else downloadBytes("plc-ladder-gxworks2.csv", generateGxWorks2(project));
   };
 
-  const exportAdvancedSuite=()=>downloadBytes("fx3u-advanced-verification.csv"());
-
   const exportNextSuite=()=>downloadBytes("fx3u-next-verification.csv",generateGxWorks2NextVerificationSuite());
 
   return <div className="app-shell">
