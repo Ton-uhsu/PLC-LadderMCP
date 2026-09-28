@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { Activity, Bot, Braces, CheckCircle2, ChevronDown, CircleDot, Download, FileCode2, FolderOpen, Network, Play, Plus, Settings2, ShieldCheck, Workflow } from "lucide-react";
-import { downloadBytes, downloadText, generateGxWorks2, generateSamSoar, validateProject } from "./ladder";
+import { downloadBytes, downloadText, generateGxWorks2, generateGxWorks2AdvancedVerificationSuite, generateSamSoar, validateProject } from "./ladder";
 import { useProjectStore } from "./store";
 
 type Vendor = "GX Works2" | "SamSoar2022";
@@ -60,6 +60,8 @@ export default function App() {
 
   const exportVerificationSuite=()=>downloadBytes("fx3u-combined-verification.csv"());
 
+  const exportAdvancedSuite=()=>downloadBytes("fx3u-advanced-verification.csv",generateGxWorks2AdvancedVerificationSuite());
+
   return <div className="app-shell">
     <aside className="sidebar">
       <div className="brand"><div className="brand-mark"><Workflow size={19}/></div><div><strong>PLC Ladder</strong><span>MCP Studio</span></div></div>
@@ -83,7 +85,7 @@ export default function App() {
           <div className="network-note"><CircleDot size={14}/><span><b>Network {network.id}</b> — {contact?.type==="contact"?(contact.mode==="NO"?"Normally-open":"Normally-closed"):"Contact"} <code>{contact?.device}</code> drives output coil <code>{coil?.device}</code>.</span></div>
         </section>
         <aside className="right-column">
-          <section className="panel export-card"><div className="panel-head compact"><div><span className="kicker">VENDOR OUTPUT</span><h2>Export</h2></div><FileCode2 size={20}/></div><label>Target IDE</label><div className="select-wrap"><select value={vendor} onChange={e=>setVendor(e.target.value as Vendor)}><option>SamSoar2022</option><option>GX Works2</option></select><ChevronDown size={15}/></div><div className="format-info"><span>FORMAT</span><b>{vendor==="GX Works2"?"List CSV · pending serializer fix":"CSV · UTF-8 BOM"}</b></div><button className="export-button" onClick={exportFile} disabled={!result.valid}><Download size={16}/> Generate {vendor} file</button><p>Generated directly from the canonical Ladder IR shown in this app.</p></section>
+          <section className="panel export-card"><div className="panel-head compact"><div><span className="kicker">VENDOR OUTPUT</span><h2>Export</h2></div><FileCode2 size={20}/></div><label>Target IDE</label><div className="select-wrap"><select value={vendor} onChange={e=>setVendor(e.target.value as Vendor)}><option>SamSoar2022</option><option>GX Works2</option></select><ChevronDown size={15}/></div><div className="format-info"><span>FORMAT</span><b>{vendor==="GX Works2"?"List CSV · pending serializer fix":"CSV · UTF-8 BOM"}</b></div><button className="export-button" onClick={exportFile} disabled={!result.valid}><Download size={16}/> Generate {vendor} file</button><button className="ghost" onClick={exportAdvancedSuite}><Download size={15}/> Advanced FX3U test file</button><p>Generated directly from the canonical Ladder IR shown in this app.</p></section>
           <section className="panel checks"><span className="kicker">VALIDATION</span><h2>Project checks</h2>{result.valid?["IR schema valid","Topology valid","Device syntax valid"].map(x=><div className="check" key={x}><CheckCircle2 size={16}/><span>{x}</span></div>):result.issues.map(x=><div className="check" key={x}><span>{x}</span></div>)}</section>
         </aside>
       </div>
