@@ -1,3 +1,5 @@
+import { generateGxWorks2ListText, validateFx3uV02 } from "@plc-ladder-mcp/ladder-ir";
+import { legacyProjectToV02 } from "./ir-v02-bridge";
 import { z } from "zod";
 
 export const ElementSchema = z.discriminatedUnion("type", [
@@ -77,39 +79,10 @@ export function downloadText(filename: string, text: string, mime = "text/csv;ch
 
 
 export function generateGxWorks2(project: LadderProject): Uint8Array {
-  const network = project.programs[0]?.networks[0];
-  if (!network) throw new Error("No network to export.");
-
-  const contacts = network.elements.filter((e: any) => e.type === "contact") as any[];
-  const coils = network.elements.filter((e: any) => e.type === "coil") as any[];
-  if (!contacts.length || !coils.length) throw new Error("GX Works2 export requires at least one contact and one coil.");
-
-  const instructions: Array<[string,string]> = [];
-  contacts.forEach((e: any, i: number) => {
-    const no = e.mode !== "NC";
-    instructions.push([i === 0 ? (no ? "LD" : "LDI") : (no ? "AND" : "ANI"), e.device]);
-  });
-
-  if (coils.length === 1) {
-    instructions.push(["OUT", coils[0].device]);
-  } else {
-    coils.forEach((e: any, i: number) => {
-      instructions.push([i === 0 ? "MPS" : i === coils.length - 1 ? "MPP" : "MRD", ""]);
-      instructions.push(["OUT", e.device]);
-    });
-  }
-
-  const q = (v: string) => '"' + String(v).replace(/"/g, '""') + '"';
-  const rows: string[][] = [
-    ["(" + project.name + ")"],
-    ["PLC Information:", "FXCPU FX3U/FX3UC"],
-    ["Step No.", "Line Statement", "Instruction", "I/O(Device)", "Blank", "PI Statement", "Note"],
-  ];
-  instructions.forEach(([op, dev], step) => rows.push([String(step), "", op, dev, "", "", ""]));
-  rows.push([String(instructions.length), "", "END", "", "", "", ""]);
-  const text = rows.map(r => r.map(q).join("\t")).join("\r\n") + "\r\n";
-
-  // GX Works2 list CSV fixture is UTF-16 LE with BOM.
+  const v02 = legacyProjectToV02(project);
+  const validation = validateFx3uV02(v02);
+  if (!validation.valid) throw new Error(validation.issues.filter(i => i.severity === "error").map(i => i.message).join("; "));
+  const text = generateGxWorks2ListText(v02);
   const out = new Uint8Array(2 + text.length * 2);
   out[0] = 0xff; out[1] = 0xfe;
   for (let i = 0; i < text.length; i++) {
