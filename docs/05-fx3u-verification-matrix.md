@@ -65,3 +65,9 @@ Pending real GX Works2 verification:
 - DADD, DSUB, DMUL, DDIV
 
 Do not mark these verified until real GX Works2 import/render is confirmed. Flow-control instructions are intentionally deferred to a separate fixture because they require label/pointer/subroutine structure rather than only an opcode row.
+
+
+## Next batch real GX Works2 result — partial PASS
+Screenshot evidence shows the batch imported with 5 errors. Verified in this run: LDP, LDF, ANP, ANF, ORP, ORF; deeper ORB/AND boolean topology; ROL; ROR; BCD; BIN; and the visible 32-bit arithmetic beginning with DADD. The rejected/highlighted cases include the original SFTL D60 K4 K1, SFTR D61 K4 K1, and NEG D68 D69 forms. Those operand forms are invalid for this target and must not be marked verified.
+
+A focused retry fixture now uses SFTL/SFTR bit-device source/destination ranges and in-place NEG D68. Remaining 32-bit arithmetic items should only be marked verified when visible/confirmed in GX Works2.
