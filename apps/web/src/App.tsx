@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { Activity, Bot, Braces, CheckCircle2, ChevronDown, CircleDot, Download, FileCode2, FolderOpen, Network, Play, Plus, Settings2, ShieldCheck, Workflow } from "lucide-react";
-import { downloadText, generateSamSoar, validateProject } from "./ladder";
+import { downloadBytes, downloadText, generateGxWorks2, generateSamSoar, validateProject } from "./ladder";
 import { useProjectStore } from "./store";
 
 type Vendor = "GX Works2" | "SamSoar2022";
@@ -38,7 +38,7 @@ export default function App() {
 
   const exportFile=()=>{
     if(vendor==="SamSoar2022") downloadText("plc-ladder-samsoar.csv",generateSamSoar(project));
-    else alert("GX Works2 from-scratch serializer is intentionally disabled until its row-format test passes.");
+    else downloadBytes("plc-ladder-gxworks2.csv", generateGxWorks2(project));
   };
 
   return <div className="app-shell">
@@ -46,7 +46,7 @@ export default function App() {
       <div className="brand"><div className="brand-mark"><Workflow size={19}/></div><div><strong>PLC Ladder</strong><span>MCP Studio</span></div></div>
       <button className="new-project"><Plus size={17}/> New project</button>
       <nav>{[["Ladder",Network],["IR / JSON",Braces],["Validation",ShieldCheck],["AI Changes",Bot],["Exports",Download]].map(([label,Icon])=>{const I=Icon as typeof Network;return <button key={label as string} onClick={()=>setActive(label as string)} className={active===label?"nav-active":""}><I size={17}/>{label as string}</button>})}</nav>
-      <div className="sidebar-bottom"><button><Settings2 size={17}/> Project settings</button><div className="engine"><span className="status-dot"/><div><b>Engine ready</b><small>IR schema v0.1</small></div></div></div>
+      <div className="sidebar-bottom"><button><Settings2 size={17}/> Project settings</button><div className="engine"><span className="status-dot"/><div><b>Engine ready</b><small>IR schema v0.1 + GX branch export</small></div></div></div>
     </aside>
     <main>
       <header><div><div className="eyebrow">PROJECT / {project.programs[0].name.toUpperCase()}</div><h1>{project.name}</h1></div><div className="header-actions"><button className="ghost"><FolderOpen size={16}/> Import</button><button className="primary" onClick={()=>alert(result.valid?"Project is valid.":result.issues.join("\n"))}><Play size={15}/> Validate</button></div></header>
