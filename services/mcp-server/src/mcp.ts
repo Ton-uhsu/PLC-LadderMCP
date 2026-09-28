@@ -1,6 +1,6 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
-import { addCoil, addContact, createProject, exportSamSoar, getProject, validateProject } from "./project.js";
+import { addCoil, addContact, createProject, exportGxWorks2Text, exportSamSoar, getProject, getProjectV02, validateProject } from "./project.js";
 
 const json = (value: unknown) => ({
   content: [{ type: "text" as const, text: JSON.stringify(value, null, 2) }],
@@ -16,7 +16,7 @@ export function createMcpServer() {
   }, async ({ name, plc_family, plc_model }) => json(createProject(name, plc_family, plc_model)));
 
   server.tool("get_project", "Return the canonical Ladder IR for the current project.", {},
-    async () => json(getProject()));
+    async () => json(getProjectV02()));
 
   server.tool("add_contact", "Add a NO/NC contact before the output coil.", {
     device: z.string(),
@@ -35,9 +35,14 @@ export function createMcpServer() {
     async () => json(validateProject()));
 
   server.tool("export_project", "Compile the project to a supported PLC IDE interchange format.", {
-    target: z.enum(["samsoar2022"]),
-  }, async () => json({
-    target: "samsoar2022",
+    target: z.enum(["samsoar2022", "gxworks2"]),
+  }, async ({ target }) => target === "gxworks2" ? json({
+    target,
+    filename: "plc-ladder-gxworks2.csv",
+    encoding: "UTF-16 LE with BOM required at file boundary",
+    content: exportGxWorks2Text(),
+  }) : json({
+    target,
     filename: "plc-ladder-samsoar.csv",
     encoding: "UTF-8 with BOM",
     content: exportSamSoar(),
