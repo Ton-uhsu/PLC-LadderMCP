@@ -29,7 +29,12 @@ export const ProjectSchema = z.object({
 
 export type LadderProject = z.infer<typeof ProjectSchema>;
 
-let project: LadderProject = createProject("Untitled PLC Project", "Mitsubishi FX", "FX3U");
+let project: LadderProject = {
+  version: "0.1",
+  name: "Untitled PLC Project",
+  plc: { family: "Mitsubishi FX", model: "FX3U" },
+  programs: [{ name: "Main", networks: [{ id: 0, elements: [] }] }],
+};
 
 export function createProject(name: string, family: string, model: string): LadderProject {
   project = {
