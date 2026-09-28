@@ -1,3 +1,5 @@
+import { generateGxWorks2ListText, validateFx3uV02 } from "@plc-ladder-mcp/ladder-ir";
+import { legacyProjectToV02 } from "./ir-v02-bridge.js";
 import { z } from "zod";
 
 export const ElementSchema = z.discriminatedUnion("type", [
@@ -76,6 +78,17 @@ export function validateProject() {
       issues.push(`Network ${network.id} cannot place contacts after output coils in the current topology subset`);
   }
   return { valid: issues.length === 0, issues };
+}
+
+export function exportGxWorks2Text() {
+  const v02 = legacyProjectToV02(project);
+  const validation = validateFx3uV02(v02);
+  if (!validation.valid) throw new Error(validation.issues.filter(i => i.severity === "error").map(i => i.message).join("; "));
+  return generateGxWorks2ListText(v02);
+}
+
+export function getProjectV02() {
+  return legacyProjectToV02(project);
 }
 
 export function exportSamSoar() {
