@@ -1,0 +1,13 @@
+{
+  "name": "@plc-ladder-mcp/ladder-ir",
+  "private": true,
+  "version": "0.2.0",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./v02": "./src/v02.ts",
+    "./fx3u-compiler": "./src/fx3u-compiler.ts",
+    "./fx3u-validator": "./src/fx3u-validator.ts",
+    "./gxworks2-list": "./src/gxworks2-list.ts"
+  }
+}
