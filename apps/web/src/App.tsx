@@ -9,19 +9,36 @@ function LadderPreview() {
   const project = useProjectStore(s => s.project);
   const network = project.programs[0].networks[0];
   const contact = network.elements.find(e => e.type === "contact");
-  const coil = network.elements.find(e => e.type === "coil");
-  return <svg viewBox="0 0 900 270" className="ladder" role="img" aria-label="Ladder preview">
-    <line x1="70" y1="35" x2="70" y2="235" className="wire rail"/><line x1="830" y1="35" x2="830" y2="235" className="wire rail"/>
-    <text x="28" y="95" className="step">{network.id}</text><line x1="70" y1="90" x2="270" y2="90" className="wire"/>
-    <line x1="270" y1="66" x2="270" y2="114" className="symbol"/><line x1="310" y1="66" x2="310" y2="114" className="symbol"/>
-    {contact?.type === "contact" && contact.mode === "NC" && <line x1="267" y1="115" x2="313" y2="65" className="symbol"/>}
-    <line x1="310" y1="90" x2="708" y2="90" className="wire"/><text x="290" y="54" textAnchor="middle" className="device">{contact?.device}</text>
-    <path d="M708 90 C708 58 755 58 755 90 C755 122 708 122 708 90" className="symbol fill-none"/><line x1="755" y1="90" x2="830" y2="90" className="wire"/>
-    <text x="732" y="54" textAnchor="middle" className="device">{coil?.device}</text>
-    <text x="28" y="188" className="step">END</text><line x1="70" y1="183" x2="685" y2="183" className="wire muted-wire"/><text x="705" y="189" className="end">END</text><line x1="755" y1="183" x2="830" y2="183" className="wire muted-wire"/>
+  const coils = network.elements.filter(e => e.type === "coil");
+  const ys = coils.map((_,i)=>70+i*34);
+  const top = ys[0] ?? 90, bottom = ys.at(-1) ?? 90;
+  const height = Math.max(270, bottom + 120);
+  return <svg viewBox={`0 0 900 ${height}`} className="ladder" role="img" aria-label="Ladder preview">
+    <line x1="70" y1="35" x2="70" y2={height-35} className="wire rail"/>
+    <line x1="830" y1="35" x2="830" y2={height-35} className="wire rail"/>
+    <text x="28" y={top+5} className="step">{network.id}</text>
+    <line x1="70" y1={top} x2="270" y2={top} className="wire"/>
+    <line x1="270" y1={top-24} x2="270" y2={top+24} className="symbol"/>
+    <line x1="310" y1={top-24} x2="310" y2={top+24} className="symbol"/>
+    {contact?.type === "contact" && contact.mode === "NC" && <line x1="267" y1={top+25} x2="313" y2={top-25} className="symbol"/>}
+    <text x="290" y={top-36} textAnchor="middle" className="device">{contact?.device}</text>
+    <line x1="310" y1={top} x2="650" y2={top} className="wire"/>
+    {coils.length > 1 && <line x1="650" y1={top} x2="650" y2={bottom} className="wire"/>}
+    {coils.map((coil,i)=>{
+      const y=ys[i];
+      return <g key={coil.id}>
+        <line x1="650" y1={y} x2="708" y2={y} className="wire"/>
+        <path d={`M708 ${y} C708 ${y-22} 755 ${y-22} 755 ${y} C755 ${y+22} 708 ${y+22} 708 ${y}`} className="symbol fill-none"/>
+        <line x1="755" y1={y} x2="830" y2={y} className="wire"/>
+        <text x="732" y={y-28} textAnchor="middle" className="device">{coil.device}</text>
+      </g>
+    })}
+    <text x="28" y={bottom+75} className="step">END</text>
+    <line x1="70" y1={bottom+70} x2="685" y2={bottom+70} className="wire muted-wire"/>
+    <text x="705" y={bottom+76} className="end">END</text>
+    <line x1="755" y1={bottom+70} x2="830" y2={bottom+70} className="wire muted-wire"/>
   </svg>;
 }
-
 export default function App() {
   const project = useProjectStore(s => s.project);
   const apiUrl = useProjectStore(s => s.apiUrl);
