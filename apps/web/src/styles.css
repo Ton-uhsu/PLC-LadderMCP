@@ -26,3 +26,9 @@ main { min-width:0; } header { height:82px; border-bottom:1px solid #27272a; dis
 
 .json-view{margin:20px;min-height:370px;max-height:520px;overflow:auto;padding:20px;border-radius:6px;background:#08090a;border:1px solid #29292d;color:#d4d4d8;font:12px/1.65 "SFMono-Regular",Consolas,monospace;white-space:pre-wrap}
 .export-button:disabled{opacity:.45;cursor:not-allowed}
+
+.server-bar{display:flex;gap:10px;align-items:center;padding:12px 22px;border-bottom:1px solid #29292d;background:#111214}
+.server-bar input{flex:1;min-width:220px;background:#090a0b;border:1px solid #343438;color:#eee;padding:10px 12px;border-radius:6px}
+.server-bar button{padding:10px 13px;border:1px solid #3a3a40;border-radius:6px;background:#202126;color:#eee;cursor:pointer}
+.server-online,.server-offline{font-size:11px;font-weight:700;letter-spacing:.08em;white-space:nowrap}
+.server-online{color:#6ee7a8}.server-offline{color:#a1a1aa}
