@@ -24,6 +24,11 @@ function LadderPreview() {
 
 export default function App() {
   const project = useProjectStore(s => s.project);
+  const apiUrl = useProjectStore(s => s.apiUrl);
+  const connected = useProjectStore(s => s.connected);
+  const setApiUrl = useProjectStore(s => s.setApiUrl);
+  const syncProject = useProjectStore(s => s.syncProject);
+  const [serverInput,setServerInput]=useState(apiUrl);
   const [vendor,setVendor]=useState<Vendor>("SamSoar2022");
   const [active,setActive]=useState("Ladder");
   const result=useMemo(()=>validateProject(project),[project]);
@@ -46,6 +51,12 @@ export default function App() {
     <main>
       <header><div><div className="eyebrow">PROJECT / {project.programs[0].name.toUpperCase()}</div><h1>{project.name}</h1></div><div className="header-actions"><button className="ghost"><FolderOpen size={16}/> Import</button><button className="primary" onClick={()=>alert(result.valid?"Project is valid.":result.issues.join("\n"))}><Play size={15}/> Validate</button></div></header>
       <section className="status-strip"><div><span>PLC FAMILY</span><b>{project.plc.family} {project.plc.model}</b></div><div><span>PROGRAM</span><b>{project.programs[0].name}</b></div><div><span>NETWORKS</span><b>{project.programs[0].networks.length}</b></div><div className="valid"><span>STATUS</span><b><CheckCircle2 size={15}/>{result.valid?"Valid":"Invalid"}</b></div></section>
+      <div className="server-bar">
+        <input value={serverInput} onChange={e=>setServerInput(e.target.value)} placeholder="https://xxxxx.trycloudflare.com" />
+        <button onClick={async()=>{setApiUrl(serverInput); setTimeout(async()=>{try{await useProjectStore.getState().syncProject()}catch(e){alert("Server connection failed: "+String(e))}},0)}}>Connect server</button>
+        <button className="ghost" onClick={()=>syncProject().catch(e=>alert(String(e)))}>Sync now</button>
+        <span className={connected?"server-online":"server-offline"}>{connected?"SERVER CONNECTED":"LOCAL / DEMO"}</span>
+      </div>
       <div className="workspace">
         <section className="panel ladder-panel">
           <div className="panel-head"><div><span className="kicker">{active==="IR / JSON"?"CANONICAL SOURCE":`NETWORK ${network.id}`}</span><h2>{active==="IR / JSON"?"Ladder IR / JSON":"Main Ladder"}</h2></div><div className="badge"><Activity size={14}/> LIVE IR PREVIEW</div></div>
