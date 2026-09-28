@@ -72,3 +72,56 @@ export function downloadText(filename: string, text: string, mime = "text/csv;ch
   a.href = url; a.download = filename; a.click();
   URL.revokeObjectURL(url);
 }
+
+
+export function generateGxWorks2(project: LadderProject): Uint8Array {
+  const network = project.programs[0]?.networks[0];
+  if (!network) throw new Error("No network to export.");
+
+  const contacts = network.elements.filter((e: any) => e.type === "contact") as any[];
+  const coils = network.elements.filter((e: any) => e.type === "coil") as any[];
+  if (!contacts.length || !coils.length) throw new Error("GX Works2 export requires at least one contact and one coil.");
+
+  const instructions: Array<[string,string]> = [];
+  contacts.forEach((e: any, i: number) => {
+    const no = e.mode !== "NC";
+    instructions.push([i === 0 ? (no ? "LD" : "LDI") : (no ? "AND" : "ANI"), e.device]);
+  });
+
+  if (coils.length === 1) {
+    instructions.push(["OUT", coils[0].device]);
+  } else {
+    coils.forEach((e: any, i: number) => {
+      instructions.push([i === 0 ? "MPS" : i === coils.length - 1 ? "MPP" : "MRD", ""]);
+      instructions.push(["OUT", e.device]);
+    });
+  }
+
+  const q = (v: string) => '"' + String(v).replace(/"/g, '""') + '"';
+  const rows: string[][] = [
+    ["(" + project.name + ")"],
+    ["PLC Information:", "FXCPU FX3U/FX3UC"],
+    ["Step No.", "Line Statement", "Instruction", "I/O(Device)", "Blank", "PI Statement", "Note"],
+  ];
+  instructions.forEach(([op, dev], step) => rows.push([String(step), "", op, dev, "", "", ""]));
+  rows.push([String(instructions.length), "", "END", "", "", "", ""]);
+  const text = rows.map(r => r.map(q).join("\t")).join("\r\n") + "\r\n";
+
+  // GX Works2 list CSV fixture is UTF-16 LE with BOM.
+  const out = new Uint8Array(2 + text.length * 2);
+  out[0] = 0xff; out[1] = 0xfe;
+  for (let i = 0; i < text.length; i++) {
+    const code = text.charCodeAt(i);
+    out[2 + i * 2] = code & 0xff;
+    out[3 + i * 2] = code >> 8;
+  }
+  return out;
+}
+
+export function downloadBytes(filename: string, bytes: Uint8Array, mime = "text/csv") {
+  const blob = new Blob([bytes as BlobPart], { type: mime });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url; a.download = filename; a.click();
+  URL.revokeObjectURL(url);
+}
