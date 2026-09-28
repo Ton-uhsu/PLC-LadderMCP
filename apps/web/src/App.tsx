@@ -58,8 +58,6 @@ export default function App() {
     else downloadBytes("plc-ladder-gxworks2.csv", generateGxWorks2(project));
   };
 
-  const exportNextSuite=()=>downloadBytes("fx3u-next-verification.csv"());
-
   return <div className="app-shell">
     <aside className="sidebar">
       <div className="brand"><div className="brand-mark"><Workflow size={19}/></div><div><strong>PLC Ladder</strong><span>MCP Studio</span></div></div>
