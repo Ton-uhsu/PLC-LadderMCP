@@ -127,3 +127,31 @@ export function downloadBytes(filename: string, bytes: Uint8Array, mime = "text/
   a.href = url; a.download = filename; a.click();
   URL.revokeObjectURL(url);
 }
+
+
+export function generateGxWorks2VerificationSuite(): Uint8Array {
+  // One GX Works2 list file containing the next manual-driven verification batch.
+  // Timer/counter/applied rows remain verification candidates until imported successfully.
+  const rows: string[][] = [
+    ["(FX3U Combined Verification Suite)"],
+    ["PLC Information:", "FXCPU FX3U/FX3UC"],
+    ["Step No.", "Line Statement", "Instruction", "I/O(Device)", "Blank", "PI Statement", "Note"],
+  ];
+  const ins: Array<[string,string]> = [
+    ["LDI","M0"],["OUT","Y0"],
+    ["LD","M0"],["AND","M1"],["OUT","Y1"],
+    ["LD","M0"],["SET","Y2"],
+    ["LD","M0"],["RST","Y2"],
+    ["LD","M0"],["OUT","T0 K10"],
+    ["LD","M0"],["OUT","C0 K10"],
+    ["LD","M0"],["MOV","K100 D0"],
+    ["LD","M0"],["ADD","D0 D1 D2"],
+    ["END",""],
+  ];
+  const q=(v:string)=>'"'+String(v).replace(/"/g,'""')+'"';
+  ins.forEach(([op,dev],step)=>rows.push([String(step),"",op,dev,"","",""]));
+  const text=rows.map(r=>r.map(q).join("\t")).join("\r\n")+"\r\n";
+  const out=new Uint8Array(2+text.length*2); out[0]=0xff; out[1]=0xfe;
+  for(let i=0;i<text.length;i++){const n=text.charCodeAt(i);out[2+i*2]=n&255;out[3+i*2]=n>>8;}
+  return out;
+}
