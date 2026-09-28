@@ -2,7 +2,7 @@
 
 **Document:** `docs/02-research.md`  
 **Status:** Research / Architecture Input  
-**Version:** 0.1  
+**Version:** 0.2  
 **Research date:** 2026-09-28
 
 ## 1. Research Question
@@ -265,9 +265,38 @@ Instruction compiler
 Vendor serializer
 ```
 
-However, the **exact SamSoar2022 CSV schema still needs to be captured and verified from actual exports**.
+A real CSV exported from the user's installed SamSoar2022 instance was captured and tested on 2026-09-28.
 
-We should not invent that schema from documentation examples.
+For the minimal Ladder:
+
+```text
+X000
+--| |--------------------( Y000 )
+```
+
+the exported program contained the following essential structure:
+
+```csv
+Program,Main
+Network,0
+LD,X000
+OUT,Y000
+POP
+Network,1
+...
+```
+
+Observed characteristics:
+
+- UTF-8 with BOM
+- `Program,Main` identifies the program
+- `Network,<n>` identifies networks
+- `LD,<device>` represents the tested normally-open contact
+- `OUT,<device>` represents the tested output coil
+- `POP` appears at the end of the populated network in this fixture
+- Empty networks may remain in the exported file
+
+The exact meaning and behavior of `POP`, complex branch encoding, and other instructions still require dedicated experiments.
 
 ### 4.4 SamSoar2022 versions
 
@@ -669,9 +698,43 @@ Then compare the files byte-for-byte and document:
 - END handling
 - encoding
 
-### EXP-002 - GX Works2 generated import
+### EXP-002 - GX Works2 generated import — PASS (2026-09-28)
 
-Generate an equivalent file ourselves and verify:
+A real GX Works2 export containing `X000 -> Y000` was used as the known-good fixture.
+
+The file was inspected and confirmed to use the expected GX Works2 list-format encoding:
+
+- UTF-16 LE
+- BOM
+- tab-separated fields
+- quoted fields
+- CRLF line endings
+
+For the first generated-import test, only the device values were changed while preserving the exact exported structure:
+
+```text
+X000 -> M000
+Y000 -> M001
+```
+
+The resulting file represented:
+
+```text
+M000
+--| |--------------------( M001 )
+```
+
+The generated file was imported back into the user's GX Works2 installation successfully. GX Works2 displayed a real Ladder rung with `M0` contact driving `M1` coil, followed by `END`.
+
+GX Works2 normalized the displayed device names from `M000/M001` to `M0/M1`.
+
+**Result: PASS.**
+
+This proves that PLC-LadderMCP can produce a modified list-format file outside GX Works2 and have GX Works2 reconstruct it as editable Ladder logic.
+
+The next stronger test is to generate the complete file from scratch rather than modifying a known-good fixture.
+
+Original verification target:
 
 ```text
 generated file
@@ -681,17 +744,68 @@ generated file
  -> compile/check succeeds
 ```
 
-### EXP-003 - SamSoar2022 minimal exports
+### EXP-003 - SamSoar2022 minimal export — PARTIAL PASS (2026-09-28)
 
-Repeat the same minimal Ladder set in SamSoar2022.
+A minimal program was exported from the user's installed SamSoar2022 instance.
 
-Export each to CSV.
+Test Ladder:
 
-Determine the exact schema instead of guessing it.
+```text
+X000
+--| |--------------------( Y000 )
+```
 
-### EXP-004 - SamSoar generated import
+Observed exported representation:
 
-Generate the CSV ourselves and verify:
+```csv
+Program,Main
+Network,0
+LD,X000
+OUT,Y000
+POP
+```
+
+Additional empty `Network` rows were also present in the project export.
+
+The file was observed as UTF-8 with BOM.
+
+**Result: PASS for the minimal NO-contact + OUT-coil export.**
+
+The larger instruction set remains untested. Future fixtures are still required for NC, AND, OR/branches, timer, counter, SET/RST, MOV, comparison, and nested branches.
+
+### EXP-004 - SamSoar generated import — PASS (2026-09-28)
+
+Using the real SamSoar2022 export as the known-good fixture, PLC devices were changed:
+
+```text
+X000 -> M000
+Y000 -> M001
+```
+
+This produced a test program whose essential instruction representation was:
+
+```csv
+Program,Main
+Network,0
+LD,M000
+OUT,M001
+POP
+```
+
+The generated/modified CSV was imported into the user's SamSoar2022 installation successfully and reconstructed as Ladder logic:
+
+```text
+M000
+--| |--------------------( M001 )
+```
+
+**Result: PASS.**
+
+This confirms that an externally produced SamSoar2022-compatible CSV can be imported as real Ladder logic.
+
+As with GX Works2, the next stronger test is a serializer that creates the complete file from scratch rather than modifying a fixture.
+
+Original verification target:
 
 ```text
 generated CSV
@@ -733,9 +847,8 @@ The following remain unresolved and require testing or additional documentation.
 
 ### SamSoar2022
 
-- Exact CSV schema.
-- Encoding.
-- Network/rung representation.
+- Full CSV schema beyond the minimal tested fixture.
+- Network/rung representation for complex logic.
 - Branch representation.
 - Project metadata fields.
 - Device comment representation.
@@ -827,12 +940,26 @@ The most promising first implementation is:
 
 For GX Works2, this route is directly supported by Mitsubishi documentation for Ladder programs in Simple Projects without labels.
 
-For SamSoar2022, CSV import/export is documented and Ladder examples are distributed using that workflow, but its exact CSV schema must still be captured from real exported files before the adapter is finalized.
+For SamSoar2022, a real export from the user's installation has now been captured. A minimal `LD + OUT` program was successfully modified externally and imported back as real Ladder.
 
-The next engineering task should be the **minimal export experiment**, starting with GX Works2:
+As of 2026-09-28, **minimal generated-import POCs have passed for both GX Works2 and SamSoar2022**.
+
+What has been proven so far:
 
 ```text
-X0 ----| |----------------( Y0 )
+GX Works2:
+real export -> external device modification -> import -> real Ladder  PASS
+
+SamSoar2022:
+real export -> external device modification -> import -> real Ladder  PASS
 ```
 
-Export that project from GX Works2, preserve the original file unchanged as a test fixture, and use it to build the first parser/serializer test.
+What has **not** yet been proven is full from-scratch serialization or complex Ladder topology.
+
+The next engineering task should therefore be a **from-scratch serializer test**, first reproducing the already verified rung:
+
+```text
+M0 ----| |----------------( M1 )
+```
+
+The serializer should create the entire output without reading or modifying the original fixture. That generated file should then be imported into each IDE and compared against the expected Ladder.
