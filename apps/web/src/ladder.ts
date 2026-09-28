@@ -129,29 +129,40 @@ export function downloadBytes(filename: string, bytes: Uint8Array, mime = "text/
 }
 
 
-export function generateGxWorks2VerificationSuite(): Uint8Array {
-  // One GX Works2 list file containing the next manual-driven verification batch.
-  // Timer/counter/applied rows remain verification candidates until imported successfully.
+export function generateGxWorks2AdvancedVerificationSuite(): Uint8Array {
+  // Advanced FX3U/GX Works2 verification batch. Each logical case is separated
+  // by a new LD/LDI instruction so GX renders it as a separate rung.
   const rows: string[][] = [
-    ["(FX3U Combined Verification Suite)"],
+    ["(FX3U Advanced Verification Suite)"],
     ["PLC Information:", "FXCPU FX3U/FX3UC"],
     ["Step No.", "Line Statement", "Instruction", "I/O(Device)", "Blank", "PI Statement", "Note"],
   ];
   const ins: Array<[string,string]> = [
-    ["LDI","M0"],["OUT","Y0"],
-    ["LD","M0"],["AND","M1"],["OUT","Y1"],
-    ["LD","M0"],["SET","Y2"],
-    ["LD","M0"],["RST","Y2"],
-    ["LD","M0"],["OUT","T0 K10"],
-    ["LD","M0"],["OUT","C0 K10"],
-    ["LD","M0"],["MOV","K100 D0"],
-    ["LD","M0"],["ADD","D0 D1 D2"],
+    // OR: (M10 OR M11) -> Y10
+    ["LD","M10"],["OR","M11"],["OUT","Y10"],
+    // Mixed: (M12 AND M13) OR (M14 AND NOT M15) -> Y11
+    ["LD","M12"],["AND","M13"],["LD","M14"],["ANI","M15"],["ORB",""],["OUT","Y11"],
+    // Branch stack: M16 -> Y12, SET M20, RST M21
+    ["LD","M16"],["MPS",""],["OUT","Y12"],["MRD",""],["SET","M20"],["MPP",""],["RST","M21"],
+    // Compare instructions / data path candidates
+    ["LD","M17"],["CMP","D0 D1 M30"],
+    ["LD","M18"],["ZCP","K10 K100 D2 M40"],
+    // More arithmetic
+    ["LD","M19"],["SUB","D10 D11 D12"],
+    ["LD","M22"],["MUL","D20 D21 D22"],
+    ["LD","M23"],["DIV","D30 D31 D32"],
+    // Bit/data
+    ["LD","M24"],["INC","D40"],
+    ["LD","M25"],["DEC","D41"],
+    ["LD","M26"],["WAND","D50 D51 D52"],
+    ["LD","M27"],["WOR","D53 D54 D55"],
+    ["LD","M28"],["WXOR","D56 D57 D58"],
     ["END",""],
   ];
   const q=(v:string)=>'"'+String(v).replace(/"/g,'""')+'"';
   ins.forEach(([op,dev],step)=>rows.push([String(step),"",op,dev,"","",""]));
   const text=rows.map(r=>r.map(q).join("\t")).join("\r\n")+"\r\n";
   const out=new Uint8Array(2+text.length*2); out[0]=0xff; out[1]=0xfe;
-  for(let i=0;i<text.length;i++){const n=text.charCodeAt(i);out[2+i*2]=n&255;out[3+i*2]=n>>8;}
+  for(let j=0;j<text.length;j++){const n=text.charCodeAt(j);out[2+j*2]=n&255;out[3+j*2]=n>>8;}
   return out;
 }
