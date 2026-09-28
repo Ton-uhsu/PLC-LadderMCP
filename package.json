@@ -5,7 +5,13 @@
   "packageManager": "npm@11",
   "scripts": {
     "dev": "npm --workspace apps/web run dev",
-    "build": "npm --workspace apps/web run build"
+    "build": "npm --workspace apps/web run build",
+    "mcp:dev": "npm --workspace services/mcp-server run dev",
+    "mcp:build": "npm --workspace services/mcp-server run build"
   },
-  "workspaces": ["apps/*", "packages/*", "services/*"]
+  "workspaces": [
+    "apps/*",
+    "packages/*",
+    "services/*"
+  ]
 }
