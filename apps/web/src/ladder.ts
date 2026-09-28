@@ -166,3 +166,50 @@ export function generateGxWorks2AdvancedVerificationSuite(): Uint8Array {
   for(let j=0;j<text.length;j++){const n=text.charCodeAt(j);out[2+j*2]=n&255;out[3+j*2]=n>>8;}
   return out;
 }
+
+
+export function generateGxWorks2NextVerificationSuite(): Uint8Array {
+  // FX3U next verification batch. These are candidates until real GX Works2 import/render passes.
+  const rows:string[][]=[
+    ["(FX3U Next Verification Suite)"],
+    ["PLC Information:","FXCPU FX3U/FX3UC"],
+    ["Step No.","Line Statement","Instruction","I/O(Device)","Blank","PI Statement","Note"]
+  ];
+  const ins:Array<[string,string]>=[
+    // pulse/edge contacts
+    ["LDP","M100"],["OUT","Y20"],
+    ["LDF","M101"],["OUT","Y21"],
+    ["LD","M102"],["ANP","M103"],["OUT","Y22"],
+    ["LD","M104"],["ANF","M105"],["OUT","Y23"],
+    ["LD","M106"],["ORP","M107"],["OUT","Y24"],
+    ["LD","M108"],["ORF","M109"],["OUT","Y25"],
+
+    // deeper nested boolean topology: M110 AND ((M111 AND M112) OR (M113 AND NOT M114))
+    ["LD","M111"],["AND","M112"],["LD","M113"],["ANI","M114"],["ORB",""],["AND","M110"],["OUT","Y26"],
+
+    // shift / rotate candidates
+    ["LD","M115"],["SFTL","D60 K4 K1"],
+    ["LD","M116"],["SFTR","D61 K4 K1"],
+    ["LD","M117"],["ROL","D62 K1"],
+    ["LD","M118"],["ROR","D63 K1"],
+
+    // conversion / data candidates
+    ["LD","M119"],["BCD","D64 D65"],
+    ["LD","M120"],["BIN","D66 D67"],
+    ["LD","M121"],["NEG","D68 D69"],
+
+    // 32-bit arithmetic candidates
+    ["LD","M122"],["DADD","D70 D72 D74"],
+    ["LD","M123"],["DSUB","D76 D78 D80"],
+    ["LD","M124"],["DMUL","D82 D84 D86"],
+    ["LD","M125"],["DDIV","D88 D90 D92"],
+
+    ["END",""]
+  ];
+  const q=(v:string)=>'"'+String(v).replace(/"/g,'""')+'"';
+  ins.forEach(([op,dev],step)=>rows.push([String(step),"",op,dev,"","",""]));
+  const text=rows.map(r=>r.map(q).join("\t")).join("\r\n")+"\r\n";
+  const out=new Uint8Array(2+text.length*2);out[0]=255;out[1]=254;
+  for(let j=0;j<text.length;j++){const n=text.charCodeAt(j);out[2+j*2]=n&255;out[3+j*2]=n>>8;}
+  return out;
+}
