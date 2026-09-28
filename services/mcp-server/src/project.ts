@@ -59,7 +59,6 @@ export function addContact(device: string, mode: "NO" | "NC", networkId = 0) {
 
 export function addCoil(device: string, networkId = 0) {
   const network = requireNetwork(networkId);
-  if (network.elements.some(e => e.type === "coil")) throw new Error(`Network ${networkId} already has an output coil in MVP`);
   const element = { id: crypto.randomUUID(), type: "coil" as const, device: normalizeDevice(device) };
   network.elements.push(element);
   return element;
@@ -71,8 +70,10 @@ export function validateProject() {
   if (!schema.success) issues.push(...schema.error.issues.map(i => `${i.path.join(".")}: ${i.message}`));
   for (const program of project.programs) for (const network of program.networks) {
     const coils = network.elements.filter(e => e.type === "coil");
-    if (coils.length !== 1) issues.push(`Network ${network.id} must contain exactly one output coil in MVP`);
-    if (network.elements.length && network.elements.at(-1)?.type !== "coil") issues.push(`Network ${network.id} must end with a coil`);
+    if (coils.length < 1) issues.push(`Network ${network.id} must contain at least one output coil`);
+    const firstCoil = network.elements.findIndex(e => e.type === "coil");
+    if (firstCoil >= 0 && network.elements.slice(firstCoil).some(e => e.type !== "coil"))
+      issues.push(`Network ${network.id} cannot place contacts after output coils in the current topology subset`);
   }
   return { valid: issues.length === 0, issues };
 }
