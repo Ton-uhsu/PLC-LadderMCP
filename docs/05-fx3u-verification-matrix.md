@@ -54,3 +54,14 @@ Verified editable Ladder forms/instructions:
 - END at step 90; GX Works2 reports 91 steps.
 
 This verification applies to the exact operand forms above; it does not imply every FX3U operand/device variant is verified.
+
+
+## Next batch — pulse, nested, shift, conversion, 32-bit math
+Pending real GX Works2 verification:
+- LDP, LDF, ANP, ANF, ORP, ORF
+- deeper boolean topology using ORB + AND
+- SFTL, SFTR, ROL, ROR
+- BCD, BIN, NEG
+- DADD, DSUB, DMUL, DDIV
+
+Do not mark these verified until real GX Works2 import/render is confirmed. Flow-control instructions are intentionally deferred to a separate fixture because they require label/pointer/subroutine structure rather than only an opcode row.
