@@ -105,3 +105,39 @@ Build the machine-readable catalog directly from manual entries, recording:
 - verification fixture/status
 
 Do not infer undocumented operand rules from mnemonic names.
+
+
+## Verified GX Works2 fixture — 2026-09-28
+
+**Status: VERIFIED**
+
+The generated GX Works2 List CSV for the first IR v0.2 integration fixture was imported into GX Works2 successfully and rendered as one normally-open M0 contact driving six parallel output coils Y000 through Y005.
+
+Observed GX Works2 program:
+- M0 normally-open contact
+- parallel outputs Y000, Y001, Y002, Y003, Y004, Y005
+- END at step 13
+- GX Works2 reports 14 steps including END
+
+Compiler sequence used:
+```text
+LD M0
+MPS
+OUT Y0
+MRD
+OUT Y1
+MRD
+OUT Y2
+MRD
+OUT Y3
+MRD
+OUT Y4
+MPP
+OUT Y5
+END
+```
+
+This verifies the current serializer/compiler path for this specific topology:
+single series contact -> multiple parallel OUT coils.
+
+It does **not** yet verify arbitrary nested branches, mixed branch conditions, timers, counters, applied instructions, or other topology forms. Each capability must advance through the same documented -> modeled -> validated -> serialized -> verified process.
