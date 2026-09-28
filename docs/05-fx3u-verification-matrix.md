@@ -71,3 +71,12 @@ Do not mark these verified until real GX Works2 import/render is confirmed. Flow
 Screenshot evidence shows the batch imported with 5 errors. Verified in this run: LDP, LDF, ANP, ANF, ORP, ORF; deeper ORB/AND boolean topology; ROL; ROR; BCD; BIN; and the visible 32-bit arithmetic beginning with DADD. The rejected/highlighted cases include the original SFTL D60 K4 K1, SFTR D61 K4 K1, and NEG D68 D69 forms. Those operand forms are invalid for this target and must not be marked verified.
 
 A focused retry fixture now uses SFTL/SFTR bit-device source/destination ranges and in-place NEG D68. Remaining 32-bit arithmetic items should only be marked verified when visible/confirmed in GX Works2.
+
+
+## Focused retry verified — 2026-09-28
+GX Works2 real import/render PASS, 25 steps including END:
+- SFTL M200 M210 K8 K1
+- SFTR M220 M230 K8 K1
+- NEG D68
+
+These corrected operand forms are GX WORKS2 VERIFIED. The previously rejected forms remain documented as invalid/unverified and must not be emitted.
