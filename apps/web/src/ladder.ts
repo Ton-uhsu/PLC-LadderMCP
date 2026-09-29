@@ -3,8 +3,13 @@ import type {
   ContactNode,
   LadderNetworkV02,
   LadderProjectV02,
+  LogicNode,
 } from "@plc-ladder-mcp/ladder-ir";
-import { generateGxWorks2ListText, validateFx3uV02 } from "@plc-ladder-mcp/ladder-ir";
+import {
+  compileProject,
+  generateGxWorks2ListText,
+  validateFx3uV02,
+} from "@plc-ladder-mcp/ladder-ir";
 
 export type LadderProject = LadderProjectV02;
 
@@ -37,72 +42,87 @@ export const demoProject: LadderProjectV02 = {
 export type PreviewNetwork = {
   supported: boolean;
   reason?: string;
+  condition: LogicNode | null;
   contacts: ContactNode[];
   actions: ActionNode[];
+  conditionText: string;
 };
+
+function isActionTail(node: LogicNode | undefined) {
+  return !!node && (
+    node.kind === "action" ||
+    (node.kind === "parallel" && node.branches.length > 0 && node.branches.every(branch => branch.kind === "action"))
+  );
+}
+
+function contactsOnly(node: LogicNode): ContactNode[] | null {
+  if (node.kind === "contact") return [node];
+  if (node.kind !== "series") return null;
+  const out: ContactNode[] = [];
+  for (const child of node.children) {
+    if (child.kind !== "contact") return null;
+    out.push(child);
+  }
+  return out;
+}
+
+function contactText(contact: ContactNode) {
+  const edge = contact.edge === "rising" ? "↑" : contact.edge === "falling" ? "↓" : "";
+  return (contact.mode === "NC" ? "NOT " : "") + contact.device.address + edge;
+}
+
+export function logicText(node: LogicNode): string {
+  if (node.kind === "contact") return contactText(node);
+  if (node.kind === "action") return actionLabel(node.action);
+  if (node.kind === "series") return node.children.map(logicText).join(" AND ");
+  return "(" + node.branches.map(logicText).join(") OR (") + ")";
+}
 
 export function getPreviewNetwork(network: LadderNetworkV02): PreviewNetwork {
   if (network.root.kind !== "series") {
-    return { supported: false, reason: "Preview currently expects a series root.", contacts: [], actions: [] };
+    return { supported: false, reason: "Preview expects a series-root network.", condition: null, contacts: [], actions: [], conditionText: "" };
   }
 
-  const contacts: ContactNode[] = [];
-  const actions: ActionNode[] = [];
-  let outputSeen = false;
-
-  for (const node of network.root.children) {
-    if (node.kind === "contact" && !outputSeen) {
-      contacts.push(node);
-      continue;
-    }
-
-    if (node.kind === "action" && !outputSeen) {
-      outputSeen = true;
-      actions.push(node.action);
-      continue;
-    }
-
-    if (node.kind === "parallel" && !outputSeen) {
-      if (!node.branches.every(branch => branch.kind === "action")) {
-        return {
-          supported: false,
-          reason: "Nested condition branches are not rendered by the current preview yet.",
-          contacts,
-          actions: [],
-        };
-      }
-      outputSeen = true;
-      actions.push(...node.branches.map(branch => {
-        if (branch.kind !== "action") throw new Error("Unreachable");
-        return branch.action;
-      }));
-      continue;
-    }
-
-    return {
-      supported: false,
-      reason: "Preview supports series contacts followed by one action or parallel actions.",
-      contacts,
-      actions,
-    };
+  const tail = network.root.children.at(-1);
+  if (!isActionTail(tail)) {
+    return { supported: false, reason: "Network has no supported output tail.", condition: null, contacts: [], actions: [], conditionText: "" };
   }
 
-  return { supported: true, contacts, actions };
+  const conditionChildren = network.root.children.slice(0, -1);
+  if (!conditionChildren.length) {
+    return { supported: false, reason: "Network has no condition.", condition: null, contacts: [], actions: [], conditionText: "" };
+  }
+
+  const condition: LogicNode = conditionChildren.length === 1
+    ? conditionChildren[0]
+    : { kind: "series", id: "preview-series", children: conditionChildren };
+
+  const actions: ActionNode[] = tail?.kind === "action"
+    ? [tail.action]
+    : tail?.kind === "parallel"
+      ? tail.branches.flatMap(branch => branch.kind === "action" ? [branch.action] : [])
+      : [];
+
+  const contacts = contactsOnly(condition);
+  return {
+    supported: contacts !== null,
+    reason: contacts === null ? "Nested condition topology is shown as a logic block in this preview." : undefined,
+    condition,
+    contacts: contacts ?? [],
+    actions,
+    conditionText: logicText(condition),
+  };
 }
 
 export function validateProject(project: LadderProjectV02) {
   const base = validateFx3uV02(project);
-  const issues = base.issues.map(issue => issue.message);
-
+  const issues = base.issues.filter(issue => issue.severity === "error").map(issue => issue.message);
   if (!project.programs.length) issues.push("Project requires at least one program.");
 
-  for (const program of project.programs) {
-    for (const network of program.networks) {
-      const preview = getPreviewNetwork(network);
-      if (!preview.supported && preview.reason) issues.push(`Network ${network.id}: ${preview.reason}`);
-      if (!preview.contacts.length) issues.push(`Network ${network.id} must contain at least one contact condition.`);
-      if (!preview.actions.length) issues.push(`Network ${network.id} must contain at least one output action.`);
-    }
+  try {
+    compileProject(project);
+  } catch (error) {
+    issues.push(error instanceof Error ? error.message : String(error));
   }
 
   return { valid: issues.length === 0, issues };
@@ -121,7 +141,7 @@ export function generateSamSoar(project: LadderProjectV02) {
     lines.push(`Program,${program.name}`);
     for (const network of program.networks) {
       const preview = getPreviewNetwork(network);
-      if (!preview.supported) throw new Error(preview.reason ?? "Unsupported SamSoar topology");
+      if (!preview.supported) throw new Error("SamSoar web adapter currently supports simple series-contact conditions only.");
 
       lines.push(`Network,${network.id}`);
       preview.contacts.forEach((contact, index) => {
