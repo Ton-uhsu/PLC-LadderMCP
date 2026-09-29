@@ -4,16 +4,36 @@ MCP + HTTP server for semantic PLC Ladder operations on canonical IR v0.2.
 
 ## Canonical state
 
-The server stores `LadderProjectV02` directly. AI tools mutate topology and semantic actions; they do not edit GX Works2 or SamSoar CSV rows directly.
+The server stores `LadderProjectV02` directly. AI tools mutate semantic topology and actions; they do not edit GX Works2 or SamSoar CSV rows directly.
 
-Current FX3U compiler slice supports series contact conditions followed by one action or parallel output actions.
+Current FX3U support includes:
+- multiple networks
+- series conditions
+- nested/parallel condition topology
+- pulse contacts
+- parallel output actions
+- SET/RST
+- timers/counters
+- generic instructions
+- GX Works2 List export/import
+- diff/approval
+- history undo/redo
+- JSON persistence
 
 ## MCP tools
 
+Core/project:
 - `create_project`
 - `get_project`
 - `create_network`
+- `list_saved_projects`
+- `save_project`
+- `load_project`
+- `import_gxworks2`
+
+Logic:
 - `add_contact`
+- `set_parallel_conditions`
 - `add_coil`
 - `add_set`
 - `add_reset`
@@ -21,6 +41,8 @@ Current FX3U compiler slice supports series contact conditions followed by one a
 - `add_counter`
 - `add_instruction`
 - `add_parallel_action`
+
+Safe editing/review:
 - `remove_contact`
 - `remove_action`
 - `replace_device`
@@ -29,48 +51,112 @@ Current FX3U compiler slice supports series contact conditions followed by one a
 - `list_pending_changes`
 - `approve_pending_change`
 - `reject_pending_change`
+
+History:
 - `get_history`
 - `undo_project`
 - `redo_project`
+
+Validation/capability/export:
+- `get_fx3u_capabilities`
 - `validate_project`
 - `export_project` with `gxworks2` or `samsoar2022`
 
-Timer/counter helpers emit the exact IR form used by the verified GX Works2 List representation:
+## Nested FX3U conditions
+
+The canonical IR now represents condition topology rather than only flat contact arrays.
+
+Example:
 
 ```text
-OUT T0 K10
-OUT C0 K10
+(M10 AND M11) OR (M12 AND NOT M13) -> Y10
 ```
 
-Generic instruction operands currently accept:
-- PLC device: `D0`, `M10`, `Y0`
-- decimal constant: `K100`
-- hex constant: `HFF`
-
-## Semantic example
+Semantic call:
 
 ```text
-create_project(name="Parallel Demo", plc_family="Mitsubishi FX", plc_model="FX3U")
-add_contact(device="M0", mode="NO", network_id=0)
-add_coil(device="Y0", network_id=0)
-add_parallel_action(kind="set", value="M10", network_id=0)
-validate_project()
-export_project(target="gxworks2")
+set_parallel_conditions(
+  network_id=0,
+  branches=[
+    [{device:"M10"},{device:"M11"}],
+    [{device:"M12"},{device:"M13",mode:"NC"}]
+  ]
+)
 ```
 
-Canonical topology:
+The FX3U compiler derives branch instructions such as `ORB` from topology. `ANB` is used when a nested parallel block must be AND-composed after an existing accumulator.
+
+## FX3U capability evidence
+
+`get_fx3u_capabilities` exposes machine-readable exact operand forms backed by real GX Works2 verification evidence.
+
+Examples already recorded include:
+- `MOV K100 D0`
+- `ADD D0 D1 D2`
+- `CMP D0 D1 M30`
+- `SFTL M200 M210 K8 K1`
+- `SFTR M220 M230 K8 K1`
+- `NEG D68`
+
+Known rejected exact forms are also recorded so the validator can block them, including:
+- `SFTL D60 K4 K1`
+- `SFTR D61 K4 K1`
+- `NEG D68 D69`
+
+A generic instruction with no exact evidence record is allowed only if otherwise structurally valid, but validation returns a warning that its exact operand form is unverified.
+
+## GX Works2 import
+
+The GX Works2 List parser accepts the tested quoted tab-separated List format and reconstructs IR v0.2 for the currently supported subset.
+
+It understands:
+- LD / LDI
+- LDP / LDF
+- AND / ANI / ANP / ANF
+- OR / ORI / ORP / ORF
+- ORB / ANB topology
+- MPS / MRD / MPP output fanout
+- OUT / SET / RST
+- timer/counter OUT forms
+- generic instruction rows
+
+The Web **Import GX Works2** button detects UTF-16 LE BOM or UTF-8 text and imports through the server when connected.
+
+## Persistence
+
+Every applied mutation autosaves the current canonical project to:
 
 ```text
-Series
-├── Contact M0
-└── Parallel
-    ├── Coil Y0
-    └── SET M10
+.plc-ladder/current-project.json
 ```
 
-## Safe edit flow
+Named snapshots are stored in:
 
-Destructive/targeted edit tools use `apply=false` by default. A preview returns a structured diff plus validation without mutating the canonical project, and is stored as a pending change with a `pending_change_id`. It can then be approved or rejected explicitly from MCP or the Web **AI Changes** screen. Direct `apply=true` remains available for trusted automation.
+```text
+.plc-ladder/projects/
+```
+
+MCP:
+
+```text
+save_project(name="my-machine")
+list_saved_projects()
+load_project(name="my-machine")
+```
+
+The Web contains a **Project files** panel for the same flow.
+
+The persistence directory can be changed with:
+
+```bash
+PLC_LADDER_DATA_DIR=/path/to/data
+```
+
+History itself is currently in-memory and resets when the server process restarts; the canonical project is persisted.
+
+## Safe AI edit flow
+
+Destructive/targeted edit tools use `apply=false` by default. Previewing creates a stored pending change with a structured diff and validation result.
 
 ```text
 replace_device(from_device="M0", to_device="M5", network_id=0)
@@ -86,22 +172,13 @@ approve_pending_change(pending_change_id="...")
 reject_pending_change(pending_change_id="...")
 ```
 
-Pending proposals are rejected as stale if the canonical project changed after the preview was created. Invalid resulting projects cannot be approved.
+Pending changes become stale if canonical project state changes after the preview.
 
-The same preview/apply pattern is used by:
-- `remove_contact`
-- `remove_action`
-- `replace_device`
-- `delete_network`
-- `modify_network`
-
-`remove_action` automatically collapses a two-branch parallel output back to a single action after one branch is removed.
-
-
+The Web **AI Changes** screen exposes the same review workflow.
 
 ## History / undo / redo
 
-Applied mutations are stored in a bounded in-memory history (50 undo snapshots). This includes direct semantic mutations, `apply=true` edits, and human-approved pending changes.
+Applied mutations, direct edits, and approved AI changes are added to a bounded 50-snapshot undo history.
 
 ```text
 get_history()
@@ -109,38 +186,25 @@ undo_project()
 redo_project()
 ```
 
-The history response includes:
+The Web **History** screen shows the same change log and Undo/Redo controls.
 
-```text
-can_undo
-can_redo
-undo_count
-redo_count
-entries[]
-```
-
-Each change-log entry records the operation, summary, timestamp, and source (`direct`, `approved`, or `history`). Undo/redo also mark existing pending AI proposals stale when their base project no longer matches.
-
-The Web **History** screen exposes the same change log and Undo/Redo controls.
-
-## Multiple networks
-
-```text
-create_network(network_id=1, comment="Timer")
-add_contact(device="X0", mode="NO", network_id=1)
-add_timer(timer="T0", preset=10, network_id=1)
-```
-
-## HTTP routes
-
-The development HTTP server mirrors the semantic MCP operations:
+## HTTP API
 
 ```text
 GET  /health
 GET  /api/project
 POST /api/project
+
+GET  /api/projects
+POST /api/projects/save
+POST /api/projects/load
+
+POST /api/import/project
+POST /api/import/gxworks2
+
 POST /api/network
 POST /api/contact
+POST /api/conditions/parallel
 POST /api/coil
 POST /api/set
 POST /api/reset
@@ -148,50 +212,115 @@ POST /api/timer
 POST /api/counter
 POST /api/instruction
 POST /api/parallel-action
+
 POST /api/edit/remove-contact
 POST /api/edit/remove-action
 POST /api/edit/replace-device
 POST /api/edit/delete-network
 POST /api/edit/modify-network
+
 GET  /api/changes
 POST /api/changes/approve
 POST /api/changes/reject
+
 GET  /api/history
 POST /api/history/undo
 POST /api/history/redo
+
+GET  /api/capabilities
 POST /api/validate
 GET  /api/export/gxworks2
 GET  /api/export/samsoar2022
+
 POST /mcp
 ```
 
-## Run locally
+## Local run
 
-From the repository root:
+From repository root:
 
 ```bash
-npm install
+npm ci
 npm run mcp:build
 npm run mcp:test
+npm run mcp:e2e
 npm run server
 ```
 
-For stdio MCP:
+Web:
 
 ```bash
-npm run mcp:dev
+npm run dev
 ```
 
-or after building:
+Local server:
+
+```text
+http://localhost:3001
+```
+
+Remote MCP endpoint:
+
+```text
+http://localhost:3001/mcp
+```
+
+## Remote MCP + security
+
+For local-only development, authentication can remain disabled.
+
+For Cloudflare Tunnel or any non-local exposure, start the server with a bearer token.
+
+Git Bash:
 
 ```bash
-node services/mcp-server/dist/index.js
+export PLC_LADDER_TOKEN="replace-with-a-long-random-secret"
+export PLC_LADDER_REQUIRE_AUTH=true
+npm run server
 ```
 
-## Current boundary
+Then start Quick Tunnel separately:
 
-- Project state is in-memory.
-- Canonical IR is v0.2.
-- Parallel output actions are supported.
-- Nested parallel **condition** topology is not yet part of the general semantic mutation/compiler path.
-- Opcode-specific validation for every FX3U applied instruction is still being expanded.
+```bash
+cloudflared tunnel --protocol http2 --url http://localhost:3001
+```
+
+Use the generated URL as:
+
+```text
+https://xxxxx.trycloudflare.com/mcp
+```
+
+Remote clients must send:
+
+```text
+Authorization: Bearer replace-with-a-long-random-secret
+```
+
+The Web has an optional Bearer Token field and sends the same header to all protected API calls.
+
+If `PLC_LADDER_REQUIRE_AUTH=true` is set without `PLC_LADDER_TOKEN`, the server refuses to start.
+
+## Tests
+
+CI now runs:
+
+```text
+npm ci
+npm run mcp:build
+npm run mcp:test
+npm run mcp:e2e
+npm run build
+```
+
+The remote MCP E2E test uses the real MCP SDK client against the local Streamable HTTP endpoint with bearer authentication and verifies that semantic tools are discoverable.
+
+## Current boundaries
+
+- Target is Mitsubishi FX3U / GX Works2 first.
+- GX Works2 import is for the supported List-format subset, not proprietary project binaries.
+- SamSoar support remains a smaller compatibility slice.
+- Exact operand verification is evidence-based; untested operand combinations are not labeled GX-verified.
+- Persistence currently stores JSON on the server filesystem; there is no multi-user database.
+- Authentication is shared-token bearer auth, not user/account authorization.
+- Direct online PLC write/download is out of scope.
