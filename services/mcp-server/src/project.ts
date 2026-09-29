@@ -213,6 +213,31 @@ export function importGxWorks2Text(raw: string) {
   return { project, validation };
 }
 
+export function proposeImportGxWorks2Text(raw: string, apply = false): EditResult {
+  const next = parseGxWorks2ListText(raw);
+  return editProject("import_gxworks2", apply, draft => {
+    const before = cloneValue(draft);
+    Object.assign(draft, cloneValue(next));
+    return {
+      summary: "Import GX Works2 List file",
+      changes: [{ path: "project", before, after: cloneValue(next) }],
+    };
+  });
+}
+
+export function proposeLoadProjectSnapshot(name: string, apply = false): EditResult {
+  const file = safeProjectFileName(name);
+  const next = readProjectFile(join(SAVED_PROJECTS_DIR, file));
+  return editProject("load_project", apply, draft => {
+    const before = cloneValue(draft);
+    Object.assign(draft, cloneValue(next));
+    return {
+      summary: "Load saved project " + file.replace(/\.json$/i, ""),
+      changes: [{ path: "project", before, after: cloneValue(next) }],
+    };
+  });
+}
+
 export function addContact(device: string, mode: "NO" | "NC", networkId = 0) {
   const address = normalizeDevice(device);
   return mutateProject("add_contact", "Add " + mode + " contact " + address + " to network " + networkId, () => {
