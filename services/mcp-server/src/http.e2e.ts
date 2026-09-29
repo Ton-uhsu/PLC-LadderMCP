@@ -1,14 +1,20 @@
 import assert from "node:assert/strict";
 import { once } from "node:events";
+import { rmSync } from "node:fs";
+import { join } from "node:path";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
-import { createHttpServer } from "./http.js";
-
 function toolJson(result: any) {
   const text = result?.content?.find((part: any) => part.type === "text")?.text;
   if (!text) throw new Error("MCP tool did not return JSON text content.");
   return JSON.parse(text);
 }
+
+const testDataDir = join(process.cwd(), ".plc-ladder-test-e2e");
+process.env.PLC_LADDER_DATA_DIR = testDataDir;
+rmSync(testDataDir, { recursive: true, force: true });
+
+const { createHttpServer } = await import("./http.js");
 
 const token = "e2e-secret";
 const server = createHttpServer({ token });
@@ -95,4 +101,5 @@ try {
 } finally {
   server.close();
   await once(server, "close");
+  rmSync(testDataDir, { recursive: true, force: true });
 }
