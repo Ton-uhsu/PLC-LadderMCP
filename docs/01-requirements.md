@@ -2,7 +2,7 @@
 
 **Document:** `docs/01-requirements.md`  
 **Status:** Draft / Baseline  
-**Version:** 0.2  
+**Version:** 0.3  
 **Project:** PLC-LadderMCP
 
 ## 1. Project Goal
@@ -343,16 +343,7 @@ Primary workflow:
 User -> AI -> MCP / Tool API -> Ladder Engine -> PLC Project
 ```
 
-The web application acts primarily as a supporting interface for:
-
-- Ladder preview
-- Project management
-- Validation results
-- Diff review
-- Approval
-- Version history
-- Undo
-- Download / Export
+The web application also supports structured manual Ladder editing, while AI-driven creation and modification remain the primary workflow.
 
 MCP is the initial preferred protocol, but the architecture should not be permanently coupled to MCP.
 
@@ -420,35 +411,67 @@ Because V1 is for single-user personal use, per-day or per-month AI usage quotas
 
 Automated scheduled PostgreSQL backups are not required for V1. This does not remove the project history/undo requirement in REQ-016 and does not prevent backups from being added later.
 
+### REQ-036 - Web Control Center
+
+The V1 web application must serve as the control center for Ladder projects. It must provide project navigation and access to Ladder viewing/editing, validation, AI change review, approval/rejection, diff inspection, history, and export workflows.
+
+### REQ-037 - Structured Manual Ladder Editor
+
+V1 must provide a manual Ladder editor in the web application. The editor must be structured around Ladder semantics and supported elements such as contacts, coils, timers, branches, and networks rather than operating as an unrestricted freeform canvas.
+
+A full IDE-style drag-and-drop canvas is not required for V1.
+
+### REQ-038 - Automatic Validation for Manual Edits
+
+Every manual Ladder edit in the web application must be validated automatically using the same validation rules used for AI-generated changes before that edit is committed as saved project state.
+
+### REQ-039 - Web Undo / Redo
+
+The V1 manual editor must provide undo and redo for editing actions so the user can safely reverse or reapply recent manual changes during an editing session.
+
+### REQ-040 - Autosave
+
+The V1 web application must autosave valid manual Ladder changes without requiring the user to press a Save button for each edit. Changes that fail required validation must not replace the last valid saved project state.
+
+### REQ-041 - Multiple Projects
+
+V1 must support multiple Ladder projects. Projects must remain independently selectable and maintain their own Ladder data, validation state, review/export context, and history where applicable.
+
+### REQ-042 - Multiple Networks per Project
+
+A V1 project must support multiple Ladder networks rather than being limited to a single network. The web application must allow the user to navigate and edit those networks within the selected project.
+
 ---
 
 ## 4. Web Application Requirements
 
-A web application will be deployed from the GitHub project.
-
-The web application is **not intended to replace GX Works or SamSoar2022**.
+The web application is the V1 control center for project management, Ladder inspection/editing, AI review, validation, and export. It is **not intended to replace GX Works or SamSoar2022 as a complete PLC IDE**.
 
 Initial web responsibilities:
 
-- Show project list
+- Show and switch between multiple projects
+- Show project metadata and selected PLC model
+- Navigate multiple Ladder networks inside a project
 - Show Ladder preview
-- Show project metadata
-- Show PLC model
-- Show generated/modified rungs
+- Provide structured manual Ladder editing
+- Automatically validate manual edits using the shared validator
+- Autosave valid edits
+- Provide undo/redo for manual editing
+- Show generated or modified Ladder changes
 - Display validation errors and warnings
 - Display before/after diff
 - Approve or reject AI changes
 - Browse version history
-- Undo/restore versions
+- Undo/restore project versions
 - Download/export generated PLC files
 
-A full drag-and-drop Ladder editor is not required for the initial version.
+A full unrestricted IDE-style drag-and-drop Ladder canvas is not required for V1. Manual editing should operate through structured Ladder operations so the same Ladder model and validation rules can be shared with AI-driven changes.
 
 ---
 
 ## 5. Initial User Experience
 
-Example workflow:
+Example AI-driven workflow:
 
 ### Step 1 - User asks the AI
 
@@ -472,9 +495,9 @@ The project is checked for:
 - PLC compatibility
 - Logic warnings
 
-### Step 5 - Preview
+### Step 5 - Preview / Manual Edit
 
-The user can see the actual Ladder diagram in the web UI.
+The user can see the actual Ladder diagram in the web UI and may make supported structured manual edits. Manual edits are automatically validated and valid changes are autosaved.
 
 ### Step 6 - Review
 
@@ -487,7 +510,7 @@ The user sees:
 
 ### Step 7 - Approval
 
-The user approves the change.
+The user approves AI-proposed changes when approval is required.
 
 ### Step 8 - Export
 
@@ -543,6 +566,10 @@ insert_rung(
 
 rather than asking an LLM to manually rewrite proprietary project files.
 
+### Shared Ladder Editing Semantics
+
+AI-driven changes and manual web editing should operate on the same structured Ladder representation and share the same validation semantics where practical.
+
 ### Project Safety
 
 Existing PLC projects must not be destructively modified without preserving a previous version.
@@ -560,7 +587,7 @@ The following are not required for the first implementation:
 - Direct Write-to-PLC
 - Online editing of a running PLC
 - Automatic control of real industrial equipment
-- Full Ladder drag-and-drop editor
+- Full unrestricted IDE-style Ladder canvas
 - Support for every PLC vendor
 - Support for every PLC instruction
 - Multi-user account management / RBAC
@@ -573,31 +600,33 @@ These may be considered later.
 
 ## 8. Initial Scope Summary
 
-The first useful version of PLC-LadderMCP should prove this complete path:
+The first useful version of PLC-LadderMCP should prove both AI-driven and manual web editing paths against the same Ladder model:
 
 ```text
-Natural-language request
-        |
-        v
-AI Agent
-        |
-        v
-MCP / Tool Interface
-        |
-        v
-Structured Ladder Model
-        |
-        v
-Validation
-        |
-        v
-Visual Ladder Preview
-        |
-        v
-Export
-        |
-        v
-Open in GX Works / SamSoar2022
+Natural-language request                    Manual web edit
+        |                                         |
+        v                                         v
+AI Agent                                    Structured Editor
+        |                                         |
+        v                                         |
+MCP / Tool Interface                             |
+        |                                         |
+        +-------------------+---------------------+
+                            |
+                            v
+                  Structured Ladder Model
+                            |
+                            v
+                        Validation
+                            |
+                            v
+                   Visual Ladder Preview
+                            |
+                            v
+                          Export
+                            |
+                            v
+               Open in GX Works / SamSoar2022
 ```
 
 The V1 deployment path must additionally prove:
@@ -626,7 +655,7 @@ Ingress + real domain + HTTPS
 
 The key success criterion is:
 
-> A user can ask an AI to create or modify PLC logic and receive a real Ladder project/output that can be used in a supported PLC IDE without manually redrawing the Ladder from AI-generated text.
+> A user can ask an AI to create or modify PLC logic, or make supported structured edits manually in the web application, and receive a real Ladder project/output that can be used in a supported PLC IDE without manually redrawing AI-generated text.
 
 ---
 
@@ -636,10 +665,12 @@ Current baseline:
 
 - REQ-001 through REQ-021 are the accepted initial PLC-LadderMCP product requirements carried forward from the previous baseline.
 - REQ-022 through REQ-035 record the V1 operating and deployment decisions confirmed during the requirements-grilling session.
+- REQ-036 through REQ-042 record the V1 web-application decisions confirmed during the web requirements-grilling session.
 - GX Works and SamSoar2022 are the first IDE targets.
-- AI-first usage is required.
+- AI-first usage remains the primary workflow, while V1 also requires structured manual Ladder editing in the web application.
 - MCP is the first preferred AI tool protocol, but the core architecture must remain protocol-independent.
-- Web UI is a management, preview, review, and export interface rather than the primary Ladder authoring interface.
+- V1 Web acts as the Ladder project control center and supports project management, structured manual editing, validation, AI review/approval, diff, history, and export.
+- V1 supports multiple projects and multiple Ladder networks per project.
 - V1 is single-admin/personal-use and has no AI usage quota requirement.
 - V1 deployment uses Jenkins, GHCR, Kubernetes, PostgreSQL, staging/production separation, and real-domain HTTPS.
 - Automated scheduled PostgreSQL backup is intentionally deferred from V1.
