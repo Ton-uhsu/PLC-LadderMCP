@@ -1,5 +1,6 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
+import { fx3uRejectedExactForms, fx3uVerifiedForms } from "@plc-ladder-mcp/ladder-ir";
 import {
   addCoil,
   addContact,
@@ -48,6 +49,10 @@ export function createMcpServer() {
 
   server.tool("get_project", "Return the canonical Ladder IR v0.2 for the current project.", {},
     async () => json(getProject()));
+
+  server.tool("get_fx3u_capabilities", "Return exact GX Works2 verification evidence and known rejected operand forms for FX3U.", {},
+    async () => json({ verified_forms: fx3uVerifiedForms, rejected_forms: fx3uRejectedExactForms }));
+
 
   server.tool("create_network", "Create an empty series-root Ladder network.", {
     network_id: z.number().int().nonnegative().optional(),
