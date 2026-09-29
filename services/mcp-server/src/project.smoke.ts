@@ -19,6 +19,7 @@ import {
   listSavedProjects,
   loadProjectSnapshot,
   modifyNetwork,
+  proposeSemanticChanges,
   redoProject,
   rejectPendingChange,
   removeAction,
@@ -217,3 +218,31 @@ const unverifiedMov = inspectFx3uInstructionForm("MOV", [
 assert.equal(unverifiedMov.status, "unverified");
 
 console.log("PASS FX3U capability evidence smoke");
+
+
+const beforeAiProposal = JSON.stringify(getProject());
+const aiProposal = proposeSemanticChanges([
+  { type: "create_project", name: "AI Proposal Smoke", plc_family: "Mitsubishi FX", plc_model: "FX3U" },
+  { type: "add_contact", device: "M0", mode: "NO", network_id: 0 },
+  { type: "add_coil", device: "Y0", network_id: 0 },
+  { type: "create_network", network_id: 1, comment: "Timer" },
+  { type: "add_contact", device: "X0", mode: "NO", network_id: 1 },
+  { type: "add_timer", timer: "T0", preset: 10, network_id: 1 },
+], false);
+
+assert.equal(aiProposal.applied, false);
+assert.equal(aiProposal.validation.valid, true, JSON.stringify(aiProposal.validation.issues, null, 2));
+assert.ok(aiProposal.pending_change_id);
+assert.equal(JSON.stringify(getProject()), beforeAiProposal, "Proposal must not mutate canonical project.");
+
+const aiPending = listPendingChanges().find(item => item.id === aiProposal.pending_change_id);
+assert.ok(aiPending);
+assert.equal(aiPending?.stale, false);
+
+const approvedAi = approvePendingChange(aiProposal.pending_change_id!);
+assert.equal(approvedAi.status, "approved");
+assert.equal(getProject().name, "AI Proposal Smoke");
+assert.equal(getProject().programs[0].networks.length, 2);
+assert.equal(validateProject().valid, true);
+
+console.log("PASS AI semantic batch proposal smoke");
