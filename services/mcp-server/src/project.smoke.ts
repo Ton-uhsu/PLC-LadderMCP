@@ -13,7 +13,10 @@ import {
   deleteNetwork,
   getHistory,
   getProject,
+  importGxWorks2Text,
   listPendingChanges,
+  listSavedProjects,
+  loadProjectSnapshot,
   modifyNetwork,
   redoProject,
   rejectPendingChange,
@@ -160,3 +163,36 @@ assert.equal(historyAfterRedo.entries[0].kind, "redo");
 assert.ok(historyAfterRedo.entries.some(entry => entry.kind === "undo"));
 
 console.log("PASS history undo redo smoke");
+
+
+createProject("Nested Import Smoke", "Mitsubishi FX", "FX3U");
+addCoil("Y10", 0);
+setParallelConditions([
+  [{ device: "M10", mode: "NO" }, { device: "M11", mode: "NO" }],
+  [{ device: "M12", mode: "NO" }, { device: "M13", mode: "NC" }],
+], 0);
+
+const nestedValidation = validateProject();
+assert.equal(nestedValidation.valid, true, JSON.stringify(nestedValidation.issues, null, 2));
+const nestedGx = exportGxWorks2Text();
+assert.match(nestedGx, /"ORB"/);
+assert.match(nestedGx, /"ANI"\t"M13"/);
+
+const importedNested = importGxWorks2Text(nestedGx);
+assert.equal(importedNested.validation.valid, true);
+const importedRoot = getProject().programs[0].networks[0].root;
+assert.equal(importedRoot.kind, "series");
+if (importedRoot.kind !== "series") throw new Error("Expected series root after GX import.");
+assert.equal(importedRoot.children[0]?.kind, "parallel");
+
+const saved = saveProjectSnapshot("nested-import-smoke");
+assert.equal(saved.name, "nested-import-smoke");
+assert.ok(listSavedProjects().some(item => item.name === "nested-import-smoke"));
+
+replaceDevice("Y10", "Y11", 0, true);
+assert.equal(JSON.stringify(getProject()).includes('"Y11"'), true);
+loadProjectSnapshot("nested-import-smoke");
+assert.equal(JSON.stringify(getProject()).includes('"Y10"'), true);
+assert.equal(JSON.stringify(getProject()).includes('"Y11"'), false);
+
+console.log("PASS nested branch GX import persistence smoke");
