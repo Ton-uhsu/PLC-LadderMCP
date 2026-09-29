@@ -11,13 +11,16 @@ import {
   createProject,
   exportGxWorks2Text,
   deleteNetwork,
+  getHistory,
   getProject,
   listPendingChanges,
   modifyNetwork,
+  redoProject,
   rejectPendingChange,
   removeAction,
   removeContact,
   replaceDevice,
+  undoProject,
   validateProject,
 } from "./project.js";
 
@@ -138,3 +141,22 @@ assert.equal(rejected.status, "rejected");
 assert.equal(JSON.stringify(getProject()).includes('"M6"'), false);
 
 console.log("PASS pending human review smoke");
+
+
+const historyBeforeUndo = getHistory();
+assert.equal(historyBeforeUndo.can_undo, true);
+assert.ok(historyBeforeUndo.entries.some(entry => entry.source === "approved"));
+
+const undoResult = undoProject();
+assert.equal(undoResult.can_redo, true);
+assert.equal(getProject().programs[0].networks[1].comment, "Updated timer/counter");
+
+const redoResult = redoProject();
+assert.equal(redoResult.can_undo, true);
+assert.equal(getProject().programs[0].networks[1].comment, "Human-approved timer/counter");
+
+const historyAfterRedo = getHistory();
+assert.equal(historyAfterRedo.entries[0].kind, "redo");
+assert.ok(historyAfterRedo.entries.some(entry => entry.kind === "undo"));
+
+console.log("PASS history undo redo smoke");
