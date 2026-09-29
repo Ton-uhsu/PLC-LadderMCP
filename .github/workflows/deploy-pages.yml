@@ -32,6 +32,9 @@ jobs:
       - name: Build MCP server
         run: npm run mcp:build
 
+      - name: Smoke test MCP semantic API
+        run: npm run mcp:test
+
       - name: Build web
         run: npm run build
 
