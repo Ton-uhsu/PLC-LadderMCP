@@ -1,7 +1,7 @@
-import { compileProject } from "./fx3u-compiler";
-import { generateGxWorks2ListText } from "./gxworks2-list";
-import { validateFx3uV02 } from "./fx3u-validator";
-import { m0ToY0Y5Fixture } from "./v02";
+import { compileProject } from "./fx3u-compiler.js";
+import { generateGxWorks2ListText } from "./gxworks2-list.js";
+import { validateFx3uV02 } from "./fx3u-validator.js";
+import { m0ToY0Y5Fixture } from "./v02.js";
 
 const validation=validateFx3uV02(m0ToY0Y5Fixture);
 if(!validation.valid) throw new Error(JSON.stringify(validation.issues));
