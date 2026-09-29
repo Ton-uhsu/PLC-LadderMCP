@@ -4,14 +4,18 @@ The first multi-output branch fixture is verified in GX Works2. The next batch i
 
 | Fixture | Expected list intent | Status |
 |---|---|---|
-| NC M0 -> Y0 | LDI M0 / OUT Y0 | serialized, pending GX verification |
-| M0 AND M1 -> Y0 | LD M0 / AND M1 / OUT Y0 | serialized, pending GX verification |
-| M0 -> SET Y0 | LD M0 / SET Y0 | serialized, pending GX verification |
-| M0 -> RST Y0 | LD M0 / RST Y0 | serialized, pending GX verification |
-| M0 -> T0 K10 | timer OUT form | modeled; serializer verification pending |
-| M0 -> C0 K10 | counter OUT form | modeled; serializer verification pending |
-| M0 -> MOV K100 D0 | applied data transfer | modeled; serializer verification pending |
-| M0 -> ADD D0 D1 D2 | applied arithmetic | modeled; serializer verification pending |
+| NC M0 -> Y0 | LDI M0 / OUT Y0 | GX WORKS2 VERIFIED |
+| M0 AND M1 -> Y0 | LD M0 / AND M1 / OUT Y0 | GX WORKS2 VERIFIED |
+| M0 -> SET Y0 | LD M0 / SET Y0 | GX WORKS2 VERIFIED |
+| M0 -> RST Y0 | LD M0 / RST Y0 | GX WORKS2 VERIFIED |
+| M0 -> T0 K10 | OUT T0 K10 | GX WORKS2 VERIFIED |
+| M0 -> C0 K10 | OUT C0 K10 | GX WORKS2 VERIFIED |
+| M0 -> MOV K100 D0 | MOV K100 D0 | GX WORKS2 VERIFIED |
+| M0 -> ADD D0 D1 D2 | ADD D0 D1 D2 | GX WORKS2 VERIFIED |
+
+## Machine-readable evidence registry
+
+Exact verified, partial, unverified, and rejected operand examples are mirrored in `packages/ladder-ir/src/fx3u-capabilities.ts`. The validator must not generalize a real GX result beyond the recorded operand form.
 
 ## Rule
 
