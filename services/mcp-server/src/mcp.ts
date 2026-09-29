@@ -13,9 +13,12 @@ import {
   createProject,
   exportGxWorks2Text,
   exportSamSoar,
+  approvePendingChange,
   deleteNetwork,
   getProject,
+  listPendingChanges,
   modifyNetwork,
+  rejectPendingChange,
   removeAction,
   removeContact,
   replaceDevice,
@@ -132,6 +135,19 @@ export function createMcpServer() {
     apply: z.boolean().default(false),
   }, async ({ network_id, comment, apply }) =>
     json(modifyNetwork(network_id, comment, apply)));
+
+  server.tool("list_pending_changes", "List AI edit proposals waiting for human review, including diff, validation, and stale status.", {},
+    async () => json(listPendingChanges()));
+
+  server.tool("approve_pending_change", "Approve a previously previewed semantic edit by pending_change_id.", {
+    pending_change_id: z.string().min(1),
+  }, async ({ pending_change_id }) =>
+    json(approvePendingChange(pending_change_id)));
+
+  server.tool("reject_pending_change", "Reject and discard a previously previewed semantic edit by pending_change_id.", {
+    pending_change_id: z.string().min(1),
+  }, async ({ pending_change_id }) =>
+    json(rejectPendingChange(pending_change_id)));
 
   server.tool("validate_project", "Validate the canonical IR v0.2 and current FX3U compiler topology rules.", {},
     async () => json(validateProject()));
