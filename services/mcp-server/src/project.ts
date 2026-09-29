@@ -696,8 +696,13 @@ export function exportSamSoar() {
   return "\uFEFF" + lines.join("\r\n") + "\r\n";
 }
 
-function appendAction(action: ActionNode, networkId: number, requireExistingOutput = false) {
-  const root = requireSeriesRoot(networkId);
+function appendActionTo(
+  target: LadderProjectV02,
+  action: ActionNode,
+  networkId: number,
+  requireExistingOutput = false,
+) {
+  const root = requireSeriesRootFrom(target, networkId);
   const node: Extract<LogicNode, { kind: "action" }> = {
     kind: "action",
     id: `action-${action.id}`,
@@ -706,7 +711,7 @@ function appendAction(action: ActionNode, networkId: number, requireExistingOutp
 
   const tail = root.children[root.children.length - 1];
 
-  if (!tail || tail.kind === "contact") {
+  if (!tail || tail.kind === "contact" || tail.kind === "series") {
     if (requireExistingOutput) {
       throw new Error("add_parallel_action requires an existing output action in the target network.");
     }
@@ -725,13 +730,312 @@ function appendAction(action: ActionNode, networkId: number, requireExistingOutp
 
   if (tail.kind === "parallel") {
     if (!tail.branches.every(branch => branch.kind === "action")) {
-      throw new Error("Current semantic API only appends parallel output actions, not nested condition branches.");
+      if (requireExistingOutput) {
+        throw new Error("add_parallel_action requires an existing output action in the target network.");
+      }
+      root.children.push(node);
+      return node;
     }
     tail.branches.push(node);
     return node;
   }
 
   throw new Error("Network tail is not a supported output topology.");
+}
+
+function appendAction(action: ActionNode, networkId: number, requireExistingOutput = false) {
+  return appendActionTo(project, action, networkId, requireExistingOutput);
+}
+
+
+export type SemanticOperation =
+  | { type: "create_project"; name: string; plc_family?: string; plc_model?: string }
+  | { type: "create_network"; network_id?: number; comment?: string }
+  | { type: "add_contact"; device: string; mode?: "NO" | "NC"; edge?: "none" | "rising" | "falling"; network_id?: number }
+  | { type: "add_coil"; device: string; network_id?: number }
+  | { type: "add_set"; device: string; network_id?: number }
+  | { type: "add_reset"; device: string; network_id?: number }
+  | { type: "add_timer"; timer: string; preset: number; network_id?: number }
+  | { type: "add_counter"; counter: string; preset: number; network_id?: number }
+  | { type: "add_instruction"; opcode: string; operands?: string[]; network_id?: number }
+  | { type: "add_parallel_action"; kind: "coil" | "set" | "reset" | "instruction"; value: string; operands?: string[]; network_id?: number }
+  | { type: "set_parallel_conditions"; branches: ContactSpec[][]; network_id?: number };
+
+function makeAction(kind: "coil" | "set" | "reset" | "instruction", value: string, operands: string[] = []): ActionNode {
+  if (kind === "instruction") {
+    return {
+      kind: "instruction",
+      id: crypto.randomUUID(),
+      opcode: normalizeOpcode(value),
+      operands: operands.map(parseOperand),
+    };
+  }
+  return {
+    kind,
+    id: crypto.randomUUID(),
+    device: dev(normalizeDevice(value)),
+  };
+}
+
+function setParallelConditionsOn(target: LadderProjectV02, branches: ContactSpec[][], networkId: number) {
+  if (branches.length < 2) throw new Error("Parallel condition requires at least two branches.");
+  if (branches.some(branch => branch.length < 1)) throw new Error("Each parallel condition branch requires at least one contact.");
+  if (branches.some(branch => branch.some(spec => (spec.edge ?? "none") !== "none" && spec.mode === "NC"))) {
+    throw new Error("Pulse edge contacts currently support NO mode only.");
+  }
+
+  const root = requireSeriesRootFrom(target, networkId);
+  const tail = root.children.at(-1);
+  if (!tail || !isOutputNode(tail)) {
+    throw new Error("Network must already have an output action before setting parallel conditions.");
+  }
+
+  const branchNodes: LogicNode[] = branches.map((branch, branchIndex) => {
+    const contacts: LogicNode[] = branch.map((spec, contactIndex) => ({
+      kind: "contact" as const,
+      id: "condition-" + networkId + "-" + branchIndex + "-" + contactIndex + "-" + crypto.randomUUID(),
+      device: dev(normalizeDevice(spec.device)),
+      mode: spec.mode ?? "NO",
+      edge: spec.edge ?? "none",
+    }));
+    return contacts.length === 1
+      ? contacts[0]
+      : { kind: "series" as const, id: "condition-series-" + crypto.randomUUID(), children: contacts };
+  });
+
+  const condition: LogicNode = {
+    kind: "parallel",
+    id: "condition-parallel-" + crypto.randomUUID(),
+    branches: branchNodes,
+  };
+  root.children = [condition, tail];
+  return condition;
+}
+
+function applySemanticOperation(
+  target: LadderProjectV02,
+  operation: SemanticOperation,
+  changes: EditChange[],
+  summaries: string[],
+) {
+  if (operation.type === "create_project") {
+    if ((operation.plc_family ?? "Mitsubishi FX") !== "Mitsubishi FX" || (operation.plc_model ?? "FX3U") !== "FX3U") {
+      throw new Error("Canonical IR v0.2 currently supports Mitsubishi FX3U only.");
+    }
+    const before = cloneValue(target);
+    const next = newEmptyProject(operation.name.trim() || "Untitled PLC Project");
+    Object.assign(target, next);
+    changes.push({ path: "project", before, after: cloneValue(next) });
+    summaries.push("Create project " + next.name);
+    return;
+  }
+
+  if (operation.type === "create_network") {
+    const networks = target.programs[0].networks;
+    const nextId = networks.length ? Math.max(...networks.map(network => network.id)) + 1 : 0;
+    const id = operation.network_id ?? nextId;
+    if (!Number.isInteger(id) || id < 0) throw new Error("network_id must be a non-negative integer.");
+    if (networks.some(network => network.id === id)) throw new Error("Network " + id + " already exists.");
+    const network: LadderNetworkV02 = {
+      id,
+      root: { kind: "series", id: "network-" + id, children: [] },
+      ...(operation.comment?.trim() ? { comment: operation.comment.trim() } : {}),
+    };
+    networks.push(network);
+    networks.sort((a, b) => a.id - b.id);
+    changes.push({ path: `programs[0].networks[${id}]`, before: null, after: cloneValue(network) });
+    summaries.push("Create network " + id);
+    return;
+  }
+
+  const networkId = operation.network_id ?? 0;
+
+  if (operation.type === "add_contact") {
+    const address = normalizeDevice(operation.device);
+    if ((operation.edge ?? "none") !== "none" && operation.mode === "NC") {
+      throw new Error("Pulse edge contacts currently support NO mode only.");
+    }
+    const root = requireSeriesRootFrom(target, networkId);
+    const node: Extract<LogicNode, { kind: "contact" }> = {
+      kind: "contact",
+      id: crypto.randomUUID(),
+      device: dev(address),
+      mode: operation.mode ?? "NO",
+      edge: operation.edge ?? "none",
+    };
+    const outputIndex = root.children.findIndex(isOutputNode);
+    const index = outputIndex >= 0 ? outputIndex : root.children.length;
+    root.children.splice(index, 0, node);
+    changes.push({ path: `programs[0].networks[${networkId}].root.children[${index}]`, before: null, after: cloneValue(node) });
+    summaries.push("Add " + (operation.mode ?? "NO") + " contact " + address + " to network " + networkId);
+    return;
+  }
+
+  if (operation.type === "set_parallel_conditions") {
+    const root = requireSeriesRootFrom(target, networkId);
+    const before = cloneValue(root.children.slice(0, -1));
+    const condition = setParallelConditionsOn(target, operation.branches, networkId);
+    changes.push({
+      path: `programs[0].networks[${networkId}].condition`,
+      before,
+      after: cloneValue(condition),
+    });
+    summaries.push("Set parallel condition branches on network " + networkId);
+    return;
+  }
+
+  let action: ActionNode;
+  let summary: string;
+  let requireExistingOutput = false;
+
+  switch (operation.type) {
+    case "add_coil": {
+      const address = normalizeDevice(operation.device);
+      action = makeAction("coil", address);
+      summary = "Add coil " + address + " to network " + networkId;
+      break;
+    }
+    case "add_set": {
+      const address = normalizeDevice(operation.device);
+      action = makeAction("set", address);
+      summary = "Add SET " + address + " to network " + networkId;
+      break;
+    }
+    case "add_reset": {
+      const address = normalizeDevice(operation.device);
+      action = makeAction("reset", address);
+      summary = "Add RST " + address + " to network " + networkId;
+      break;
+    }
+    case "add_timer": {
+      const address = normalizeDevice(operation.timer);
+      if (!/^T\d+$/.test(address)) throw new Error("Timer target must use a T device, for example T0.");
+      assertNonNegativeInteger(operation.preset, "Timer preset");
+      action = {
+        kind: "instruction",
+        id: crypto.randomUUID(),
+        opcode: "OUT",
+        operands: [dev(address), { kind: "constant", radix: "decimal", value: operation.preset }],
+      };
+      summary = "Add timer " + address + " K" + operation.preset + " to network " + networkId;
+      break;
+    }
+    case "add_counter": {
+      const address = normalizeDevice(operation.counter);
+      if (!/^C\d+$/.test(address)) throw new Error("Counter target must use a C device, for example C0.");
+      assertNonNegativeInteger(operation.preset, "Counter preset");
+      action = {
+        kind: "instruction",
+        id: crypto.randomUUID(),
+        opcode: "OUT",
+        operands: [dev(address), { kind: "constant", radix: "decimal", value: operation.preset }],
+      };
+      summary = "Add counter " + address + " K" + operation.preset + " to network " + networkId;
+      break;
+    }
+    case "add_instruction": {
+      const opcode = normalizeOpcode(operation.opcode);
+      action = makeAction("instruction", opcode, operation.operands ?? []);
+      summary = "Add " + opcode + " to network " + networkId;
+      break;
+    }
+    case "add_parallel_action": {
+      action = makeAction(operation.kind, operation.value, operation.operands ?? []);
+      summary = "Add parallel " + operation.kind + " action to network " + networkId;
+      requireExistingOutput = true;
+      break;
+    }
+    default:
+      throw new Error("Unsupported semantic operation.");
+  }
+
+  const root = requireSeriesRootFrom(target, networkId);
+  const beforeTail = cloneValue(root.children.at(-1) ?? null);
+  const beforeLength = root.children.length;
+  appendActionTo(target, action, networkId, requireExistingOutput);
+  const afterRoot = requireSeriesRootFrom(target, networkId);
+  const afterTail = cloneValue(afterRoot.children.at(-1) ?? null);
+  const pathIndex = Math.max(0, beforeLength - (beforeTail ? 1 : 0));
+  changes.push({
+    path: `programs[0].networks[${networkId}].root.children[${pathIndex}]`,
+    before: beforeTail,
+    after: afterTail,
+  });
+  summaries.push(summary);
+}
+
+export function proposeSemanticChanges(operations: SemanticOperation[], apply = false): EditResult {
+  if (!operations.length) throw new Error("At least one semantic operation is required.");
+  const createProjectIndex = operations.findIndex(operation => operation.type === "create_project");
+  if (createProjectIndex > 0) throw new Error("create_project must be the first operation in a semantic batch.");
+  if (createProjectIndex === 0 && operations.slice(1).some(operation => operation.type === "create_project")) {
+    throw new Error("A semantic batch may contain create_project only once.");
+  }
+
+  const operationName = operations.length === 1 ? operations[0].type : "semantic_batch";
+  return editProject(operationName, apply, draft => {
+    const changes: EditChange[] = [];
+    const summaries: string[] = [];
+    for (const operation of operations) applySemanticOperation(draft, operation, changes, summaries);
+    return {
+      summary: operations.length === 1
+        ? summaries[0]
+        : "AI semantic batch: " + summaries.join("; "),
+      changes,
+    };
+  });
+}
+
+export function proposeCreateNetwork(comment?: string, requestedId?: number, apply = false) {
+  return proposeSemanticChanges([{ type: "create_network", comment, network_id: requestedId }], apply);
+}
+
+export function proposeAddContact(
+  device: string,
+  mode: "NO" | "NC",
+  networkId = 0,
+  apply = false,
+  edge: "none" | "rising" | "falling" = "none",
+) {
+  return proposeSemanticChanges([{ type: "add_contact", device, mode, edge, network_id: networkId }], apply);
+}
+
+export function proposeAddCoil(device: string, networkId = 0, apply = false) {
+  return proposeSemanticChanges([{ type: "add_coil", device, network_id: networkId }], apply);
+}
+
+export function proposeAddSet(device: string, networkId = 0, apply = false) {
+  return proposeSemanticChanges([{ type: "add_set", device, network_id: networkId }], apply);
+}
+
+export function proposeAddReset(device: string, networkId = 0, apply = false) {
+  return proposeSemanticChanges([{ type: "add_reset", device, network_id: networkId }], apply);
+}
+
+export function proposeAddTimer(timer: string, preset: number, networkId = 0, apply = false) {
+  return proposeSemanticChanges([{ type: "add_timer", timer, preset, network_id: networkId }], apply);
+}
+
+export function proposeAddCounter(counter: string, preset: number, networkId = 0, apply = false) {
+  return proposeSemanticChanges([{ type: "add_counter", counter, preset, network_id: networkId }], apply);
+}
+
+export function proposeAddInstruction(opcode: string, operands: string[], networkId = 0, apply = false) {
+  return proposeSemanticChanges([{ type: "add_instruction", opcode, operands, network_id: networkId }], apply);
+}
+
+export function proposeAddParallelAction(
+  kind: "coil" | "set" | "reset" | "instruction",
+  value: string,
+  operands: string[] = [],
+  networkId = 0,
+  apply = false,
+) {
+  return proposeSemanticChanges([{ type: "add_parallel_action", kind, value, operands, network_id: networkId }], apply);
+}
+
+export function proposeSetParallelConditions(branches: ContactSpec[][], networkId = 0, apply = false) {
+  return proposeSemanticChanges([{ type: "set_parallel_conditions", branches, network_id: networkId }], apply);
 }
 
 
@@ -746,6 +1050,12 @@ function editProject(
   const validation = validateProjectState(draft);
 
   if (apply) {
+    if (!validation.valid) {
+      throw new Error(
+        "Cannot apply an invalid semantic change: " +
+        validation.issues.filter(issue => issue.severity === "error").map(issue => issue.message).join("; ")
+      );
+    }
     commitProject(draft, operation, summary, "direct");
     return { operation, applied: true, summary, changes, validation };
   }
