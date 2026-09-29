@@ -1,4 +1,4 @@
-import type { LadderProjectV02, LogicNode } from "./v02";
+import type { LadderProjectV02, LogicNode } from "./v02.js";
 
 export type ValidationIssue={severity:"error"|"warning";code:string;message:string;path:string};
 const bit=/^(X|Y|M|S)\d+$/i;
