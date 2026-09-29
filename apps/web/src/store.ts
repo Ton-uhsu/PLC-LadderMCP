@@ -1,5 +1,7 @@
 import { create } from "zustand";
 import { demoProject, type LadderProject } from "./ladder";
+import type { LadderProjectV02 } from "@plc-ladder-mcp/ladder-ir";
+import { v02ProjectToLegacy } from "./ir-v02-bridge";
 
 const savedApi = localStorage.getItem("plc-ladder-api") ?? "";
 
@@ -28,7 +30,8 @@ export const useProjectStore = create<State>((set, get) => ({
     try {
       const res = await fetch(`${apiUrl}/api/project`);
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      set({ project: await res.json(), connected: true });
+      const data = await res.json() as LadderProject | LadderProjectV02;
+      set({ project: data.version === "0.2" ? v02ProjectToLegacy(data) : data, connected: true });
     } catch (e) {
       set({ connected: false });
       throw e;
