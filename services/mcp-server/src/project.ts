@@ -23,6 +23,7 @@ export function createProject(name: string, family: string, model: string): Ladd
   if (family !== "Mitsubishi FX" || model !== "FX3U") {
     throw new Error("Canonical IR v0.2 currently supports Mitsubishi FX3U only.");
   }
+  pendingChanges.clear();
   project = {
     version: "0.2",
     name,
@@ -204,7 +205,63 @@ export type EditResult = {
   summary: string;
   changes: EditChange[];
   validation: ReturnType<typeof validateProjectState>;
+  pending_change_id?: string;
 };
+
+export type PendingChange = {
+  id: string;
+  operation: string;
+  summary: string;
+  changes: EditChange[];
+  validation: ReturnType<typeof validateProjectState>;
+  created_at: string;
+  stale: boolean;
+};
+
+type PendingChangeInternal = PendingChange & {
+  base_state: string;
+  next_project: LadderProjectV02;
+};
+
+const pendingChanges = new Map<string, PendingChangeInternal>();
+
+export function listPendingChanges(): PendingChange[] {
+  const current = JSON.stringify(project);
+  return [...pendingChanges.values()].map(({ base_state, next_project, ...item }) => ({
+    ...item,
+    stale: base_state !== current,
+  }));
+}
+
+export function approvePendingChange(id: string) {
+  const pending = pendingChanges.get(id);
+  if (!pending) throw new Error(`Pending change ${id} not found.`);
+  if (pending.base_state !== JSON.stringify(project)) {
+    throw new Error("Pending change is stale because the project changed after it was proposed. Preview the edit again.");
+  }
+  if (!pending.validation.valid) {
+    throw new Error("Pending change cannot be approved because its resulting project is invalid.");
+  }
+  project = cloneValue(pending.next_project);
+  pendingChanges.delete(id);
+  return {
+    id,
+    status: "approved" as const,
+    summary: pending.summary,
+    project,
+  };
+}
+
+export function rejectPendingChange(id: string) {
+  const pending = pendingChanges.get(id);
+  if (!pending) throw new Error(`Pending change ${id} not found.`);
+  pendingChanges.delete(id);
+  return {
+    id,
+    status: "rejected" as const,
+    summary: pending.summary,
+  };
+}
 
 export function removeContact(contactId: string, networkId = 0, apply = false): EditResult {
   return editProject("remove_contact", apply, draft => {
@@ -420,11 +477,29 @@ function editProject(
   apply: boolean,
   mutate: (draft: LadderProjectV02) => { summary: string; changes: EditChange[] },
 ): EditResult {
+  const baseState = JSON.stringify(project);
   const draft = cloneValue(project);
   const { summary, changes } = mutate(draft);
   const validation = validateProjectState(draft);
-  if (apply) project = draft;
-  return { operation, applied: apply, summary, changes, validation };
+
+  if (apply) {
+    project = draft;
+    return { operation, applied: true, summary, changes, validation };
+  }
+
+  const id = crypto.randomUUID();
+  pendingChanges.set(id, {
+    id,
+    operation,
+    summary,
+    changes: cloneValue(changes),
+    validation,
+    created_at: new Date().toISOString(),
+    stale: false,
+    base_state: baseState,
+    next_project: cloneValue(draft),
+  });
+  return { operation, applied: false, summary, changes, validation, pending_change_id: id };
 }
 
 function cloneValue<T>(value: T): T {
