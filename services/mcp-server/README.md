@@ -26,6 +26,9 @@ Current FX3U compiler slice supports series contact conditions followed by one a
 - `replace_device`
 - `delete_network`
 - `modify_network`
+- `list_pending_changes`
+- `approve_pending_change`
+- `reject_pending_change`
 - `validate_project`
 - `export_project` with `gxworks2` or `samsoar2022`
 
@@ -64,17 +67,23 @@ Series
 
 ## Safe edit flow
 
-Destructive/targeted edit tools use `apply=false` by default. A first call returns a structured diff plus validation without mutating the canonical project. Repeat the same call with `apply=true` to commit it.
+Destructive/targeted edit tools use `apply=false` by default. A preview returns a structured diff plus validation without mutating the canonical project, and is stored as a pending change with a `pending_change_id`. It can then be approved or rejected explicitly from MCP or the Web **AI Changes** screen. Direct `apply=true` remains available for trusted automation.
 
 ```text
 replace_device(from_device="M0", to_device="M5", network_id=0)
 → applied=false
+→ pending_change_id="..."
 → changes=[...]
 → validation={...}
 
-replace_device(from_device="M0", to_device="M5", network_id=0, apply=true)
-→ applied=true
+list_pending_changes()
+approve_pending_change(pending_change_id="...")
+
+# or
+reject_pending_change(pending_change_id="...")
 ```
+
+Pending proposals are rejected as stale if the canonical project changed after the preview was created. Invalid resulting projects cannot be approved.
 
 The same preview/apply pattern is used by:
 - `remove_contact`
@@ -115,6 +124,9 @@ POST /api/edit/remove-action
 POST /api/edit/replace-device
 POST /api/edit/delete-network
 POST /api/edit/modify-network
+GET  /api/changes
+POST /api/changes/approve
+POST /api/changes/reject
 POST /api/validate
 GET  /api/export/gxworks2
 GET  /api/export/samsoar2022
