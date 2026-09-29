@@ -22,16 +22,19 @@ Current FX3U support includes:
 
 ## MCP tools
 
-Core/project:
-- `create_project`
-- `get_project`
-- `create_network`
-- `list_saved_projects`
-- `save_project`
-- `load_project`
-- `import_gxworks2`
+The MCP surface is now **proposal-only for Ladder writes**. AI clients cannot approve/reject proposals, cannot call undo/redo, and cannot pass an `apply=true` escape hatch.
 
-Logic:
+Primary AI workflow:
+
+- `get_project`
+- `get_fx3u_capabilities`
+- `propose_changes` — primary multi-operation write tool
+- `list_pending_changes`
+- `validate_project`
+- `export_project`
+
+Single-change proposal helpers:
+
 - `add_contact`
 - `set_parallel_conditions`
 - `add_coil`
@@ -41,26 +44,47 @@ Logic:
 - `add_counter`
 - `add_instruction`
 - `add_parallel_action`
-
-Safe editing/review:
 - `remove_contact`
 - `remove_action`
 - `replace_device`
 - `delete_network`
 - `modify_network`
-- `list_pending_changes`
-- `approve_pending_change`
-- `reject_pending_change`
 
-History:
-- `get_history`
-- `undo_project`
-- `redo_project`
+Project/file helpers:
 
-Validation/capability/export:
-- `get_fx3u_capabilities`
-- `validate_project`
-- `export_project` with `gxworks2` or `samsoar2022`
+- `list_saved_projects`
+- `save_project` — snapshot only; does not change Ladder logic
+- `load_project` — proposal-only
+- `import_gxworks2` — proposal-only
+- `get_history` — read-only
+
+Human-only operations are intentionally **not exposed through MCP**:
+
+- approve pending change
+- reject pending change
+- undo
+- redo
+- direct project/network creation
+
+For a new project or a new network, the AI should use one `propose_changes` batch containing all required operations so the final proposed state can be validated before the human approves it.
+
+Example:
+
+```text
+propose_changes(
+  operations=[
+    {type:"create_project", name:"Pump Control"},
+    {type:"add_contact", device:"X0", network_id:0},
+    {type:"add_coil", device:"Y0", network_id:0},
+
+    {type:"create_network", network_id:1, comment:"Timer"},
+    {type:"add_contact", device:"M0", network_id:1},
+    {type:"add_timer", timer:"T0", preset:10, network_id:1}
+  ]
+)
+```
+
+This creates one pending proposal. Canonical IR remains unchanged until the Web user presses **Approve**.
 
 ## Nested FX3U conditions
 
@@ -158,34 +182,43 @@ History itself is currently in-memory and resets when the server process restart
 
 ## Safe AI edit flow
 
-Destructive/targeted edit tools use `apply=false` by default. Previewing creates a stored pending change with a structured diff and validation result.
+The enforced boundary is:
 
 ```text
-replace_device(from_device="M0", to_device="M5", network_id=0)
-→ applied=false
-→ pending_change_id="..."
-→ changes=[...]
-→ validation={...}
-
-list_pending_changes()
-approve_pending_change(pending_change_id="...")
-
-# or
-reject_pending_change(pending_change_id="...")
+Human request
+    ↓
+AI / Remote MCP
+    ↓
+propose_changes or proposal-only helper
+    ↓
+Pending Change
+    ↓
+Web AI Changes
+    ├── diff
+    ├── validation
+    ├── Reject
+    └── Approve
+          ↓
+      Canonical IR
 ```
 
-Pending changes become stale if canonical project state changes after the preview.
+All MCP Ladder write tools return `applied=false` and a `pending_change_id`. There is no MCP `apply` parameter.
 
-The Web **AI Changes** screen exposes the same review workflow.
+The AI also has no MCP tool for approval, rejection, undo, or redo. Those controls remain on the human-facing Web/HTTP path.
+
+For multi-step work, use one batch rather than many dependent proposals. For example, creating a new network with only `create_network` would be incomplete; a batch can create the network, add its conditions, and add its output before validation runs.
+
+Pending proposals become stale if the canonical project changes after the preview. Invalid proposals cannot be approved.
+
+The Web **AI Changes** screen polls the review queue automatically while open.
 
 ## History / undo / redo
 
 Applied mutations, direct edits, and approved AI changes are added to a bounded 50-snapshot undo history.
 
 ```text
-get_history()
-undo_project()
-redo_project()
+MCP: get_history()        # read-only
+Web: Undo / Redo buttons # human action
 ```
 
 The Web **History** screen shows the same change log and Undo/Redo controls.
