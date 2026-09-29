@@ -2,7 +2,7 @@
 
 **Document:** `docs/01-requirements.md`  
 **Status:** Draft / Baseline  
-**Version:** 0.3  
+**Version:** 0.4  
 **Project:** PLC-LadderMCP
 
 ## 1. Project Goal
@@ -441,6 +441,113 @@ V1 must support multiple Ladder projects. Projects must remain independently sel
 
 A V1 project must support multiple Ladder networks rather than being limited to a single network. The web application must allow the user to navigate and edit those networks within the selected project.
 
+### REQ-043 - Import Existing GX Works2 and SamSoar2022 Projects
+
+V1 should support importing existing projects from both GX Works2 and SamSoar2022 into PLC-LadderMCP so they can be represented in the canonical Ladder model and worked on without recreating the logic manually.
+
+This capability is **Pending POC**. The implementation scope must be confirmed by real import/export experiments with both IDEs before the supported file formats and fidelity are treated as locked requirements.
+
+Where the source format makes the data available, the importer should preserve useful project metadata such as:
+
+- PLC family/model
+- Ladder programs and networks
+- Device comments
+- Labels/symbols
+- Network/rung comments
+- Other metadata required to preserve the meaning of the imported project
+
+Unsupported or lossy fields must be reported rather than silently discarded.
+
+### REQ-044 - AI Modification of Imported Projects
+
+After a supported GX Works2 or SamSoar2022 project is imported, AI agents must be able to read the resulting Ladder representation and propose targeted modifications to it using the same Ladder Engine and validation path used for projects created inside PLC-LadderMCP.
+
+Imported projects must not become a read-only special case. AI-proposed changes to imported projects must enter the Human Review workflow before application.
+
+### REQ-045 - Ladder-Native Human Review
+
+Human Review must present AI-proposed changes as actual rendered Ladder diagrams rather than requiring the user to review raw Ladder IR, JSON, or text-only diffs.
+
+The default review view should show the proposed post-change Ladder with changed elements highlighted. The user must also be able to inspect explicit Before and After Ladder views.
+
+The review UI should keep the user's navigation position stable and must not force automatic scrolling to changed elements.
+
+### REQ-046 - Per-Network Approval and Rejection
+
+When one AI request changes multiple Ladder networks, Human Review must allow each changed network to be approved or rejected independently.
+
+V1 does not require element-by-element approval inside a single network. The network is the primary review/approval unit.
+
+### REQ-047 - Rejection Feedback
+
+When rejecting a proposed network change, the user must be able to provide a short feedback/reason message.
+
+That feedback must be available to the AI when generating a corrected proposal.
+
+### REQ-048 - Rework Rejected Networks Only
+
+When a reviewed batch contains both approved and rejected networks, AI rework must target only the rejected networks unless the user explicitly requests otherwise.
+
+Networks that have already been approved must remain locked against modification during that rework cycle.
+
+### REQ-049 - Approved Networks as Read-Only Context
+
+During rework of rejected networks, the AI may read approved networks as context so it can understand shared devices, labels, dependencies, and surrounding sequence logic.
+
+Approved networks must be treated as read-only context and must not be modified by that rework operation.
+
+### REQ-050 - Validation Gate Before Human Review
+
+AI-generated changes must pass required Ladder validation before entering the normal Human Review queue.
+
+A proposal that fails required validation must not be presented as an approvable review item. Instead, the system should attempt repair first and, if it still cannot produce a valid proposal, expose a separate validation-failed state with actionable errors.
+
+### REQ-051 - Automatic Repair Retry Limit
+
+When an AI-generated proposal fails required validation, the system should allow the AI workflow to automatically repair and revalidate the proposal up to **3 attempts** before stopping.
+
+After the third failed repair attempt, the proposal must remain non-approvable and the validation errors must be shown to the user.
+
+### REQ-052 - Standard Ladder Diff Highlight Semantics
+
+Ladder diff visualization must use consistent change semantics:
+
+- Green — added Ladder logic/elements
+- Red — removed Ladder logic/elements
+- Yellow — modified Ladder logic/elements
+
+The UI must not rely on color alone; added, removed, and modified states should also be identifiable through labels, icons, patterns, or equivalent accessible cues.
+
+### REQ-053 - Changed-Network Review List
+
+When an AI proposal affects multiple networks, Human Review must provide a list/sidebar of the affected networks so the user can navigate directly between review items.
+
+The list should also expose each network's current review state, such as pending, approved, rejected, or validation failed where applicable.
+
+### REQ-054 - Per-Network Change Summary
+
+Each changed network in Human Review should include a short human-readable summary of what the AI changed in that network.
+
+The summary supplements the Ladder diff; it does not replace the rendered Ladder review.
+
+### REQ-055 - Added Network Review
+
+A network created entirely by AI must be shown explicitly as an **Added Network** in Human Review.
+
+The newly created Ladder network must be rendered and independently approvable or rejectable using the same per-network review flow.
+
+### REQ-056 - Removed Network Review
+
+A network proposed for deletion must be shown explicitly as a **Removed Network** in Human Review.
+
+The user must still be able to inspect the existing Ladder for that network before deciding whether to approve or reject its removal.
+
+### REQ-057 - Network Move / Reorder Review
+
+If AI proposes moving or reordering an existing network, Human Review must identify that as a distinct move/reorder change rather than presenting it ambiguously as an add/delete pair.
+
+The affected network must remain independently approvable or rejectable.
+
 ---
 
 ## 4. Web Application Requirements
@@ -666,6 +773,8 @@ Current baseline:
 - REQ-001 through REQ-021 are the accepted initial PLC-LadderMCP product requirements carried forward from the previous baseline.
 - REQ-022 through REQ-035 record the V1 operating and deployment decisions confirmed during the requirements-grilling session.
 - REQ-036 through REQ-042 record the V1 web-application decisions confirmed during the web requirements-grilling session.
+- REQ-043 through REQ-057 record the current import and Ladder-native Human Review decisions confirmed during requirement grooming.
+- GX Works2 and SamSoar2022 import are V1 targets but remain Pending POC until real IDE interchange experiments confirm the supported formats and fidelity.
 - GX Works and SamSoar2022 are the first IDE targets.
 - AI-first usage remains the primary workflow, while V1 also requires structured manual Ladder editing in the web application.
 - MCP is the first preferred AI tool protocol, but the core architecture must remain protocol-independent.
