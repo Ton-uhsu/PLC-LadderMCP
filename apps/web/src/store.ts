@@ -3,7 +3,7 @@ import type { LadderProjectV02 } from "@plc-ladder-mcp/ladder-ir";
 import { demoProject } from "./ladder";
 
 const savedApi = localStorage.getItem("plc-ladder-api") ?? "";
-const savedToken = localStorage.getItem("plc-ladder-token") ?? "";
+const savedToken = sessionStorage.getItem("plc-ladder-token") ?? "";
 
 export type PendingChange = {
   id: string;
@@ -121,7 +121,7 @@ export const useProjectStore = create<State>((set, get) => ({
 
   setApiToken: (token) => {
     const clean = token.trim();
-    localStorage.setItem("plc-ladder-token", clean);
+    sessionStorage.setItem("plc-ladder-token", clean);
     set({ apiToken: clean, connected: false });
   },
 
