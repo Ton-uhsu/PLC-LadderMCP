@@ -11,7 +11,7 @@
     "build": "tsc -p tsconfig.json",
     "start": "node dist/index.js",
     "server": "tsx src/http.ts",
-    "test:smoke": "tsx src/project.smoke.ts",
+    "test:smoke": "tsx src/project.smoke-runner.ts",
     "test:e2e": "tsx src/http.e2e.ts"
   },
   "dependencies": {
