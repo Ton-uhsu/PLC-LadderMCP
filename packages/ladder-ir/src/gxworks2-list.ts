@@ -1,5 +1,5 @@
-import type { LadderProjectV02 } from "./v02";
-import { compileProject } from "./fx3u-compiler";
+import type { LadderProjectV02 } from "./v02.js";
+import { compileProject } from "./fx3u-compiler.js";
 
 const q=(v:string)=>`"${v.replace(/"/g,'""')}"`;
 export function generateGxWorks2ListText(project:LadderProjectV02){
