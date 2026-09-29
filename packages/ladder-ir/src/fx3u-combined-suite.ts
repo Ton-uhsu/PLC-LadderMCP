@@ -1,6 +1,6 @@
-import type { LadderProjectV02 } from "./v02";
-import { fx3uVerificationFixtures } from "./fx3u-fixtures";
-import { generateGxWorks2ListText } from "./gxworks2-list";
+import type { LadderProjectV02 } from "./v02.js";
+import { fx3uVerificationFixtures } from "./fx3u-fixtures.js";
+import { generateGxWorks2ListText } from "./gxworks2-list.js";
 
 export const fx3uCombinedVerificationProject: LadderProjectV02 = {
   version: "0.2",
