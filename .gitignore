@@ -5,3 +5,4 @@ dist/
 .DS_Store
 .plc-ladder/
 .plc-ladder-test-smoke/
+.plc-ladder-test-e2e/
