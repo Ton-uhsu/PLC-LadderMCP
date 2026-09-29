@@ -16,13 +16,16 @@ import {
   exportSamSoar,
   approvePendingChange,
   deleteNetwork,
+  getHistory,
   getProject,
   listPendingChanges,
   modifyNetwork,
+  redoProject,
   rejectPendingChange,
   removeAction,
   removeContact,
   replaceDevice,
+  undoProject,
   validateProject,
 } from "./project.js";
 import { createMcpServer } from "./mcp.js";
@@ -202,6 +205,15 @@ const server = http.createServer(async (req, res) => {
       const b = await readJson(req) as any;
       return send(res, 200, rejectPendingChange(b.pending_change_id));
     }
+
+    if (req.method === "GET" && url.pathname === "/api/history")
+      return send(res, 200, getHistory());
+
+    if (req.method === "POST" && url.pathname === "/api/history/undo")
+      return send(res, 200, undoProject());
+
+    if (req.method === "POST" && url.pathname === "/api/history/redo")
+      return send(res, 200, redoProject());
 
     if (req.method === "POST" && url.pathname === "/api/validate")
       return send(res, 200, validateProject());
