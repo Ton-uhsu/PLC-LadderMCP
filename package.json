@@ -9,7 +9,8 @@
     "mcp:dev": "npm --workspace services/mcp-server run dev",
     "mcp:build": "npm --workspace services/mcp-server run build",
     "server": "npm --workspace services/mcp-server run server",
-    "mcp:test": "npm --workspace services/mcp-server run test:smoke"
+    "mcp:test": "npm --workspace services/mcp-server run test:smoke",
+    "mcp:e2e": "npm --workspace services/mcp-server run test:e2e"
   },
   "workspaces": [
     "apps/*",
