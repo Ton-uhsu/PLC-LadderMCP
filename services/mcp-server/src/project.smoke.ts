@@ -19,6 +19,7 @@ import {
   listSavedProjects,
   loadProjectSnapshot,
   modifyNetwork,
+  proposeProjectDefinition,
   proposeSemanticChanges,
   redoProject,
   rejectPendingChange,
@@ -246,3 +247,32 @@ assert.equal(getProject().programs[0].networks.length, 2);
 assert.equal(validateProject().valid, true);
 
 console.log("PASS AI semantic batch proposal smoke");
+
+
+const beforeDeclarative = JSON.stringify(getProject());
+const declarative = proposeProjectDefinition("Pump Control Declarative", [
+  {
+    network_id: 0,
+    condition: { type: "series", contacts: [{ device: "X0", mode: "NO" }] },
+    actions: [{ type: "coil", device: "Y0" }],
+  },
+  {
+    network_id: 1,
+    comment: "Timer",
+    condition: { type: "series", contacts: [{ device: "M0", mode: "NO" }] },
+    actions: [{ type: "timer", timer: "T0", preset: 10 }],
+  },
+], false);
+
+assert.equal(declarative.applied, false);
+assert.equal(declarative.validation.valid, true, JSON.stringify(declarative.validation.issues, null, 2));
+assert.ok(declarative.pending_change_id);
+assert.equal(JSON.stringify(getProject()), beforeDeclarative);
+const declarativePending = listPendingChanges().find(item => item.id === declarative.pending_change_id);
+assert.ok(declarativePending);
+const declarativeAfter = declarativePending?.changes.find(change => change.path === "project")?.after as any;
+assert.equal(declarativeAfter.programs[0].networks.length, 2);
+assert.deepEqual(declarativeAfter.programs[0].networks.map((network: any) => network.id), [0, 1]);
+
+rejectPendingChange(declarative.pending_change_id!);
+console.log("PASS declarative whole-project proposal smoke");
