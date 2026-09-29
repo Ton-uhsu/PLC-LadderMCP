@@ -144,11 +144,14 @@ export type ContactSpec = {
 export function setParallelConditions(branches: ContactSpec[][], networkId = 0) {
   if (branches.length < 2) throw new Error("Parallel condition requires at least two branches.");
   if (branches.some(branch => branch.length < 1)) throw new Error("Each parallel condition branch requires at least one contact.");
+  if (branches.some(branch => branch.some(spec => (spec.edge ?? "none") !== "none" && spec.mode === "NC"))) {
+    throw new Error("Pulse edge contacts currently support NO mode only.");
+  }
 
   return mutateProject("set_parallel_conditions", "Set parallel condition branches on network " + networkId, () => {
     const root = requireSeriesRoot(networkId);
     const tail = root.children.at(-1);
-    if (!isOutputNode(tail as LogicNode)) throw new Error("Network must already have an output action before setting parallel conditions.");
+    if (!tail || !isOutputNode(tail)) throw new Error("Network must already have an output action before setting parallel conditions.");
 
     const branchNodes: LogicNode[] = branches.map((branch, branchIndex) => {
       const contacts: LogicNode[] = branch.map((spec, contactIndex) => ({
@@ -168,7 +171,7 @@ export function setParallelConditions(branches: ContactSpec[][], networkId = 0) 
       id: "condition-parallel-" + crypto.randomUUID(),
       branches: branchNodes,
     };
-    root.children = [condition, tail as LogicNode];
+    root.children = [condition, tail];
     return condition;
   });
 }
