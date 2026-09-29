@@ -7,7 +7,6 @@ import {
   LockKeyhole,
   LogIn,
   LogOut,
-  Server,
   ShieldCheck,
   UserRound,
   Workflow,
@@ -15,7 +14,7 @@ import {
 import { useProjectStore } from "../store";
 import {
   clearWebSession,
-  getSavedApiUrl,
+  getConfiguredApiUrl,
   getSavedSessionToken,
   loginWeb,
   saveWebSession,
@@ -70,7 +69,7 @@ export function AuthGate({ children }: { children: ReactNode }) {
   const setApiUrl = useProjectStore(s => s.setApiUrl);
   const setApiToken = useProjectStore(s => s.setApiToken);
   const syncProject = useProjectStore(s => s.syncProject);
-  const [apiUrl, setApiUrlInput] = useState(getSavedApiUrl() || "http://localhost:3001");
+  const apiUrl = getConfiguredApiUrl();
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [user, setUser] = useState<WebUser | null>(null);
@@ -82,17 +81,16 @@ export function AuthGate({ children }: { children: ReactNode }) {
     let cancelled = false;
 
     async function restore() {
-      const savedApi = getSavedApiUrl();
       const savedToken = getSavedSessionToken();
-      if (!savedApi || !savedToken) {
+      if (!savedToken) {
         if (!cancelled) setChecking(false);
         return;
       }
 
       try {
-        const session = await verifyWebSession(savedApi, savedToken);
+        const session = await verifyWebSession(apiUrl, savedToken);
         if (cancelled) return;
-        setApiUrl(savedApi);
+        setApiUrl(apiUrl);
         setApiToken(savedToken);
         await useProjectStore.getState().syncProject();
         if (cancelled) return;
@@ -107,7 +105,7 @@ export function AuthGate({ children }: { children: ReactNode }) {
 
     restore();
     return () => { cancelled = true; };
-  }, [setApiToken, setApiUrl]);
+  }, [apiUrl, setApiToken, setApiUrl]);
 
   async function submit(event: FormEvent) {
     event.preventDefault();
@@ -182,10 +180,6 @@ export function AuthGate({ children }: { children: ReactNode }) {
             </div>
 
             <div className="auth-fields">
-              <label>
-                <span>Backend</span>
-                <div className="auth-input-wrap"><Server size={15}/><input value={apiUrl} onChange={e => setApiUrlInput(e.target.value)} placeholder="https://your-vps" required/></div>
-              </label>
               <label>
                 <span>Username</span>
                 <div className="auth-input-wrap"><UserRound size={15}/><input value={username} onChange={e => setUsername(e.target.value)} autoComplete="username" placeholder="Operator username" required/></div>

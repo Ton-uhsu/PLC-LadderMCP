@@ -20,6 +20,13 @@ export function getSavedApiUrl() {
   return localStorage.getItem(API_STORAGE_KEY) ?? "";
 }
 
+export function getConfiguredApiUrl() {
+  const configured = normalizeApiUrl(import.meta.env.VITE_PLC_LADDER_API_URL ?? "");
+  if (configured) return configured;
+  const saved = normalizeApiUrl(getSavedApiUrl());
+  return saved || "http://localhost:3001";
+}
+
 export function getSavedSessionToken() {
   return sessionStorage.getItem(SESSION_STORAGE_KEY) ?? "";
 }
