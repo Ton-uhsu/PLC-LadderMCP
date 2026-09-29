@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import {
   Activity, AlertTriangle, Bot, Braces, CheckCircle2, ChevronDown, CircleDot, Download,
-  FileCode2, FolderOpen, Network, Play, Plus, RefreshCw, Settings2, ShieldCheck, Workflow, XCircle,
+  FileCode2, FolderOpen, History as HistoryIcon, Network, Play, Plus, Redo2, RefreshCw, Settings2, ShieldCheck, Undo2, Workflow, XCircle,
 } from "lucide-react";
 import {
   actionLabel,
@@ -195,6 +195,85 @@ function AIChangesPanel() {
 }
 
 
+function HistoryPanel() {
+  const connected = useProjectStore(s => s.connected);
+  const history = useProjectStore(s => s.history);
+  const loadingHistory = useProjectStore(s => s.loadingHistory);
+  const syncHistory = useProjectStore(s => s.syncHistory);
+  const undoProject = useProjectStore(s => s.undoProject);
+  const redoProject = useProjectStore(s => s.redoProject);
+  const [busy, setBusy] = useState<"undo" | "redo" | null>(null);
+
+  useEffect(() => {
+    if (connected) syncHistory().catch(() => undefined);
+  }, [connected, syncHistory]);
+
+  if (!connected) {
+    return <div className="changes-empty">
+      <HistoryIcon size={26}/>
+      <strong>Connect to the MCP server to view project history.</strong>
+      <span>Applied semantic changes, approvals, undo, and redo actions are recorded here.</span>
+    </div>;
+  }
+
+  return <div className="history-panel">
+    <div className="history-toolbar">
+      <div>
+        <b>Project history</b>
+        <span>{history.undo_count} undo step{history.undo_count === 1 ? "" : "s"} · {history.redo_count} redo step{history.redo_count === 1 ? "" : "s"}</span>
+      </div>
+      <div className="history-actions">
+        <button
+          className="ghost"
+          disabled={!history.can_undo || busy !== null}
+          onClick={async () => {
+            setBusy("undo");
+            try { await undoProject(); }
+            catch (error) { alert(String(error)); }
+            finally { setBusy(null); }
+          }}
+        ><Undo2 size={14}/> Undo</button>
+        <button
+          className="ghost"
+          disabled={!history.can_redo || busy !== null}
+          onClick={async () => {
+            setBusy("redo");
+            try { await redoProject(); }
+            catch (error) { alert(String(error)); }
+            finally { setBusy(null); }
+          }}
+        ><Redo2 size={14}/> Redo</button>
+        <button className="ghost" onClick={() => syncHistory().catch(error => alert(String(error)))}>
+          <RefreshCw size={14} className={loadingHistory ? "spin" : ""}/> Refresh
+        </button>
+      </div>
+    </div>
+
+    {!loadingHistory && history.entries.length === 0 && <div className="changes-empty compact">
+      <HistoryIcon size={24}/>
+      <strong>No history yet</strong>
+      <span>Create or edit Ladder logic and the applied changes will appear here.</span>
+    </div>}
+
+    <div className="history-list">
+      {history.entries.map(entry => <div className={"history-entry " + entry.kind} key={entry.id}>
+        <div className="history-icon">
+          {entry.kind === "undo" ? <Undo2 size={14}/> : entry.kind === "redo" ? <Redo2 size={14}/> : <CheckCircle2 size={14}/>}
+        </div>
+        <div className="history-copy">
+          <div className="history-meta">
+            <span>{entry.kind.toUpperCase()}</span>
+            <span>{entry.source === "approved" ? "AI APPROVED" : entry.source.toUpperCase()}</span>
+          </div>
+          <b>{entry.summary}</b>
+          <small>{entry.operation.replaceAll("_", " ")} · {new Date(entry.created_at).toLocaleString()}</small>
+        </div>
+      </div>)}
+    </div>
+  </div>;
+}
+
+
 export default function App() {
   const project = useProjectStore(s => s.project);
   const apiUrl = useProjectStore(s => s.apiUrl);
@@ -225,7 +304,7 @@ export default function App() {
       </div>
       <button className="new-project"><Plus size={17}/> New project</button>
       <nav>
-        {[["Ladder", Network], ["IR / JSON", Braces], ["Validation", ShieldCheck], ["AI Changes", Bot], ["Exports", Download]].map(([label, Icon]) => {
+        {[["Ladder", Network], ["IR / JSON", Braces], ["Validation", ShieldCheck], ["AI Changes", Bot], ["History", HistoryIcon], ["Exports", Download]].map(([label, Icon]) => {
           const I = Icon as typeof Network;
           return <button key={label as string} onClick={() => setActive(label as string)} className={active === label ? "nav-active" : ""}>
             <I size={17}/>{label as string}
@@ -279,8 +358,8 @@ export default function App() {
         <section className="panel ladder-panel">
           <div className="panel-head">
             <div>
-              <span className="kicker">{active === "IR / JSON" ? "CANONICAL SOURCE" : active === "AI Changes" ? "HUMAN REVIEW" : `NETWORK ${network?.id ?? "—"}`}</span>
-              <h2>{active === "IR / JSON" ? "Ladder IR v0.2 / JSON" : active === "AI Changes" ? "AI Changes" : "Main Ladder"}</h2>
+              <span className="kicker">{active === "IR / JSON" ? "CANONICAL SOURCE" : active === "AI Changes" ? "HUMAN REVIEW" : active === "History" ? "CHANGE LOG" : `NETWORK ${network?.id ?? "—"}`}</span>
+              <h2>{active === "IR / JSON" ? "Ladder IR v0.2 / JSON" : active === "AI Changes" ? "AI Changes" : active === "History" ? "History / Undo / Redo" : "Main Ladder"}</h2>
             </div>
             <div className="badge"><Activity size={14}/> LIVE IR PREVIEW</div>
           </div>
@@ -289,9 +368,11 @@ export default function App() {
             ? <pre className="json-view">{JSON.stringify(project, null, 2)}</pre>
             : active === "AI Changes"
               ? <AIChangesPanel/>
-              : <div className="canvas"><LadderPreview/></div>}
+              : active === "History"
+                ? <HistoryPanel/>
+                : <div className="canvas"><LadderPreview/></div>}
 
-          {active !== "AI Changes" && <div className="network-note">
+          {active !== "AI Changes" && active !== "History" && <div className="network-note">
             <CircleDot size={14}/>
             <span><b>Network {network?.id ?? "—"}</b> — <code>{contactSummary}</code> drives <code>{outputSummary}</code>.</span>
           </div>}
