@@ -1,3 +1,4 @@
+import { inspectFx3uInstructionForm } from "@plc-ladder-mcp/ladder-ir";
 import assert from "node:assert/strict";
 import {
   addCoil,
@@ -198,3 +199,21 @@ assert.equal(JSON.stringify(getProject()).includes('"Y10"'), true);
 assert.equal(JSON.stringify(getProject()).includes('"Y11"'), false);
 
 console.log("PASS nested branch GX import persistence smoke");
+
+
+const verifiedNeg = inspectFx3uInstructionForm("NEG", [{ kind: "device", address: "D68" }]);
+assert.equal(verifiedNeg.status, "verified");
+
+const rejectedNeg = inspectFx3uInstructionForm("NEG", [
+  { kind: "device", address: "D68" },
+  { kind: "device", address: "D69" },
+]);
+assert.equal(rejectedNeg.status, "rejected");
+
+const unverifiedMov = inspectFx3uInstructionForm("MOV", [
+  { kind: "constant", radix: "decimal", value: 200 },
+  { kind: "device", address: "D10" },
+]);
+assert.equal(unverifiedMov.status, "unverified");
+
+console.log("PASS FX3U capability evidence smoke");
