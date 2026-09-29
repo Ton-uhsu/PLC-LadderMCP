@@ -29,6 +29,9 @@ Current FX3U compiler slice supports series contact conditions followed by one a
 - `list_pending_changes`
 - `approve_pending_change`
 - `reject_pending_change`
+- `get_history`
+- `undo_project`
+- `redo_project`
 - `validate_project`
 - `export_project` with `gxworks2` or `samsoar2022`
 
@@ -94,6 +97,32 @@ The same preview/apply pattern is used by:
 
 `remove_action` automatically collapses a two-branch parallel output back to a single action after one branch is removed.
 
+
+
+## History / undo / redo
+
+Applied mutations are stored in a bounded in-memory history (50 undo snapshots). This includes direct semantic mutations, `apply=true` edits, and human-approved pending changes.
+
+```text
+get_history()
+undo_project()
+redo_project()
+```
+
+The history response includes:
+
+```text
+can_undo
+can_redo
+undo_count
+redo_count
+entries[]
+```
+
+Each change-log entry records the operation, summary, timestamp, and source (`direct`, `approved`, or `history`). Undo/redo also mark existing pending AI proposals stale when their base project no longer matches.
+
+The Web **History** screen exposes the same change log and Undo/Redo controls.
+
 ## Multiple networks
 
 ```text
@@ -127,6 +156,9 @@ POST /api/edit/modify-network
 GET  /api/changes
 POST /api/changes/approve
 POST /api/changes/reject
+GET  /api/history
+POST /api/history/undo
+POST /api/history/redo
 POST /api/validate
 GET  /api/export/gxworks2
 GET  /api/export/samsoar2022
