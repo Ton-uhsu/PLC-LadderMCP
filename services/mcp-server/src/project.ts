@@ -225,6 +225,86 @@ type PendingChangeInternal = PendingChange & {
 
 const pendingChanges = new Map<string, PendingChangeInternal>();
 
+const HISTORY_LIMIT = 50;
+
+type HistoryFrame = {
+  project: LadderProjectV02;
+  operation: string;
+  summary: string;
+  created_at: string;
+};
+
+export type ChangeLogEntry = {
+  id: string;
+  kind: "change" | "undo" | "redo";
+  operation: string;
+  summary: string;
+  source: "direct" | "approved" | "history";
+  created_at: string;
+};
+
+const undoStack: HistoryFrame[] = [];
+const redoStack: HistoryFrame[] = [];
+const changeLog: ChangeLogEntry[] = [];
+
+function addChangeLog(kind: ChangeLogEntry["kind"], operation: string, summary: string, source: ChangeLogEntry["source"]) {
+  changeLog.push({ id: crypto.randomUUID(), kind, operation, summary, source, created_at: new Date().toISOString() });
+  if (changeLog.length > HISTORY_LIMIT * 4) changeLog.splice(0, changeLog.length - HISTORY_LIMIT * 4);
+}
+
+function commitProject(nextProject: LadderProjectV02, operation: string, summary: string, source: "direct" | "approved" = "direct") {
+  undoStack.push({ project: cloneValue(project), operation, summary, created_at: new Date().toISOString() });
+  if (undoStack.length > HISTORY_LIMIT) undoStack.shift();
+  redoStack.splice(0);
+  project = cloneValue(nextProject);
+  addChangeLog("change", operation, summary, source);
+}
+
+function mutateProject<T>(operation: string, summary: string, mutate: () => T): T {
+  const before = cloneValue(project);
+  try {
+    const result = mutate();
+    undoStack.push({ project: before, operation, summary, created_at: new Date().toISOString() });
+    if (undoStack.length > HISTORY_LIMIT) undoStack.shift();
+    redoStack.splice(0);
+    addChangeLog("change", operation, summary, "direct");
+    return result;
+  } catch (error) {
+    project = before;
+    throw error;
+  }
+}
+
+export function getHistory() {
+  return {
+    can_undo: undoStack.length > 0,
+    can_redo: redoStack.length > 0,
+    undo_count: undoStack.length,
+    redo_count: redoStack.length,
+    entries: [...changeLog].reverse(),
+  };
+}
+
+export function undoProject() {
+  const frame = undoStack.pop();
+  if (!frame) throw new Error("Nothing to undo.");
+  redoStack.push({ project: cloneValue(project), operation: frame.operation, summary: frame.summary, created_at: new Date().toISOString() });
+  project = cloneValue(frame.project);
+  addChangeLog("undo", frame.operation, "Undo: " + frame.summary, "history");
+  return { ...getHistory(), project };
+}
+
+export function redoProject() {
+  const frame = redoStack.pop();
+  if (!frame) throw new Error("Nothing to redo.");
+  undoStack.push({ project: cloneValue(project), operation: frame.operation, summary: frame.summary, created_at: new Date().toISOString() });
+  if (undoStack.length > HISTORY_LIMIT) undoStack.shift();
+  project = cloneValue(frame.project);
+  addChangeLog("redo", frame.operation, "Redo: " + frame.summary, "history");
+  return { ...getHistory(), project };
+}
+
+
 export function listPendingChanges(): PendingChange[] {
   const current = JSON.stringify(project);
   return [...pendingChanges.values()].map(({ base_state, next_project, ...item }) => ({
