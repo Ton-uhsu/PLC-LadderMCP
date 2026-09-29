@@ -1,7 +1,7 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
-  Activity, Bot, Braces, CheckCircle2, ChevronDown, CircleDot, Download,
-  FileCode2, FolderOpen, Network, Play, Plus, Settings2, ShieldCheck, Workflow,
+  Activity, AlertTriangle, Bot, Braces, CheckCircle2, ChevronDown, CircleDot, Download,
+  FileCode2, FolderOpen, Network, Play, Plus, RefreshCw, Settings2, ShieldCheck, Workflow, XCircle,
 } from "lucide-react";
 import {
   actionLabel,
@@ -94,6 +94,107 @@ function LadderPreview() {
   </svg>;
 }
 
+function formatDiffValue(value: unknown) {
+  if (value === null) return "∅";
+  if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") return String(value);
+  return JSON.stringify(value, null, 2);
+}
+
+function AIChangesPanel() {
+  const connected = useProjectStore(s => s.connected);
+  const pendingChanges = useProjectStore(s => s.pendingChanges);
+  const loadingChanges = useProjectStore(s => s.loadingChanges);
+  const syncPendingChanges = useProjectStore(s => s.syncPendingChanges);
+  const approvePendingChange = useProjectStore(s => s.approvePendingChange);
+  const rejectPendingChange = useProjectStore(s => s.rejectPendingChange);
+  const [busyId, setBusyId] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (connected) syncPendingChanges().catch(() => undefined);
+  }, [connected, syncPendingChanges]);
+
+  if (!connected) {
+    return <div className="changes-empty">
+      <Bot size={26}/>
+      <strong>Connect to the MCP server to review AI changes.</strong>
+      <span>Previewed semantic edits appear here before they are applied to canonical IR v0.2.</span>
+    </div>;
+  }
+
+  return <div className="changes-list">
+    <div className="changes-toolbar">
+      <div>
+        <b>{pendingChanges.length} pending change{pendingChanges.length === 1 ? "" : "s"}</b>
+        <span>AI proposals stay unapplied until you approve them.</span>
+      </div>
+      <button className="ghost" onClick={() => syncPendingChanges().catch(error => alert(String(error)))}>
+        <RefreshCw size={14} className={loadingChanges ? "spin" : ""}/> Refresh
+      </button>
+    </div>
+
+    {!loadingChanges && pendingChanges.length === 0 && <div className="changes-empty compact">
+      <CheckCircle2 size={24}/>
+      <strong>No pending AI changes</strong>
+      <span>When an MCP edit tool is called with apply=false, its diff will appear here.</span>
+    </div>}
+
+    {pendingChanges.map(change => <article className={"change-card " + (change.stale ? "stale" : "")} key={change.id}>
+      <div className="change-card-head">
+        <div>
+          <div className="change-operation">{change.operation.replaceAll("_", " ")}</div>
+          <h3>{change.summary}</h3>
+          <small>{new Date(change.created_at).toLocaleString()}</small>
+        </div>
+        <div className={"change-status " + (change.validation.valid && !change.stale ? "ready" : "warning")}>
+          {change.stale || !change.validation.valid ? <AlertTriangle size={14}/> : <CheckCircle2 size={14}/>}
+          {change.stale ? "STALE" : change.validation.valid ? "VALID" : "INVALID"}
+        </div>
+      </div>
+
+      <div className="change-diff">
+        {change.changes.map((diff, index) => <div className="diff-row" key={diff.path + "-" + index}>
+          <code className="diff-path">{diff.path}</code>
+          <div className="diff-values">
+            <div><span>BEFORE</span><pre>{formatDiffValue(diff.before)}</pre></div>
+            <div><span>AFTER</span><pre>{formatDiffValue(diff.after)}</pre></div>
+          </div>
+        </div>)}
+      </div>
+
+      {!change.validation.valid && <div className="change-issues">
+        {change.validation.issues.filter(issue => issue.severity === "error").map((issue, index) =>
+          <div key={issue.code + "-" + index}><AlertTriangle size={13}/><span>{issue.message}</span></div>
+        )}
+      </div>}
+
+      <div className="change-actions">
+        <button
+          className="reject-button"
+          disabled={busyId === change.id}
+          onClick={async () => {
+            setBusyId(change.id);
+            try { await rejectPendingChange(change.id); }
+            catch (error) { alert(String(error)); }
+            finally { setBusyId(null); }
+          }}
+        ><XCircle size={15}/> Reject</button>
+        <button
+          className="approve-button"
+          disabled={busyId === change.id || change.stale || !change.validation.valid}
+          title={change.stale ? "Project changed after this proposal. Preview it again." : !change.validation.valid ? "Resulting project is invalid." : "Apply this change"}
+          onClick={async () => {
+            setBusyId(change.id);
+            try { await approvePendingChange(change.id); }
+            catch (error) { alert(String(error)); }
+            finally { setBusyId(null); }
+          }}
+        ><CheckCircle2 size={15}/> Approve</button>
+      </div>
+    </article>)}
+  </div>;
+}
+
+
 export default function App() {
   const project = useProjectStore(s => s.project);
   const apiUrl = useProjectStore(s => s.apiUrl);
@@ -178,20 +279,22 @@ export default function App() {
         <section className="panel ladder-panel">
           <div className="panel-head">
             <div>
-              <span className="kicker">{active === "IR / JSON" ? "CANONICAL SOURCE" : `NETWORK ${network?.id ?? "—"}`}</span>
-              <h2>{active === "IR / JSON" ? "Ladder IR v0.2 / JSON" : "Main Ladder"}</h2>
+              <span className="kicker">{active === "IR / JSON" ? "CANONICAL SOURCE" : active === "AI Changes" ? "HUMAN REVIEW" : `NETWORK ${network?.id ?? "—"}`}</span>
+              <h2>{active === "IR / JSON" ? "Ladder IR v0.2 / JSON" : active === "AI Changes" ? "AI Changes" : "Main Ladder"}</h2>
             </div>
             <div className="badge"><Activity size={14}/> LIVE IR PREVIEW</div>
           </div>
 
           {active === "IR / JSON"
             ? <pre className="json-view">{JSON.stringify(project, null, 2)}</pre>
-            : <div className="canvas"><LadderPreview/></div>}
+            : active === "AI Changes"
+              ? <AIChangesPanel/>
+              : <div className="canvas"><LadderPreview/></div>}
 
-          <div className="network-note">
+          {active !== "AI Changes" && <div className="network-note">
             <CircleDot size={14}/>
             <span><b>Network {network?.id ?? "—"}</b> — <code>{contactSummary}</code> drives <code>{outputSummary}</code>.</span>
-          </div>
+          </div>}
         </section>
 
         <aside className="right-column">
