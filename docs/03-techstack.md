@@ -23,7 +23,7 @@ PLC-LadderMCP is AI-first. The web application is primarily for Ladder preview, 
 | MCP Server | Node.js + TypeScript | AI-facing semantic tool interface |
 | Package Layout | Monorepo | Share IR/types/compiler code without duplication |
 
-No database or authentication is required for the first MVP. Projects can initially be represented as JSON and imported/exported locally.
+No database is required for the current MVP. Projects use filesystem JSON persistence, and the HTTP/Remote MCP server supports optional bearer-token authentication for non-local exposure.
 
 ## 3. Proposed Repository Structure
 
@@ -265,21 +265,25 @@ Vendor Adapter determines HOW to serialize it
 
 No database is required for the first MVP.
 
-Initial persistence:
+Current persistence:
 
 ```text
-Ladder Project <-> JSON
-Generated vendor files -> download/export
+Canonical Ladder IR v0.2
+        │
+        ├── autosave -> .plc-ladder/current-project.json
+        └── named snapshots -> .plc-ladder/projects/*.json
 ```
+
+Server-side undo/redo history is bounded in memory, while the canonical project itself survives server restarts.
 
 Later candidates, only when requirements justify them:
 
 - PostgreSQL for projects/users/version metadata
 - object storage for generated artifacts
-- authentication/authorization
-- server-side project history
+- multi-user authentication/authorization
+- durable history/event storage
 
-Do not introduce these into the MVP only for future-proofing.
+Do not introduce these until a concrete multi-user or deployment requirement needs them.
 
 ## 11. Testing
 
@@ -324,7 +328,7 @@ MCP comes after the core IR/compiler path is usable. This prevents the AI interf
 Not selected yet:
 
 - database
-- authentication provider
+- multi-user authentication provider
 - cloud hosting provider
 - backend web framework
 - component library
