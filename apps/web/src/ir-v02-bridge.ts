@@ -29,3 +29,36 @@ export function legacyProjectToV02(project: {name:string; plc:{family:string;mod
     programs:project.programs.map(p=>({name:p.name,networks:p.networks.map(n=>({id:n.id,root:legacyNetworkToV02(n.id,n.elements)}))}))
   };
 }
+
+
+export function v02ProjectToLegacy(project: LadderProjectV02) {
+  return {
+    version: "0.1" as const,
+    name: project.name,
+    plc: { family: project.plc.family, model: project.plc.model },
+    programs: project.programs.map(program => ({
+      name: program.name,
+      networks: program.networks.map(network => {
+        if (network.root.kind !== "series") throw new Error("Web legacy view currently requires a series root.");
+        const elements: LegacyElement[] = [];
+        for (const node of network.root.children) {
+          if (node.kind === "contact") {
+            elements.push({ id: node.id, type: "contact", mode: node.mode, device: node.device.address });
+          } else if (node.kind === "action") {
+            if (node.action.kind !== "coil") throw new Error("Web legacy view currently renders coil actions only.");
+            elements.push({ id: node.action.id, type: "coil", device: node.action.device.address });
+          } else if (node.kind === "parallel") {
+            for (const branch of node.branches) {
+              if (branch.kind !== "action" || branch.action.kind !== "coil")
+                throw new Error("Web legacy view currently renders parallel coil actions only.");
+              elements.push({ id: branch.action.id, type: "coil", device: branch.action.device.address });
+            }
+          } else {
+            throw new Error("Web legacy view cannot flatten nested condition topology yet.");
+          }
+        }
+        return { id: network.id, elements };
+      }),
+    })),
+  };
+}
