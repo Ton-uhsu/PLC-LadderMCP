@@ -1,54 +1,110 @@
+import type {
+  ActionNode,
+  ContactNode,
+  LadderNetworkV02,
+  LadderProjectV02,
+} from "@plc-ladder-mcp/ladder-ir";
 import { generateGxWorks2ListText, validateFx3uV02 } from "@plc-ladder-mcp/ladder-ir";
-import { legacyProjectToV02 } from "./ir-v02-bridge";
-import { z } from "zod";
 
-export const ElementSchema = z.discriminatedUnion("type", [
-  z.object({ id: z.string(), type: z.literal("contact"), mode: z.enum(["NO", "NC"]), device: z.string().regex(/^[A-Z]+\d+$/) }),
-  z.object({ id: z.string(), type: z.literal("coil"), device: z.string().regex(/^[A-Z]+\d+$/) }),
-]);
+export type LadderProject = LadderProjectV02;
 
-export const ProjectSchema = z.object({
-  version: z.literal("0.1"),
-  name: z.string().min(1),
-  plc: z.object({ family: z.string(), model: z.string() }),
-  programs: z.array(z.object({
-    name: z.string(),
-    networks: z.array(z.object({
-      id: z.number().int().nonnegative(),
-      elements: z.array(ElementSchema).min(2),
-    })),
-  })).min(1),
-});
+const dev = (address: string) => ({ kind: "device" as const, address });
 
-export type LadderProject = z.infer<typeof ProjectSchema>;
-
-export const demoProject: LadderProject = {
-  version: "0.1",
+export const demoProject: LadderProjectV02 = {
+  version: "0.2",
   name: "Untitled PLC Project",
   plc: { family: "Mitsubishi FX", model: "FX3U" },
   programs: [{
     name: "Main",
     networks: [{
       id: 0,
-      elements: [
-        { id: "e1", type: "contact", mode: "NO", device: "M0" },
-        { id: "e2", type: "coil", device: "M1" },
-      ],
+      root: {
+        kind: "series",
+        id: "network-0",
+        children: [
+          { kind: "contact", id: "e1", mode: "NO", edge: "none", device: dev("M0") },
+          {
+            kind: "action",
+            id: "action-e2",
+            action: { kind: "coil", id: "e2", device: dev("M1") },
+          },
+        ],
+      },
     }],
   }],
 };
 
-export function validateProject(project: LadderProject) {
-  const schema = ProjectSchema.safeParse(project);
-  const issues: string[] = [];
-  if (!schema.success) issues.push(...schema.error.issues.map(i => i.message));
-  for (const program of project.programs) for (const network of program.networks) {
-    const coils = network.elements.filter(e => e.type === "coil");
-    if (coils.length < 1) issues.push(`Network ${network.id} must contain at least one output coil`);
-    const firstCoil = network.elements.findIndex(e => e.type === "coil");
-    if (firstCoil >= 0 && network.elements.slice(firstCoil).some(e => e.type !== "coil"))
-      issues.push(`Network ${network.id} cannot place contacts after output coils in the current topology subset`);
+export type PreviewNetwork = {
+  supported: boolean;
+  reason?: string;
+  contacts: ContactNode[];
+  actions: ActionNode[];
+};
+
+export function getPreviewNetwork(network: LadderNetworkV02): PreviewNetwork {
+  if (network.root.kind !== "series") {
+    return { supported: false, reason: "Preview currently expects a series root.", contacts: [], actions: [] };
   }
+
+  const contacts: ContactNode[] = [];
+  const actions: ActionNode[] = [];
+  let outputSeen = false;
+
+  for (const node of network.root.children) {
+    if (node.kind === "contact" && !outputSeen) {
+      contacts.push(node);
+      continue;
+    }
+
+    if (node.kind === "action" && !outputSeen) {
+      outputSeen = true;
+      actions.push(node.action);
+      continue;
+    }
+
+    if (node.kind === "parallel" && !outputSeen) {
+      if (!node.branches.every(branch => branch.kind === "action")) {
+        return {
+          supported: false,
+          reason: "Nested condition branches are not rendered by the current preview yet.",
+          contacts,
+          actions: [],
+        };
+      }
+      outputSeen = true;
+      actions.push(...node.branches.map(branch => {
+        if (branch.kind !== "action") throw new Error("Unreachable");
+        return branch.action;
+      }));
+      continue;
+    }
+
+    return {
+      supported: false,
+      reason: "Preview supports series contacts followed by one action or parallel actions.",
+      contacts,
+      actions,
+    };
+  }
+
+  return { supported: true, contacts, actions };
+}
+
+export function validateProject(project: LadderProjectV02) {
+  const base = validateFx3uV02(project);
+  const issues = base.issues.map(issue => issue.message);
+
+  if (!project.programs.length) issues.push("Project requires at least one program.");
+
+  for (const program of project.programs) {
+    for (const network of program.networks) {
+      const preview = getPreviewNetwork(network);
+      if (!preview.supported && preview.reason) issues.push(`Network ${network.id}: ${preview.reason}`);
+      if (!preview.contacts.length) issues.push(`Network ${network.id} must contain at least one contact condition.`);
+      if (!preview.actions.length) issues.push(`Network ${network.id} must contain at least one output action.`);
+    }
+  }
+
   return { valid: issues.length === 0, issues };
 }
 
@@ -56,35 +112,44 @@ function samDevice(device: string) {
   return device.replace(/^([A-Z]+)0+(\d+)$/, "$1$2");
 }
 
-export function generateSamSoar(project: LadderProject) {
-  const lines = [`Program,${project.programs[0].name}`];
-  for (const network of project.programs[0].networks) {
-    lines.push(`Network,${network.id}`);
-    for (const element of network.elements) {
-      if (element.type === "contact") lines.push(`${element.mode === "NO" ? "LD" : "LDI"},${samDevice(element.device)}`);
-      if (element.type === "coil") lines.push(`OUT,${samDevice(element.device)}`);
+export function generateSamSoar(project: LadderProjectV02) {
+  const validation = validateProject(project);
+  if (!validation.valid) throw new Error(validation.issues.join("; "));
+
+  const lines: string[] = [];
+  for (const program of project.programs) {
+    lines.push(`Program,${program.name}`);
+    for (const network of program.networks) {
+      const preview = getPreviewNetwork(network);
+      if (!preview.supported) throw new Error(preview.reason ?? "Unsupported SamSoar topology");
+
+      lines.push(`Network,${network.id}`);
+      preview.contacts.forEach((contact, index) => {
+        const mnemonic = index === 0
+          ? (contact.mode === "NC" ? "LDI" : "LD")
+          : (contact.mode === "NC" ? "ANI" : "AND");
+        lines.push(`${mnemonic},${samDevice(contact.device.address)}`);
+      });
+
+      for (const action of preview.actions) {
+        if (action.kind !== "coil") throw new Error("SamSoar web adapter currently supports coil actions only.");
+        lines.push(`OUT,${samDevice(action.device.address)}`);
+      }
+      lines.push("POP");
     }
-    lines.push("POP");
   }
+
   return "\uFEFF" + lines.join("\r\n") + "\r\n";
 }
 
-export function downloadText(filename: string, text: string, mime = "text/csv;charset=utf-8") {
-  const blob = new Blob([text], { type: mime });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url; a.download = filename; a.click();
-  URL.revokeObjectURL(url);
-}
+export function generateGxWorks2(project: LadderProjectV02): Uint8Array {
+  const validation = validateProject(project);
+  if (!validation.valid) throw new Error(validation.issues.join("; "));
 
-
-export function generateGxWorks2(project: LadderProject): Uint8Array {
-  const v02 = legacyProjectToV02(project);
-  const validation = validateFx3uV02(v02);
-  if (!validation.valid) throw new Error(validation.issues.filter(i => i.severity === "error").map(i => i.message).join("; "));
-  const text = generateGxWorks2ListText(v02);
+  const text = generateGxWorks2ListText(project);
   const out = new Uint8Array(2 + text.length * 2);
-  out[0] = 0xff; out[1] = 0xfe;
+  out[0] = 0xff;
+  out[1] = 0xfe;
   for (let i = 0; i < text.length; i++) {
     const code = text.charCodeAt(i);
     out[2 + i * 2] = code & 0xff;
@@ -93,72 +158,36 @@ export function generateGxWorks2(project: LadderProject): Uint8Array {
   return out;
 }
 
+export function actionLabel(action: ActionNode) {
+  if (action.kind === "instruction") {
+    const operands = action.operands.map(operand =>
+      operand.kind === "device"
+        ? operand.address
+        : `${operand.radix === "hex" ? "H" : "K"}${operand.value}`
+    ).join(" ");
+    return `${action.opcode}${operands ? ` ${operands}` : ""}`;
+  }
+  return action.kind === "coil"
+    ? action.device.address
+    : `${action.kind === "set" ? "SET" : "RST"} ${action.device.address}`;
+}
+
+export function downloadText(filename: string, text: string, mime = "text/csv;charset=utf-8") {
+  const blob = new Blob([text], { type: mime });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
 export function downloadBytes(filename: string, bytes: Uint8Array, mime = "text/csv") {
   const blob = new Blob([bytes as BlobPart], { type: mime });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
-  a.href = url; a.download = filename; a.click();
+  a.href = url;
+  a.download = filename;
+  a.click();
   URL.revokeObjectURL(url);
-}
-
-
-export function generateGxWorks2AdvancedVerificationSuite(): Uint8Array {
-  // Advanced FX3U/GX Works2 verification batch. Each logical case is separated
-  // by a new LD/LDI instruction so GX renders it as a separate rung.
-  const rows: string[][] = [
-    ["(FX3U Advanced Verification Suite)"],
-    ["PLC Information:", "FXCPU FX3U/FX3UC"],
-    ["Step No.", "Line Statement", "Instruction", "I/O(Device)", "Blank", "PI Statement", "Note"],
-  ];
-  const ins: Array<[string,string]> = [
-    // OR: (M10 OR M11) -> Y10
-    ["LD","M10"],["OR","M11"],["OUT","Y10"],
-    // Mixed: (M12 AND M13) OR (M14 AND NOT M15) -> Y11
-    ["LD","M12"],["AND","M13"],["LD","M14"],["ANI","M15"],["ORB",""],["OUT","Y11"],
-    // Branch stack: M16 -> Y12, SET M20, RST M21
-    ["LD","M16"],["MPS",""],["OUT","Y12"],["MRD",""],["SET","M20"],["MPP",""],["RST","M21"],
-    // Compare instructions / data path candidates
-    ["LD","M17"],["CMP","D0 D1 M30"],
-    ["LD","M18"],["ZCP","K10 K100 D2 M40"],
-    // More arithmetic
-    ["LD","M19"],["SUB","D10 D11 D12"],
-    ["LD","M22"],["MUL","D20 D21 D22"],
-    ["LD","M23"],["DIV","D30 D31 D32"],
-    // Bit/data
-    ["LD","M24"],["INC","D40"],
-    ["LD","M25"],["DEC","D41"],
-    ["LD","M26"],["WAND","D50 D51 D52"],
-    ["LD","M27"],["WOR","D53 D54 D55"],
-    ["LD","M28"],["WXOR","D56 D57 D58"],
-    ["END",""],
-  ];
-  const q=(v:string)=>'"'+String(v).replace(/"/g,'""')+'"';
-  ins.forEach(([op,dev],step)=>rows.push([String(step),"",op,dev,"","",""]));
-  const text=rows.map(r=>r.map(q).join("\t")).join("\r\n")+"\r\n";
-  const out=new Uint8Array(2+text.length*2); out[0]=0xff; out[1]=0xfe;
-  for(let j=0;j<text.length;j++){const n=text.charCodeAt(j);out[2+j*2]=n&255;out[3+j*2]=n>>8;}
-  return out;
-}
-
-
-export function generateGxWorks2NextVerificationSuite(): Uint8Array {
-  // Focused retry for the five cases rejected by the previous real GX Works2 import.
-  // FX3U SFTL/SFTR shift bit-device ranges; NEG is an in-place negation.
-  const rows:string[][]=[
-    ["(FX3U Retry Verification Suite)"],
-    ["PLC Information:","FXCPU FX3U/FX3UC"],
-    ["Step No.","Line Statement","Instruction","I/O(Device)","Blank","PI Statement","Note"]
-  ];
-  const ins:Array<[string,string]>=[
-    ["LD","M115"],["SFTL","M200 M210 K8 K1"],
-    ["LD","M116"],["SFTR","M220 M230 K8 K1"],
-    ["LD","M121"],["NEG","D68"],
-    ["END",""]
-  ];
-  const q=(v:string)=>'"'+String(v).replace(/"/g,'""')+'"';
-  ins.forEach(([op,dev],step)=>rows.push([String(step),"",op,dev,"","",""]));
-  const text=rows.map(r=>r.map(q).join("\t")).join("\r\n")+"\r\n";
-  const out=new Uint8Array(2+text.length*2);out[0]=255;out[1]=254;
-  for(let j=0;j<text.length;j++){const n=text.charCodeAt(j);out[2+j*2]=n&255;out[3+j*2]=n>>8;}
-  return out;
 }
