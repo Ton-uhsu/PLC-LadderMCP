@@ -1,37 +1,99 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
-import { addCoil, addContact, createProject, exportGxWorks2Text, exportSamSoar, getProject, validateProject } from "./project.js";
+import {
+  addCoil,
+  addContact,
+  addCounter,
+  addInstruction,
+  addParallelAction,
+  addReset,
+  addSet,
+  addTimer,
+  createNetwork,
+  createProject,
+  exportGxWorks2Text,
+  exportSamSoar,
+  getProject,
+  validateProject,
+} from "./project.js";
 
 const json = (value: unknown) => ({
   content: [{ type: "text" as const, text: JSON.stringify(value, null, 2) }],
 });
 
 export function createMcpServer() {
-  const server = new McpServer({ name: "plc-ladder-mcp", version: "0.1.0" });
+  const server = new McpServer({ name: "plc-ladder-mcp", version: "0.2.0" });
 
-  server.tool("create_project", "Create/reset the current Ladder project.", {
+  server.tool("create_project", "Create/reset the current FX3U Ladder project using canonical IR v0.2.", {
     name: z.string().min(1),
     plc_family: z.string().default("Mitsubishi FX"),
     plc_model: z.string().default("FX3U"),
   }, async ({ name, plc_family, plc_model }) => json(createProject(name, plc_family, plc_model)));
 
-  server.tool("get_project", "Return the canonical Ladder IR for the current project.", {},
+  server.tool("get_project", "Return the canonical Ladder IR v0.2 for the current project.", {},
     async () => json(getProject()));
 
-  server.tool("add_contact", "Add a NO/NC contact before the output coil.", {
+  server.tool("create_network", "Create an empty series-root Ladder network.", {
+    network_id: z.number().int().nonnegative().optional(),
+    comment: z.string().optional(),
+  }, async ({ network_id, comment }) =>
+    json({ created: createNetwork(comment, network_id), project: getProject() }));
+
+  server.tool("add_contact", "Add a NO/NC contact to a network before its output action tail.", {
     device: z.string(),
     mode: z.enum(["NO", "NC"]).default("NO"),
     network_id: z.number().int().nonnegative().default(0),
   }, async ({ device, mode, network_id }) =>
     json({ added: addContact(device, mode, network_id), project: getProject() }));
 
-  server.tool("add_coil", "Add an output coil.", {
+  server.tool("add_coil", "Add an output coil. If an output already exists, the new coil becomes a parallel output branch.", {
     device: z.string(),
     network_id: z.number().int().nonnegative().default(0),
   }, async ({ device, network_id }) =>
     json({ added: addCoil(device, network_id), project: getProject() }));
 
-  server.tool("validate_project", "Validate Ladder IR and MVP topology rules.", {},
+  server.tool("add_set", "Add a SET action. Existing outputs are preserved as parallel output branches.", {
+    device: z.string(),
+    network_id: z.number().int().nonnegative().default(0),
+  }, async ({ device, network_id }) =>
+    json({ added: addSet(device, network_id), project: getProject() }));
+
+  server.tool("add_reset", "Add an RST action. Existing outputs are preserved as parallel output branches.", {
+    device: z.string(),
+    network_id: z.number().int().nonnegative().default(0),
+  }, async ({ device, network_id }) =>
+    json({ added: addReset(device, network_id), project: getProject() }));
+
+  server.tool("add_timer", "Add a verified FX3U timer action serialized as OUT Tn Kpreset.", {
+    timer: z.string(),
+    preset: z.number().int().nonnegative(),
+    network_id: z.number().int().nonnegative().default(0),
+  }, async ({ timer, preset, network_id }) =>
+    json({ added: addTimer(timer, preset, network_id), project: getProject() }));
+
+  server.tool("add_counter", "Add a verified FX3U counter action serialized as OUT Cn Kpreset.", {
+    counter: z.string(),
+    preset: z.number().int().nonnegative(),
+    network_id: z.number().int().nonnegative().default(0),
+  }, async ({ counter, preset, network_id }) =>
+    json({ added: addCounter(counter, preset, network_id), project: getProject() }));
+
+  server.tool("add_instruction", "Add a generic FX3U instruction action. Operands use device, K-decimal, or H-hex syntax.", {
+    opcode: z.string().min(1),
+    operands: z.array(z.string()).default([]),
+    network_id: z.number().int().nonnegative().default(0),
+  }, async ({ opcode, operands, network_id }) =>
+    json({ added: addInstruction(opcode, operands, network_id), project: getProject() }));
+
+  server.tool("add_parallel_action", "Append an explicit parallel output action to a network that already has an output.", {
+    kind: z.enum(["coil", "set", "reset", "instruction"]),
+    value: z.string().min(1).describe("Device for coil/set/reset, or opcode for instruction."),
+    operands: z.array(z.string()).default([]),
+    network_id: z.number().int().nonnegative().default(0),
+  }, async ({ kind, value, operands, network_id }) =>
+    json({ added: addParallelAction(kind, value, operands, network_id), project: getProject() }));
+
+  server.tool("validate_project", "Validate the canonical IR v0.2 and current FX3U compiler topology rules.", {},
     async () => json(validateProject()));
 
   server.tool("export_project", "Compile the project to a supported PLC IDE interchange format.", {
