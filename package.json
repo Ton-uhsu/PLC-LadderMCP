@@ -8,7 +8,8 @@
     "build": "npm --workspace apps/web run build",
     "mcp:dev": "npm --workspace services/mcp-server run dev",
     "mcp:build": "npm --workspace services/mcp-server run build",
-    "server": "npm --workspace services/mcp-server run server"
+    "server": "npm --workspace services/mcp-server run server",
+    "mcp:test": "npm --workspace services/mcp-server run test:smoke"
   },
   "workspaces": [
     "apps/*",
