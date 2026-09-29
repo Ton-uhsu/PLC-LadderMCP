@@ -1,9 +1,9 @@
 #!/usr/bin/env node
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { createMcpServer } from "./mcp.js";
-import { startHttpServer } from "./http.js";
+import { startApplicationServer } from "./server.js";
 
-const http = startHttpServer();
+const http = startApplicationServer();
 http.on("error", (error) => {
   console.error(`HTTP server unavailable: ${(error as Error).message}`);
   console.error("Another process owns the port, so MCP proposals will not reach the Web UI.");
