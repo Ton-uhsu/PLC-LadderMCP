@@ -5,7 +5,7 @@ import type {
   LogicNode,
   Operand,
 } from "@plc-ladder-mcp/ladder-ir";
-import { generateGxWorks2ListText, validateFx3uV02 } from "@plc-ladder-mcp/ladder-ir";
+import { generateGxWorks2ListText, parseGxWorks2ListText, validateFx3uV02 } from "@plc-ladder-mcp/ladder-ir";
 import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
 import { basename, dirname, join } from "node:path";
 
@@ -133,6 +133,55 @@ export function createNetwork(comment?: string, requestedId?: number) {
     project.programs[0].networks.sort((a, b) => a.id - b.id);
     return network;
   });
+}
+
+export type ContactSpec = {
+  device: string;
+  mode?: "NO" | "NC";
+  edge?: "none" | "rising" | "falling";
+};
+
+export function setParallelConditions(branches: ContactSpec[][], networkId = 0) {
+  if (branches.length < 2) throw new Error("Parallel condition requires at least two branches.");
+  if (branches.some(branch => branch.length < 1)) throw new Error("Each parallel condition branch requires at least one contact.");
+
+  return mutateProject("set_parallel_conditions", "Set parallel condition branches on network " + networkId, () => {
+    const root = requireSeriesRoot(networkId);
+    const tail = root.children.at(-1);
+    if (!isOutputNode(tail as LogicNode)) throw new Error("Network must already have an output action before setting parallel conditions.");
+
+    const branchNodes: LogicNode[] = branches.map((branch, branchIndex) => {
+      const contacts: LogicNode[] = branch.map((spec, contactIndex) => ({
+        kind: "contact" as const,
+        id: "condition-" + networkId + "-" + branchIndex + "-" + contactIndex + "-" + crypto.randomUUID(),
+        device: dev(normalizeDevice(spec.device)),
+        mode: spec.mode ?? "NO",
+        edge: spec.edge ?? "none",
+      }));
+      return contacts.length === 1
+        ? contacts[0]
+        : { kind: "series" as const, id: "condition-series-" + crypto.randomUUID(), children: contacts };
+    });
+
+    const condition: LogicNode = {
+      kind: "parallel",
+      id: "condition-parallel-" + crypto.randomUUID(),
+      branches: branchNodes,
+    };
+    root.children = [condition, tail as LogicNode];
+    return condition;
+  });
+}
+
+export function importGxWorks2Text(raw: string) {
+  const next = parseGxWorks2ListText(raw);
+  const validation = validateProjectState(next);
+  if (!validation.valid) {
+    throw new Error(validation.issues.filter(issue => issue.severity === "error").map(issue => issue.message).join("; "));
+  }
+  pendingChanges.clear();
+  commitProject(next, "import_gxworks2", "Import GX Works2 List file", "direct");
+  return { project, validation };
 }
 
 export function addContact(device: string, mode: "NO" | "NC", networkId = 0) {
