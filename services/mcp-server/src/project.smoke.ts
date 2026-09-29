@@ -6,12 +6,14 @@ import {
   addInstruction,
   addParallelAction,
   addTimer,
+  approvePendingChange,
   createNetwork,
   createProject,
   exportGxWorks2Text,
   deleteNetwork,
   getProject,
   modifyNetwork,
+  rejectPendingChange,
   removeAction,
   removeContact,
   replaceDevice,
@@ -117,3 +119,21 @@ assert.equal(getProject().programs[0].networks.length, 2);
 const finalValidation = validateProject();
 assert.equal(finalValidation.valid, true, JSON.stringify(finalValidation.issues, null, 2));
 console.log("PASS semantic edit preview/apply smoke");
+
+
+const reviewProposal = modifyNetwork(1, "Human-approved timer/counter", false);
+assert.ok(reviewProposal.pending_change_id);
+const listed = listPendingChanges();
+assert.ok(listed.some(change => change.id === reviewProposal.pending_change_id && change.stale === false));
+
+const approved = approvePendingChange(reviewProposal.pending_change_id!);
+assert.equal(approved.status, "approved");
+assert.equal(getProject().programs[0].networks[1].comment, "Human-approved timer/counter");
+
+const rejectProposal = replaceDevice("M5", "M6", 0, false);
+assert.ok(rejectProposal.pending_change_id);
+const rejected = rejectPendingChange(rejectProposal.pending_change_id!);
+assert.equal(rejected.status, "rejected");
+assert.equal(JSON.stringify(getProject()).includes('"M6"'), false);
+
+console.log("PASS pending human review smoke");
