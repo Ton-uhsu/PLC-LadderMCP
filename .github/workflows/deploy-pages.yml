@@ -35,6 +35,9 @@ jobs:
       - name: Smoke test MCP semantic API
         run: npm run mcp:test
 
+      - name: Remote MCP auth e2e
+        run: npm run mcp:e2e
+
       - name: Build web
         run: npm run build
 
