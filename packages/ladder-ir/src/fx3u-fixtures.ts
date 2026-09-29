@@ -1,4 +1,4 @@
-import type { LadderProjectV02, LogicNode, ActionNode } from "./v02";
+import type { LadderProjectV02, LogicNode, ActionNode } from "./v02.js";
 
 const d=(address:string)=>({kind:"device" as const,address});
 const contact=(id:string,address:string,mode:"NO"|"NC"="NO"):LogicNode=>({kind:"contact",id,device:d(address),mode});
