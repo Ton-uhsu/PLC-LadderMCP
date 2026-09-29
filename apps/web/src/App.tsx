@@ -313,6 +313,7 @@ export default function App() {
   const loadProject = useProjectStore(s => s.loadProject);
   const importGxWorks2 = useProjectStore(s => s.importGxWorks2);
   const setProject = useProjectStore(s => s.setProject);
+  const createProject = useProjectStore(s => s.createProject);
   const [serverInput, setServerInput] = useState(apiUrl);
   const [tokenInput, setTokenInput] = useState(apiToken);
   const [vendor, setVendor] = useState<Vendor>("SamSoar2022");
@@ -320,6 +321,10 @@ export default function App() {
   const [saveName, setSaveName] = useState(project.name);
   const [savedSelection, setSavedSelection] = useState("");
   const importRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    setSaveName(project.name);
+  }, [project.name]);
 
   const result = useMemo(() => validateProject(project), [project]);
   const program = project.programs[0];
@@ -339,7 +344,10 @@ export default function App() {
         <div className="brand-mark"><Workflow size={19}/></div>
         <div><strong>PLC Ladder</strong><span>MCP Studio</span></div>
       </div>
-      <button className="new-project"><Plus size={17}/> New project</button>
+      <button className="new-project" onClick={() => {
+        const name = prompt("Project name", "Untitled PLC Project");
+        if (name !== null) createProject(name).catch(error => alert(String(error)));
+      }}><Plus size={17}/> New project</button>
       <nav>
         {[["Ladder", Network], ["IR / JSON", Braces], ["Validation", ShieldCheck], ["AI Changes", Bot], ["History", HistoryIcon], ["Exports", Download]].map(([label, Icon]) => {
           const I = Icon as typeof Network;
