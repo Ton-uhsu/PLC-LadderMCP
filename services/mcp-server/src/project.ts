@@ -986,6 +986,146 @@ function applySemanticOperation(
   summaries.push(summary);
 }
 
+export type ProjectConditionSpec =
+  | { type: "series"; contacts: ContactSpec[] }
+  | { type: "parallel"; branches: ContactSpec[][] };
+
+export type ProjectActionSpec =
+  | { type: "coil"; device: string }
+  | { type: "set"; device: string }
+  | { type: "reset"; device: string }
+  | { type: "timer"; timer: string; preset: number }
+  | { type: "counter"; counter: string; preset: number }
+  | { type: "instruction"; opcode: string; operands?: string[] };
+
+export type ProjectNetworkSpec = {
+  network_id: number;
+  comment?: string;
+  condition: ProjectConditionSpec;
+  actions: ProjectActionSpec[];
+};
+
+function contactFromSpec(spec: ContactSpec): Extract<LogicNode, { kind: "contact" }> {
+  if ((spec.edge ?? "none") !== "none" && spec.mode === "NC") {
+    throw new Error("Pulse edge contacts currently support NO mode only.");
+  }
+  return {
+    kind: "contact",
+    id: crypto.randomUUID(),
+    device: dev(normalizeDevice(spec.device)),
+    mode: spec.mode ?? "NO",
+    edge: spec.edge ?? "none",
+  };
+}
+
+function conditionFromSpec(spec: ProjectConditionSpec): LogicNode {
+  if (spec.type === "series") {
+    if (!spec.contacts.length) throw new Error("Series condition requires at least one contact.");
+    const contacts = spec.contacts.map(contactFromSpec);
+    return contacts.length === 1
+      ? contacts[0]
+      : { kind: "series", id: "condition-series-" + crypto.randomUUID(), children: contacts };
+  }
+
+  if (spec.branches.length < 2) throw new Error("Parallel condition requires at least two branches.");
+  const branches = spec.branches.map(branch => {
+    if (!branch.length) throw new Error("Each parallel condition branch requires at least one contact.");
+    const contacts = branch.map(contactFromSpec);
+    return contacts.length === 1
+      ? contacts[0]
+      : { kind: "series" as const, id: "condition-series-" + crypto.randomUUID(), children: contacts };
+  });
+  return { kind: "parallel", id: "condition-parallel-" + crypto.randomUUID(), branches };
+}
+
+function projectActionFromSpec(spec: ProjectActionSpec): ActionNode {
+  switch (spec.type) {
+    case "coil":
+      return makeAction("coil", spec.device);
+    case "set":
+      return makeAction("set", spec.device);
+    case "reset":
+      return makeAction("reset", spec.device);
+    case "timer": {
+      const timer = normalizeDevice(spec.timer);
+      if (!/^T\d+$/.test(timer)) throw new Error("Timer target must use a T device, for example T0.");
+      assertNonNegativeInteger(spec.preset, "Timer preset");
+      return {
+        kind: "instruction",
+        id: crypto.randomUUID(),
+        opcode: "OUT",
+        operands: [dev(timer), { kind: "constant", radix: "decimal", value: spec.preset }],
+      };
+    }
+    case "counter": {
+      const counter = normalizeDevice(spec.counter);
+      if (!/^C\d+$/.test(counter)) throw new Error("Counter target must use a C device, for example C0.");
+      assertNonNegativeInteger(spec.preset, "Counter preset");
+      return {
+        kind: "instruction",
+        id: crypto.randomUUID(),
+        opcode: "OUT",
+        operands: [dev(counter), { kind: "constant", radix: "decimal", value: spec.preset }],
+      };
+    }
+    case "instruction":
+      return makeAction("instruction", spec.opcode, spec.operands ?? []);
+  }
+}
+
+function networkFromSpec(spec: ProjectNetworkSpec): LadderNetworkV02 {
+  if (!Number.isInteger(spec.network_id) || spec.network_id < 0) {
+    throw new Error("network_id must be a non-negative integer.");
+  }
+  if (!spec.actions.length) throw new Error("Network " + spec.network_id + " requires at least one action.");
+
+  const condition = conditionFromSpec(spec.condition);
+  const actionNodes: LogicNode[] = spec.actions.map(actionSpec => {
+    const action = projectActionFromSpec(actionSpec);
+    return { kind: "action", id: "action-" + action.id, action };
+  });
+  const tail: LogicNode = actionNodes.length === 1
+    ? actionNodes[0]
+    : { kind: "parallel", id: "outputs-" + spec.network_id, branches: actionNodes };
+
+  return {
+    id: spec.network_id,
+    root: {
+      kind: "series",
+      id: "network-" + spec.network_id,
+      children: [condition, tail],
+    },
+    ...(spec.comment?.trim() ? { comment: spec.comment.trim() } : {}),
+  };
+}
+
+export function proposeProjectDefinition(
+  name: string,
+  networks: ProjectNetworkSpec[],
+  apply = false,
+): EditResult {
+  if (!name.trim()) throw new Error("Project name is required.");
+  if (!networks.length) throw new Error("Project requires at least one network.");
+
+  const ids = networks.map(network => network.network_id);
+  if (new Set(ids).size !== ids.length) throw new Error("Project network_id values must be unique.");
+
+  const next = newEmptyProject(name.trim());
+  next.programs[0].networks = networks
+    .map(networkFromSpec)
+    .sort((a, b) => a.id - b.id);
+
+  return editProject("propose_project", apply, draft => {
+    const before = cloneValue(draft);
+    Object.assign(draft, cloneValue(next));
+    return {
+      summary: "Create complete project " + next.name + " with " + next.programs[0].networks.length + " network(s)",
+      changes: [{ path: "project", before, after: cloneValue(next) }],
+    };
+  });
+}
+
+
 export function proposeSemanticChanges(operations: SemanticOperation[], apply = false): EditResult {
   if (!operations.length) throw new Error("At least one semantic operation is required.");
   const createProjectIndex = operations.findIndex(operation => operation.type === "create_project");

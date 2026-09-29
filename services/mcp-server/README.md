@@ -28,7 +28,8 @@ Primary AI workflow:
 
 - `get_project`
 - `get_fx3u_capabilities`
-- `propose_changes` — primary multi-operation write tool
+- `propose_project` — **preferred for creating/replacing a whole project** from an exact final network list
+- `propose_changes` — primary multi-operation edit tool for an existing project
 - `list_pending_changes`
 - `validate_project`
 - `export_project`
@@ -66,25 +67,32 @@ Human-only operations are intentionally **not exposed through MCP**:
 - redo
 - direct project/network creation
 
-For a new project or a new network, the AI should use one `propose_changes` batch containing all required operations so the final proposed state can be validated before the human approves it.
+For a **new/replacement project**, prefer `propose_project`. It declares the exact final network list, so the AI cannot accidentally leave an extra empty network behind.
 
 Example:
 
 ```text
-propose_changes(
-  operations=[
-    {type:"create_project", name:"Pump Control"},
-    {type:"add_contact", device:"X0", network_id:0},
-    {type:"add_coil", device:"Y0", network_id:0},
-
-    {type:"create_network", network_id:1, comment:"Timer"},
-    {type:"add_contact", device:"M0", network_id:1},
-    {type:"add_timer", timer:"T0", preset:10, network_id:1}
+propose_project(
+  name="Pump Control",
+  networks=[
+    {
+      network_id:0,
+      condition:{type:"series",contacts:[{device:"X0"}]},
+      actions:[{type:"coil",device:"Y0"}]
+    },
+    {
+      network_id:1,
+      comment:"Timer",
+      condition:{type:"series",contacts:[{device:"M0"}]},
+      actions:[{type:"timer",timer:"T0",preset:10}]
+    }
   ]
 )
 ```
 
-This creates one pending proposal. Canonical IR remains unchanged until the Web user presses **Approve**.
+For edits to the current project, use `propose_changes` or the single-change proposal helpers.
+
+Both flows create one pending proposal. Canonical IR remains unchanged until the Web user presses **Approve**.
 
 ## Nested FX3U conditions
 

@@ -19,6 +19,7 @@ import {
   proposeAddSet,
   proposeAddTimer,
   proposeImportGxWorks2Text,
+  proposeProjectDefinition,
   proposeLoadProjectSnapshot,
   proposeSemanticChanges,
   proposeSetParallelConditions,
@@ -38,6 +39,38 @@ const contactSpec = z.object({
   mode: z.enum(["NO", "NC"]).default("NO"),
   edge: z.enum(["none", "rising", "falling"]).default("none"),
 });
+
+const projectCondition = z.discriminatedUnion("type", [
+  z.object({
+    type: z.literal("series"),
+    contacts: z.array(contactSpec).min(1),
+  }),
+  z.object({
+    type: z.literal("parallel"),
+    branches: z.array(z.array(contactSpec).min(1)).min(2),
+  }),
+]);
+
+const projectAction = z.discriminatedUnion("type", [
+  z.object({ type: z.literal("coil"), device: z.string().min(1) }),
+  z.object({ type: z.literal("set"), device: z.string().min(1) }),
+  z.object({ type: z.literal("reset"), device: z.string().min(1) }),
+  z.object({
+    type: z.literal("timer"),
+    timer: z.string().min(1),
+    preset: z.number().int().nonnegative(),
+  }),
+  z.object({
+    type: z.literal("counter"),
+    counter: z.string().min(1),
+    preset: z.number().int().nonnegative(),
+  }),
+  z.object({
+    type: z.literal("instruction"),
+    opcode: z.string().min(1),
+    operands: z.array(z.string()).default([]),
+  }),
+]);
 
 const semanticOperation = z.discriminatedUnion("type", [
   z.object({
@@ -123,8 +156,23 @@ export function createMcpServer() {
   );
 
   server.tool(
+    "propose_project",
+    "PREFERRED TOOL FOR CREATING OR REPLACING A WHOLE PROJECT. Declare the exact final network list, conditions, and actions. The server builds one complete valid proposal and NEVER adds unspecified networks. Human approval in Web is required.",
+    {
+      name: z.string().min(1),
+      networks: z.array(z.object({
+        network_id: z.number().int().nonnegative(),
+        comment: z.string().optional(),
+        condition: projectCondition,
+        actions: z.array(projectAction).min(1),
+      })).min(1),
+    },
+    async ({ name, networks }) => json(proposeProjectDefinition(name, networks, false)),
+  );
+
+  server.tool(
     "propose_changes",
-    "PRIMARY WRITE TOOL. Build one complete AI proposal from multiple semantic operations. Nothing is applied until the human approves it in the Web AI Changes screen. Use one batch for a new project/network so the final proposed project validates as a whole.",
+    "PRIMARY EDIT TOOL for multi-step changes to the existing project. For creating/replacing a whole project, prefer propose_project so the exact final network list is declared. Nothing is applied until human approval.",
     {
       operations: z.array(semanticOperation).min(1),
     },
