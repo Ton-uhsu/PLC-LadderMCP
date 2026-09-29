@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useState } from "react";
+import { parseGxWorks2ListText } from "@plc-ladder-mcp/ladder-ir";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Activity, AlertTriangle, Bot, Braces, CheckCircle2, ChevronDown, CircleDot, Download,
   FileCode2, FolderOpen, History as HistoryIcon, Network, Play, Plus, Redo2, RefreshCw, Settings2, ShieldCheck, Undo2, Workflow, XCircle,
@@ -18,7 +19,8 @@ type Vendor = "GX Works2" | "SamSoar2022";
 
 function LadderPreview() {
   const project = useProjectStore(s => s.project);
-  const network = project.programs[0]?.networks[0];
+  const selectedNetworkId = useProjectStore(s => s.selectedNetworkId);
+  const network = project.programs[0]?.networks.find(item => item.id === selectedNetworkId);
 
   if (!network) {
     return <div className="json-view">No Ladder network in the current IR.</div>;
@@ -26,10 +28,31 @@ function LadderPreview() {
 
   const preview = getPreviewNetwork(network);
   if (!preview.supported) {
-    return <svg viewBox="0 0 900 270" className="ladder" role="img" aria-label="Unsupported Ladder topology">
-      <line x1="70" y1="35" x2="70" y2="235" className="wire rail"/>
-      <line x1="830" y1="35" x2="830" y2="235" className="wire rail"/>
-      <text x="120" y="125" className="device">Preview pending: {preview.reason}</text>
+    const nestedActions = preview.actions;
+    const height = Math.max(270, 110 + nestedActions.length * 46);
+    return <svg viewBox={`0 0 900 ${height}`} className="ladder" role="img" aria-label="Nested Ladder topology">
+      <line x1="70" y1="35" x2="70" y2={height - 35} className="wire rail"/>
+      <line x1="830" y1="35" x2="830" y2={height - 35} className="wire rail"/>
+      <text x="28" y="105" className="step">{network.id}</text>
+      <line x1="70" y1="100" x2="140" y2="100" className="wire"/>
+      <rect x="140" y="65" width="410" height="70" rx="6" className="symbol fill-none"/>
+      <text x="155" y="94" className="nested-label">NESTED CONDITION</text>
+      <text x="155" y="118" className="nested-expression">{preview.conditionText}</text>
+      <line x1="550" y1="100" x2="650" y2="100" className="wire"/>
+      {nestedActions.map((action, index) => {
+        const y = 100 + index * 46;
+        return <g key={action.id}>
+          {nestedActions.length > 1 && <line x1="650" y1="100" x2="650" y2={y} className="wire"/>}
+          <line x1="650" y1={y} x2="690" y2={y} className="wire"/>
+          <rect x="690" y={y - 18} width="112" height="36" className="symbol fill-none"/>
+          <text x="746" y={y + 5} textAnchor="middle" className="device">{actionLabel(action)}</text>
+          <line x1="802" y1={y} x2="830" y2={y} className="wire"/>
+        </g>;
+      })}
+      <text x="28" y={height - 50} className="step">END</text>
+      <line x1="70" y1={height - 55} x2="685" y2={height - 55} className="wire muted-wire"/>
+      <text x="705" y={height - 49} className="end">END</text>
+      <line x1="755" y1={height - 55} x2="830" y2={height - 55} className="wire muted-wire"/>
     </svg>;
   }
 
@@ -276,17 +299,31 @@ function HistoryPanel() {
 
 export default function App() {
   const project = useProjectStore(s => s.project);
+  const selectedNetworkId = useProjectStore(s => s.selectedNetworkId);
+  const selectNetwork = useProjectStore(s => s.selectNetwork);
   const apiUrl = useProjectStore(s => s.apiUrl);
+  const apiToken = useProjectStore(s => s.apiToken);
   const connected = useProjectStore(s => s.connected);
   const setApiUrl = useProjectStore(s => s.setApiUrl);
+  const setApiToken = useProjectStore(s => s.setApiToken);
   const syncProject = useProjectStore(s => s.syncProject);
+  const savedProjects = useProjectStore(s => s.savedProjects);
+  const syncSavedProjects = useProjectStore(s => s.syncSavedProjects);
+  const saveProject = useProjectStore(s => s.saveProject);
+  const loadProject = useProjectStore(s => s.loadProject);
+  const importGxWorks2 = useProjectStore(s => s.importGxWorks2);
+  const setProject = useProjectStore(s => s.setProject);
   const [serverInput, setServerInput] = useState(apiUrl);
+  const [tokenInput, setTokenInput] = useState(apiToken);
   const [vendor, setVendor] = useState<Vendor>("SamSoar2022");
   const [active, setActive] = useState("Ladder");
+  const [saveName, setSaveName] = useState(project.name);
+  const [savedSelection, setSavedSelection] = useState("");
+  const importRef = useRef<HTMLInputElement>(null);
 
   const result = useMemo(() => validateProject(project), [project]);
   const program = project.programs[0];
-  const network = program?.networks[0];
+  const network = program?.networks.find(item => item.id === selectedNetworkId) ?? program?.networks[0];
   const preview = network ? getPreviewNetwork(network) : null;
   const contactSummary = preview?.contacts.map(c => `${c.mode === "NC" ? "NOT " : ""}${c.device.address}`).join(" AND ") || "No contact";
   const outputSummary = preview?.actions.map(actionLabel).join(", ") || "No output";
@@ -327,7 +364,31 @@ export default function App() {
           <h1>{project.name}</h1>
         </div>
         <div className="header-actions">
-          <button className="ghost"><FolderOpen size={16}/> Import</button>
+          <input
+            ref={importRef}
+            type="file"
+            accept=".csv,.txt,.tsv"
+            hidden
+            onChange={async event => {
+              const file = event.target.files?.[0];
+              if (!file) return;
+              try {
+                const bytes = new Uint8Array(await file.arrayBuffer());
+                const utf16 = bytes[0] === 0xff && bytes[1] === 0xfe;
+                const text = utf16
+                  ? new TextDecoder("utf-16le").decode(bytes.slice(2))
+                  : new TextDecoder("utf-8").decode(bytes);
+                if (connected) await importGxWorks2(text);
+                else setProject(parseGxWorks2ListText(text));
+                setActive("Ladder");
+              } catch (error) {
+                alert("GX Works2 import failed: " + String(error));
+              } finally {
+                event.target.value = "";
+              }
+            }}
+          />
+          <button className="ghost" onClick={() => importRef.current?.click()}><FolderOpen size={16}/> Import GX Works2</button>
           <button className="primary" onClick={() => alert(result.valid ? "Project is valid." : result.issues.join("\n"))}>
             <Play size={15}/> Validate
           </button>
@@ -342,12 +403,16 @@ export default function App() {
       </section>
 
       <div className="server-bar">
-        <input value={serverInput} onChange={e => setServerInput(e.target.value)} placeholder="https://xxxxx.trycloudflare.com"/>
+        <input value={serverInput} onChange={e => setServerInput(e.target.value)} placeholder="http://localhost:3001 or Cloudflare URL"/>
+        <input className="token-input" type="password" value={tokenInput} onChange={e => setTokenInput(e.target.value)} placeholder="Bearer token (optional locally)"/>
         <button onClick={() => {
           setApiUrl(serverInput);
+          setApiToken(tokenInput);
           setTimeout(async () => {
-            try { await useProjectStore.getState().syncProject(); }
-            catch (error) { alert("Server connection failed: " + String(error)); }
+            try {
+              await useProjectStore.getState().syncProject();
+              await useProjectStore.getState().syncSavedProjects();
+            } catch (error) { alert("Server connection failed: " + String(error)); }
           }, 0);
         }}>Connect server</button>
         <button className="ghost" onClick={() => syncProject().catch(error => alert(String(error)))}>Sync now</button>
@@ -364,6 +429,17 @@ export default function App() {
             <div className="badge"><Activity size={14}/> LIVE IR PREVIEW</div>
           </div>
 
+          {(active === "Ladder" || active === "IR / JSON" || active === "Validation") && <div className="network-tabs">
+            {program?.networks.map(item => <button
+              key={item.id}
+              className={item.id === network?.id ? "network-tab active" : "network-tab"}
+              onClick={() => selectNetwork(item.id)}
+            >
+              <b>Network {item.id}</b>
+              <span>{item.comment || "No comment"}</span>
+            </button>)}
+          </div>}
+
           {active === "IR / JSON"
             ? <pre className="json-view">{JSON.stringify(project, null, 2)}</pre>
             : active === "AI Changes"
@@ -374,7 +450,7 @@ export default function App() {
 
           {active !== "AI Changes" && active !== "History" && <div className="network-note">
             <CircleDot size={14}/>
-            <span><b>Network {network?.id ?? "—"}</b> — <code>{contactSummary}</code> drives <code>{outputSummary}</code>.</span>
+            <span><b>Network {network?.id ?? "—"}</b> — <code>{preview?.conditionText || contactSummary}</code> drives <code>{outputSummary}</code>.</span>
           </div>}
         </section>
 
@@ -400,6 +476,23 @@ export default function App() {
               <Download size={16}/> Generate {vendor} file
             </button>
             <p>Generated directly from canonical Ladder IR v0.2 through the shared compiler path.</p>
+          </section>
+
+          <section className="panel project-files">
+            <div className="panel-head compact"><div><span className="kicker">PERSISTENCE</span><h2>Project files</h2></div><FolderOpen size={19}/></div>
+            <label>Save as</label>
+            <input value={saveName} onChange={e => setSaveName(e.target.value)} placeholder="Project snapshot name"/>
+            <button className="ghost project-file-button" disabled={!connected} onClick={() => saveProject(saveName).catch(error => alert(String(error)))}>Save JSON snapshot</button>
+            <label>Saved projects</label>
+            <select value={savedSelection} onChange={e => setSavedSelection(e.target.value)}>
+              <option value="">Select saved project</option>
+              {savedProjects.map(item => <option key={item.file} value={item.name}>{item.name}</option>)}
+            </select>
+            <div className="project-file-actions">
+              <button className="ghost" disabled={!connected} onClick={() => syncSavedProjects().catch(error => alert(String(error)))}>Refresh</button>
+              <button className="ghost" disabled={!connected || !savedSelection} onClick={() => loadProject(savedSelection).catch(error => alert(String(error)))}>Load</button>
+            </div>
+            <p>Current IR also autosaves on every applied mutation to <code>.plc-ladder/current-project.json</code>.</p>
           </section>
 
           <section className="panel checks">
