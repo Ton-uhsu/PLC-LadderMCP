@@ -46,6 +46,7 @@ try {
 
   const tools = await client.listTools();
   const names = new Set(tools.tools.map(tool => tool.name));
+  assert.ok(names.has("propose_project"));
   assert.ok(names.has("propose_changes"));
   assert.ok(names.has("set_parallel_conditions"));
   assert.ok(names.has("import_gxworks2"));
@@ -63,12 +64,15 @@ try {
   const before = toolJson(await client.callTool({ name: "get_project", arguments: {} }));
 
   const proposal = toolJson(await client.callTool({
-    name: "propose_changes",
+    name: "propose_project",
     arguments: {
-      operations: [
-        { type: "create_project", name: "AI Human Review E2E", plc_family: "Mitsubishi FX", plc_model: "FX3U" },
-        { type: "add_contact", device: "M0", mode: "NO", network_id: 0 },
-        { type: "add_coil", device: "Y0", network_id: 0 },
+      name: "AI Human Review E2E",
+      networks: [
+        {
+          network_id: 0,
+          condition: { type: "series", contacts: [{ device: "M0", mode: "NO", edge: "none" }] },
+          actions: [{ type: "coil", device: "Y0" }],
+        },
       ],
     },
   }));
