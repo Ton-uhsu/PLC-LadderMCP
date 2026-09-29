@@ -133,14 +133,19 @@ function AIChangesPanel() {
   const [busyId, setBusyId] = useState<string | null>(null);
 
   useEffect(() => {
-    if (connected) syncPendingChanges().catch(() => undefined);
+    if (!connected) return;
+    syncPendingChanges().catch(() => undefined);
+    const timer = window.setInterval(() => {
+      syncPendingChanges().catch(() => undefined);
+    }, 2000);
+    return () => window.clearInterval(timer);
   }, [connected, syncPendingChanges]);
 
   if (!connected) {
     return <div className="changes-empty">
       <Bot size={26}/>
       <strong>Connect to the MCP server to review AI changes.</strong>
-      <span>Previewed semantic edits appear here before they are applied to canonical IR v0.2.</span>
+      <span>AI writes appear here as proposals. The MCP client cannot approve or apply them directly.</span>
     </div>;
   }
 
@@ -148,7 +153,7 @@ function AIChangesPanel() {
     <div className="changes-toolbar">
       <div>
         <b>{pendingChanges.length} pending change{pendingChanges.length === 1 ? "" : "s"}</b>
-        <span>AI proposals stay unapplied until you approve them.</span>
+        <span>AI proposals stay unapplied until you approve them here. The list refreshes automatically.</span>
       </div>
       <button className="ghost" onClick={() => syncPendingChanges().catch(error => alert(String(error)))}>
         <RefreshCw size={14} className={loadingChanges ? "spin" : ""}/> Refresh
@@ -158,7 +163,7 @@ function AIChangesPanel() {
     {!loadingChanges && pendingChanges.length === 0 && <div className="changes-empty compact">
       <CheckCircle2 size={24}/>
       <strong>No pending AI changes</strong>
-      <span>When an MCP edit tool is called with apply=false, its diff will appear here.</span>
+      <span>When the AI calls a write tool, its proposal and diff will appear here automatically.</span>
     </div>}
 
     {pendingChanges.map(change => <article className={"change-card " + (change.stale ? "stale" : "")} key={change.id}>
