@@ -975,16 +975,13 @@ function applySemanticOperation(
   }
 
   const root = requireSeriesRootFrom(target, networkId);
-  const beforeTail = cloneValue(root.children.at(-1) ?? null);
-  const beforeLength = root.children.length;
+  const beforeChildren = cloneValue(root.children);
   appendActionTo(target, action, networkId, requireExistingOutput);
   const afterRoot = requireSeriesRootFrom(target, networkId);
-  const afterTail = cloneValue(afterRoot.children.at(-1) ?? null);
-  const pathIndex = Math.max(0, beforeLength - (beforeTail ? 1 : 0));
   changes.push({
-    path: `programs[0].networks[${networkId}].root.children[${pathIndex}]`,
-    before: beforeTail,
-    after: afterTail,
+    path: `programs[0].networks[${networkId}].root.children`,
+    before: beforeChildren,
+    after: cloneValue(afterRoot.children),
   });
   summaries.push(summary);
 }
