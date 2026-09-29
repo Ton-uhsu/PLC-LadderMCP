@@ -310,15 +310,34 @@ http://localhost:3001/mcp
 
 ## Remote MCP + security
 
-For local-only development, authentication can remain disabled.
+The server listens on `0.0.0.0`, so bearer auth is **on by default**. When no `PLC_LADDER_TOKEN` is set, the server generates a random token at startup and prints it:
 
-For Cloudflare Tunnel or any non-local exposure, start the server with a bearer token.
+```text
+PLC-LadderMCP HTTP + Remote MCP: http://localhost:3001
+Health: http://localhost:3001/health
+Remote MCP: http://localhost:3001/mcp
+Auth: enabled, token auto-generated for this run.
 
-Git Bash:
+  Paste this into the web app's Bearer token field:
+
+  <generated-token>
+
+  Set PLC_LADDER_TOKEN to reuse the same token across restarts.
+```
+
+That token is valid only for the lifetime of the process. A restart generates a new one.
+
+For local-only development, auth can be turned off explicitly:
+
+```bash
+export PLC_LADDER_REQUIRE_AUTH=false
+npm run server
+```
+
+To pin one token across restarts, set it yourself:
 
 ```bash
 export PLC_LADDER_TOKEN="replace-with-a-long-random-secret"
-export PLC_LADDER_REQUIRE_AUTH=true
 npm run server
 ```
 
@@ -328,21 +347,17 @@ Then start Quick Tunnel separately:
 cloudflared tunnel --protocol http2 --url http://localhost:3001
 ```
 
-Use the generated URL as:
-
-```text
-https://xxxxx.trycloudflare.com/mcp
-```
+Paste the tunnel base URL into the Web **server** field, without `/mcp` — the app appends the `/api/...` path itself. Remote MCP clients use the `/mcp` path directly.
 
 Remote clients must send:
 
 ```text
-Authorization: Bearer replace-with-a-long-random-secret
+Authorization: Bearer <token>
 ```
 
-The Web has an optional Bearer Token field and sends the same header to all protected API calls.
+The Web has a Bearer Token field and sends the same header to all protected API calls. It is kept in `sessionStorage`, so it must be re-entered after closing the tab. The server URL is kept in `localStorage`.
 
-If `PLC_LADDER_REQUIRE_AUTH=true` is set without `PLC_LADDER_TOKEN`, the server refuses to start.
+A Quick Tunnel URL is random and unguessable, but it is still a public endpoint. Anyone with both the URL and the token can approve, reject, undo, and redo changes.
 
 ## Tests
 

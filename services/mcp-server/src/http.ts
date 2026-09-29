@@ -1,4 +1,5 @@
 import http from "node:http";
+import { randomBytes } from "node:crypto";
 import { pathToFileURL, URL } from "node:url";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import { fx3uRejectedExactForms, fx3uVerifiedForms } from "@plc-ladder-mcp/ladder-ir";
@@ -86,7 +87,7 @@ export function createHttpServer(options: { token?: string } = {}) {
       }
 
       if (token && bearerToken(req) !== token) {
-        return send(res, 401, { error: "Unauthorized. Send Authorization: Bearer <PLC_LADDER_TOKEN>." });
+        return send(res, 401, { error: "Unauthorized. Send Authorization: Bearer <token>." });
       }
 
       if (url.pathname === "/mcp") {
@@ -277,12 +278,15 @@ export function createHttpServer(options: { token?: string } = {}) {
   });
 }
 
+function generateToken() {
+  return randomBytes(32).toString("base64url");
+}
+
 export function startHttpServer() {
-  const requireAuth = /^(1|true|yes)$/i.test(process.env.PLC_LADDER_REQUIRE_AUTH ?? "");
-  const token = process.env.PLC_LADDER_TOKEN?.trim() ?? "";
-  if (requireAuth && !token) {
-    throw new Error("PLC_LADDER_REQUIRE_AUTH is enabled but PLC_LADDER_TOKEN is empty.");
-  }
+  const envToken = process.env.PLC_LADDER_TOKEN?.trim() ?? "";
+  const authOptOut = /^(0|false|no|off)$/i.test(process.env.PLC_LADDER_REQUIRE_AUTH ?? "");
+  const token = envToken || (authOptOut ? "" : generateToken());
+  const generatedToken = !envToken && token.length > 0;
 
   const port = Number(process.env.PORT ?? 3001);
   const server = createHttpServer({ token });
@@ -290,7 +294,19 @@ export function startHttpServer() {
     console.log(`PLC-LadderMCP HTTP + Remote MCP: http://localhost:${port}`);
     console.log(`Health: http://localhost:${port}/health`);
     console.log(`Remote MCP: http://localhost:${port}/mcp`);
-    console.log(token ? "Auth: Bearer token required" : "Auth: disabled (local development mode)");
+    if (!token) {
+      console.log("Auth: disabled (PLC_LADDER_REQUIRE_AUTH=false). Do not expose this server publicly.");
+      return;
+    }
+    console.log(generatedToken ? "Auth: enabled, token auto-generated for this run." : "Auth: Bearer token required.");
+    console.log("");
+    console.log("  Paste this into the web app's Bearer token field:");
+    console.log("");
+    console.log(`  ${token}`);
+    console.log("");
+    if (generatedToken) {
+      console.log("  Set PLC_LADDER_TOKEN to reuse the same token across restarts.");
+    }
   });
   return server;
 }
