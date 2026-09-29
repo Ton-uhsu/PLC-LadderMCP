@@ -17,13 +17,18 @@ import {
   deleteNetwork,
   getHistory,
   getProject,
+  importGxWorks2Text,
   listPendingChanges,
+  listSavedProjects,
+  loadProjectSnapshot,
   modifyNetwork,
   redoProject,
   rejectPendingChange,
   removeAction,
   removeContact,
   replaceDevice,
+  saveProjectSnapshot,
+  setParallelConditions,
   undoProject,
   validateProject,
 } from "./project.js";
@@ -104,6 +109,17 @@ export function createMcpServer() {
   }, async ({ kind, value, operands, network_id }) =>
     json({ added: addParallelAction(kind, value, operands, network_id), project: getProject() }));
 
+  server.tool("set_parallel_conditions", "Replace a network condition with two or more parallel contact branches while preserving its output tail.", {
+    branches: z.array(z.array(z.object({
+      device: z.string().min(1),
+      mode: z.enum(["NO", "NC"]).default("NO"),
+      edge: z.enum(["none", "rising", "falling"]).default("none"),
+    })).min(1)).min(2),
+    network_id: z.number().int().nonnegative().default(0),
+  }, async ({ branches, network_id }) =>
+    json({ condition: setParallelConditions(branches, network_id), project: getProject() }));
+
+
   server.tool("remove_contact", "Preview or apply removal of a direct series contact by node id. Preview is the default.", {
     contact_id: z.string().min(1),
     network_id: z.number().int().nonnegative().default(0),
@@ -160,6 +176,21 @@ export function createMcpServer() {
 
   server.tool("redo_project", "Redo the most recently undone project mutation.", {},
     async () => json(redoProject()));
+
+  server.tool("list_saved_projects", "List named JSON project snapshots stored by the server.", {},
+    async () => json(listSavedProjects()));
+
+  server.tool("save_project", "Save the current canonical IR v0.2 project as a named JSON snapshot.", {
+    name: z.string().min(1).optional(),
+  }, async ({ name }) => json(saveProjectSnapshot(name)));
+
+  server.tool("load_project", "Load a named JSON project snapshot into the current canonical state.", {
+    name: z.string().min(1),
+  }, async ({ name }) => json(loadProjectSnapshot(name)));
+
+  server.tool("import_gxworks2", "Import GX Works2 List CSV/TSV text into canonical IR v0.2.", {
+    content: z.string().min(1),
+  }, async ({ content }) => json(importGxWorks2Text(content)));
 
   server.tool("validate_project", "Validate the canonical IR v0.2 and current FX3U compiler topology rules.", {},
     async () => json(validateProject()));
