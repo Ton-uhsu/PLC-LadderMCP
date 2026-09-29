@@ -1,6 +1,6 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
-import { addCoil, addContact, createProject, exportGxWorks2Text, exportSamSoar, getProject, getProjectV02, validateProject } from "./project.js";
+import { addCoil, addContact, createProject, exportGxWorks2Text, exportSamSoar, getProject, validateProject } from "./project.js";
 
 const json = (value: unknown) => ({
   content: [{ type: "text" as const, text: JSON.stringify(value, null, 2) }],
@@ -16,7 +16,7 @@ export function createMcpServer() {
   }, async ({ name, plc_family, plc_model }) => json(createProject(name, plc_family, plc_model)));
 
   server.tool("get_project", "Return the canonical Ladder IR for the current project.", {},
-    async () => json(getProjectV02()));
+    async () => json(getProject()));
 
   server.tool("add_contact", "Add a NO/NC contact before the output coil.", {
     device: z.string(),
