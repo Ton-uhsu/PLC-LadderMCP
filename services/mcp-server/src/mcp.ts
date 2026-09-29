@@ -15,13 +15,16 @@ import {
   exportSamSoar,
   approvePendingChange,
   deleteNetwork,
+  getHistory,
   getProject,
   listPendingChanges,
   modifyNetwork,
+  redoProject,
   rejectPendingChange,
   removeAction,
   removeContact,
   replaceDevice,
+  undoProject,
   validateProject,
 } from "./project.js";
 
@@ -148,6 +151,15 @@ export function createMcpServer() {
     pending_change_id: z.string().min(1),
   }, async ({ pending_change_id }) =>
     json(rejectPendingChange(pending_change_id)));
+
+  server.tool("get_history", "Return change log plus undo/redo availability for the current project.", {},
+    async () => json(getHistory()));
+
+  server.tool("undo_project", "Undo the most recent applied project mutation.", {},
+    async () => json(undoProject()));
+
+  server.tool("redo_project", "Redo the most recently undone project mutation.", {},
+    async () => json(redoProject()));
 
   server.tool("validate_project", "Validate the canonical IR v0.2 and current FX3U compiler topology rules.", {},
     async () => json(validateProject()));
