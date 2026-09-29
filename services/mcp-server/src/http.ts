@@ -1,7 +1,7 @@
 import http from "node:http";
 import { URL } from "node:url";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
-import { addCoil, addContact, createProject, exportGxWorks2Text, exportSamSoar, getProject, getProjectV02, validateProject } from "./project.js";
+import { addCoil, addContact, createProject, exportGxWorks2Text, exportSamSoar, getProject, validateProject } from "./project.js";
 import { createMcpServer } from "./mcp.js";
 
 const port = Number(process.env.PORT ?? 3001);
@@ -45,7 +45,7 @@ const server = http.createServer(async (req, res) => {
     if (req.method === "GET" && url.pathname === "/health")
       return send(res, 200, { ok: true, service: "plc-ladder-mcp", version: "0.2.0", mcp: "/mcp" });
     if (req.method === "GET" && url.pathname === "/api/project")
-      return send(res, 200, getProjectV02());
+      return send(res, 200, getProject());
     if (req.method === "POST" && url.pathname === "/api/project") {
       const b = await readJson(req) as any;
       return send(res, 200, createProject(b.name ?? "Untitled PLC Project", b.plc_family ?? "Mitsubishi FX", b.plc_model ?? "FX3U"));
