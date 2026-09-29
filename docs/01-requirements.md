@@ -1,8 +1,8 @@
 # PLC-LadderMCP Requirements
 
-**Document:** `docs/01-requirement.md`  
+**Document:** `docs/01-requirements.md`  
 **Status:** Draft / Baseline  
-**Version:** 0.1  
+**Version:** 0.2  
 **Project:** PLC-LadderMCP
 
 ## 1. Project Goal
@@ -56,11 +56,11 @@ Ladder Engine
 
 ## 3. Functional Requirements
 
-### R01 - Native Ladder Output
+### REQ-001 - Native Ladder Output
 
 The system must generate Ladder logic as a real Ladder representation, not only explanatory text, ASCII diagrams, or pseudo-code.
 
-### R02 - PLC IDE Compatibility
+### REQ-002 - PLC IDE Compatibility
 
 Generated output must be importable, openable, or otherwise usable in supported PLC IDEs.
 
@@ -69,7 +69,7 @@ Initial targets:
 - GX Works
 - SamSoar2022
 
-### R03 - Create New PLC Projects
+### REQ-003 - Create New PLC Projects
 
 The AI/tool must be able to create a new PLC project from a user request.
 
@@ -77,7 +77,7 @@ Example:
 
 > Create an FX3U project with a Start/Stop motor circuit.
 
-### R04 - Modify Existing Projects
+### REQ-004 - Modify Existing Projects
 
 The system must be able to load an existing project and modify only the requested logic.
 
@@ -87,7 +87,7 @@ Example:
 
 The user should not need to recreate the whole project.
 
-### R05 - Read and Understand Existing Ladder
+### REQ-005 - Read and Understand Existing Ladder
 
 The tool must expose existing Ladder logic to the AI in a structured form so the AI can understand:
 
@@ -102,7 +102,7 @@ The tool must expose existing Ladder logic to the AI in a structured form so the
 - Comments
 - Device addresses
 
-### R06 - Add / Remove / Modify Rungs
+### REQ-006 - Add / Remove / Modify Rungs
 
 The tool must support targeted Ladder editing operations, including:
 
@@ -112,7 +112,7 @@ The tool must support targeted Ladder editing operations, including:
 - Reorder rung when supported
 - Add/remove Ladder elements without rewriting unrelated logic
 
-### R07 - Basic PLC Instructions
+### REQ-007 - Basic PLC Instructions
 
 Initial instruction support should include at least:
 
@@ -130,7 +130,7 @@ Initial instruction support should include at least:
 
 Instruction support may vary by PLC family.
 
-### R08 - Branch Logic
+### REQ-008 - Branch Logic
 
 The Ladder model must support parallel and series logic, including:
 
@@ -140,7 +140,7 @@ The Ladder model must support parallel and series logic, including:
 - Interlocks
 - Nested logic where supported by the target PLC
 
-### R09 - Real Device Addressing
+### REQ-009 - Real Device Addressing
 
 The system must support real PLC device addresses, including common Mitsubishi-style devices such as:
 
@@ -153,7 +153,7 @@ The system must support real PLC device addresses, including common Mitsubishi-s
 
 It should also support special devices when valid for the selected PLC, for example `M8000`.
 
-### R10 - PLC Model Awareness
+### REQ-010 - PLC Model Awareness
 
 The user/project must specify or expose the PLC model/family.
 
@@ -172,7 +172,7 @@ Example target:
 
 Future PLC models should be extendable without redesigning the whole system.
 
-### R11 - Compile / Validate Before Export
+### REQ-011 - Compile / Validate Before Export
 
 Before producing final output, the system must validate generated or modified Ladder logic.
 
@@ -185,7 +185,7 @@ Validation should include, where possible:
 - Target PLC incompatibility
 - Export-format errors
 
-### R12 - Logic Error Detection
+### REQ-012 - Logic Error Detection
 
 The system should detect suspicious or potentially unsafe programming patterns, including examples such as:
 
@@ -198,7 +198,7 @@ The system should detect suspicious or potentially unsafe programming patterns, 
 
 Warnings and errors should be distinguishable.
 
-### R13 - Safe Targeted Modification
+### REQ-013 - Safe Targeted Modification
 
 When modifying an existing project, the system must avoid rewriting unrelated Ladder logic.
 
@@ -208,7 +208,7 @@ A command such as:
 
 must preserve unrelated pumps, sequences, comments, devices, and rung ordering unless modification is explicitly required.
 
-### R14 - Diff Before / After
+### REQ-014 - Diff Before / After
 
 The system must be able to show what changed.
 
@@ -222,7 +222,7 @@ Examples:
 
 The diff should be available both to the AI and the user-facing web interface.
 
-### R15 - Comments and Labels
+### REQ-015 - Comments and Labels
 
 The tool should support PLC comments, symbols, labels, and descriptions where the target IDE supports them.
 
@@ -235,7 +235,7 @@ T10  - Pump 1 Start Feedback Timeout
 
 AI-generated programs should use readable comments by default.
 
-### R16 - Backup / Undo
+### REQ-016 - Backup / Undo
 
 Before applying modifications to an existing project, the system must preserve a recoverable previous state.
 
@@ -245,7 +245,7 @@ The user must be able to:
 - Undo a change
 - Restore a previous project version
 
-### R17 - Human Approval
+### REQ-017 - Human Approval
 
 AI-generated modifications should support a review/approval step before final application or export.
 
@@ -269,7 +269,7 @@ Apply / Export
 
 The system may later provide configurable auto-apply behavior, but manual approval should be the safe default.
 
-### R18 - AI Tool Interface
+### REQ-018 - AI Tool Interface
 
 PLC-LadderMCP must expose programmable operations that AI agents can call.
 
@@ -296,7 +296,7 @@ export_project()
 
 Exact tool names and schemas will be defined later.
 
-### R19 - Structured Internal Ladder Representation
+### REQ-019 - Structured Internal Ladder Representation
 
 AI models should not be expected to directly generate or edit proprietary binary PLC project files.
 
@@ -318,7 +318,7 @@ The Ladder Engine is responsible for translating this representation to and from
 
 This internal representation should be vendor-neutral where practical.
 
-### R20 - Multiple IDE Export Targets
+### REQ-020 - Multiple IDE Export Targets
 
 The same logical Ladder representation should be capable of supporting multiple PLC IDE targets.
 
@@ -331,7 +331,7 @@ Future possible targets may include other PLC vendors or IEC 61131-3 environment
 
 Vendor-specific behavior must remain isolated from the core Ladder model as much as practical.
 
-### R21 - AI-First Interface
+### REQ-021 - AI-First Interface
 
 The primary way to use the system must be through an AI agent calling PLC-LadderMCP tools.
 
@@ -363,6 +363,62 @@ Future integrations may expose the same Ladder Engine through:
 - CLI
 - SDK
 - Other agent/tool protocols
+
+### REQ-022 - Single-Admin V1
+
+V1 is intended for personal use by one administrator. User registration, multiple human accounts, role-based access control, and account-management workflows are not required for V1.
+
+### REQ-023 - Restart Persistence Boundary
+
+Saved/applied Ladder projects must survive backend restarts and redeployments. Pending AI Changes / Human Review items may remain process-local and may be lost on restart in V1.
+
+### REQ-024 - DevOps Learning Objective
+
+PLC-LadderMCP must also serve as a practical learning project for Docker, Jenkins, and Kubernetes from V1 rather than adding those technologies only after the application is complete.
+
+### REQ-025 - Jenkins CI/CD From V1
+
+Jenkins must be the primary CI/CD system for V1 and should drive the build, test, container-image, and Kubernetes deployment workflow.
+
+### REQ-026 - Kubernetes as Primary Runtime
+
+Kubernetes must be the primary deployment/runtime platform for V1 rather than an optional later migration target.
+
+### REQ-027 - Single-Node kubeadm Cluster
+
+The initial Kubernetes environment must use a single-node cluster created with `kubeadm` on the project VPS so the deployment can be used to study standard Kubernetes concepts directly.
+
+### REQ-028 - Jenkins Outside the Kubernetes Cluster
+
+Jenkins must run outside the Kubernetes cluster on the same VPS, isolated as a Docker container, and deploy application workloads into the cluster.
+
+### REQ-029 - GitHub Container Registry
+
+Container images produced by the V1 pipeline must be stored in GitHub Container Registry (GHCR) and pulled from GHCR by the Kubernetes deployment.
+
+### REQ-030 - Frontend and Backend on Kubernetes
+
+Both the frontend and backend must be deployed on Kubernetes in V1. GitHub Pages is not the primary production deployment target for the frontend once this V1 deployment model is implemented.
+
+### REQ-031 - Separate Staging and Production
+
+V1 must provide separate staging and production environments. The exact isolation mechanism (for example namespaces versus separate clusters) remains a design decision and is not fixed by this requirement.
+
+### REQ-032 - Real Domain and HTTPS
+
+V1 must use a real domain and HTTPS. TLS should be issued through Let's Encrypt at the Kubernetes Ingress boundary.
+
+### REQ-033 - PostgreSQL From V1
+
+V1 must use PostgreSQL for durable application state that requires database persistence. The detailed schema and ownership of each data category remain design decisions.
+
+### REQ-034 - No AI Usage Quota in V1
+
+Because V1 is for single-user personal use, per-day or per-month AI usage quotas are not required for V1.
+
+### REQ-035 - No Automated PostgreSQL Backup in V1
+
+Automated scheduled PostgreSQL backups are not required for V1. This does not remove the project history/undo requirement in REQ-016 and does not prevent backups from being added later.
 
 ---
 
@@ -507,6 +563,9 @@ The following are not required for the first implementation:
 - Full Ladder drag-and-drop editor
 - Support for every PLC vendor
 - Support for every PLC instruction
+- Multi-user account management / RBAC
+- AI usage quota management
+- Automated scheduled PostgreSQL backups
 
 These may be considered later.
 
@@ -541,6 +600,30 @@ Export
 Open in GX Works / SamSoar2022
 ```
 
+The V1 deployment path must additionally prove:
+
+```text
+GitHub
+   |
+   v
+Jenkins
+   |
+   +--> build / test
+   +--> container images
+   v
+GHCR
+   |
+   v
+Kubernetes (kubeadm, single-node VPS)
+   |
+   +--> Frontend
+   +--> Backend
+   +--> PostgreSQL-backed durable state
+   |
+   v
+Ingress + real domain + HTTPS
+```
+
 The key success criterion is:
 
 > A user can ask an AI to create or modify PLC logic and receive a real Ladder project/output that can be used in a supported PLC IDE without manually redrawing the Ladder from AI-generated text.
@@ -551,10 +634,14 @@ The key success criterion is:
 
 Current baseline:
 
-- R01-R21 accepted as initial project requirements.
+- REQ-001 through REQ-021 are the accepted initial PLC-LadderMCP product requirements carried forward from the previous baseline.
+- REQ-022 through REQ-035 record the V1 operating and deployment decisions confirmed during the requirements-grilling session.
 - GX Works and SamSoar2022 are the first IDE targets.
 - AI-first usage is required.
 - MCP is the first preferred AI tool protocol, but the core architecture must remain protocol-independent.
 - Web UI is a management, preview, review, and export interface rather than the primary Ladder authoring interface.
+- V1 is single-admin/personal-use and has no AI usage quota requirement.
+- V1 deployment uses Jenkins, GHCR, Kubernetes, PostgreSQL, staging/production separation, and real-domain HTTPS.
+- Automated scheduled PostgreSQL backup is intentionally deferred from V1.
 
-Further technical research is required before locking down project file formats, import/export mechanisms, IDE adapters, and the exact Ladder intermediate representation.
+Further technical research is still required before locking down all project file formats, import/export mechanisms, IDE adapters, the exact Ladder intermediate representation, and the detailed staging/production Kubernetes topology.
