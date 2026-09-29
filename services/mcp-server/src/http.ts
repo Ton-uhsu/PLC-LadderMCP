@@ -14,9 +14,12 @@ import {
   createProject,
   exportGxWorks2Text,
   exportSamSoar,
+  approvePendingChange,
   deleteNetwork,
   getProject,
+  listPendingChanges,
   modifyNetwork,
+  rejectPendingChange,
   removeAction,
   removeContact,
   replaceDevice,
@@ -185,6 +188,19 @@ const server = http.createServer(async (req, res) => {
         b.comment ?? null,
         b.apply ?? false,
       ));
+    }
+
+    if (req.method === "GET" && url.pathname === "/api/changes")
+      return send(res, 200, listPendingChanges());
+
+    if (req.method === "POST" && url.pathname === "/api/changes/approve") {
+      const b = await readJson(req) as any;
+      return send(res, 200, approvePendingChange(b.pending_change_id));
+    }
+
+    if (req.method === "POST" && url.pathname === "/api/changes/reject") {
+      const b = await readJson(req) as any;
+      return send(res, 200, rejectPendingChange(b.pending_change_id));
     }
 
     if (req.method === "POST" && url.pathname === "/api/validate")
