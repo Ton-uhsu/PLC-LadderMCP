@@ -23,6 +23,8 @@ import {
   removeAction,
   removeContact,
   replaceDevice,
+  saveProjectSnapshot,
+  setParallelConditions,
   undoProject,
   validateProject,
 } from "./project.js";
