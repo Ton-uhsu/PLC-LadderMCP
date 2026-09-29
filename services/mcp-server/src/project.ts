@@ -6,18 +6,91 @@ import type {
   Operand,
 } from "@plc-ladder-mcp/ladder-ir";
 import { generateGxWorks2ListText, validateFx3uV02 } from "@plc-ladder-mcp/ladder-ir";
+import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
+import { basename, dirname, join } from "node:path";
 
 const dev = (address: string) => ({ kind: "device" as const, address });
 
-let project: LadderProjectV02 = {
-  version: "0.2",
-  name: "Untitled PLC Project",
-  plc: { family: "Mitsubishi FX", model: "FX3U" },
-  programs: [{
-    name: "Main",
-    networks: [{ id: 0, root: { kind: "series", id: "network-0", children: [] } }],
-  }],
-};
+const DATA_DIR = process.env.PLC_LADDER_DATA_DIR || ".plc-ladder";
+const CURRENT_PROJECT_FILE = join(DATA_DIR, "current-project.json");
+const SAVED_PROJECTS_DIR = join(DATA_DIR, "projects");
+
+function newEmptyProject(name = "Untitled PLC Project"): LadderProjectV02 {
+  return {
+    version: "0.2",
+    name,
+    plc: { family: "Mitsubishi FX", model: "FX3U" },
+    programs: [{
+      name: "Main",
+      networks: [{ id: 0, root: { kind: "series", id: "network-0", children: [] } }],
+    }],
+  };
+}
+
+function readProjectFile(path: string): LadderProjectV02 {
+  const parsed = JSON.parse(readFileSync(path, "utf8")) as LadderProjectV02;
+  if (parsed.version !== "0.2" || parsed.plc?.family !== "Mitsubishi FX" || parsed.plc?.model !== "FX3U") {
+    throw new Error("Project file is not a supported Mitsubishi FX3U IR v0.2 project.");
+  }
+  return parsed;
+}
+
+function loadInitialProject(): LadderProjectV02 {
+  try {
+    return existsSync(CURRENT_PROJECT_FILE) ? readProjectFile(CURRENT_PROJECT_FILE) : newEmptyProject();
+  } catch {
+    return newEmptyProject();
+  }
+}
+
+let project: LadderProjectV02 = loadInitialProject();
+
+function persistCurrentProject() {
+  mkdirSync(dirname(CURRENT_PROJECT_FILE), { recursive: true });
+  writeFileSync(CURRENT_PROJECT_FILE, JSON.stringify(project, null, 2) + "\n", "utf8");
+}
+
+function safeProjectFileName(input: string) {
+  const clean = basename(input.trim()).replace(/\.json$/i, "").replace(/[^a-zA-Z0-9._-]+/g, "-").replace(/^-+|-+$/g, "");
+  if (!clean) throw new Error("Saved project name must contain at least one safe filename character.");
+  return clean + ".json";
+}
+
+export function listSavedProjects() {
+  mkdirSync(SAVED_PROJECTS_DIR, { recursive: true });
+  return readdirSync(SAVED_PROJECTS_DIR)
+    .filter(name => name.toLowerCase().endsWith(".json"))
+    .sort()
+    .map(name => ({ name: name.replace(/\.json$/i, ""), file: name }));
+}
+
+export function saveProjectSnapshot(name = project.name) {
+  mkdirSync(SAVED_PROJECTS_DIR, { recursive: true });
+  const file = safeProjectFileName(name);
+  const path = join(SAVED_PROJECTS_DIR, file);
+  writeFileSync(path, JSON.stringify(project, null, 2) + "\n", "utf8");
+  return { name: file.replace(/\.json$/i, ""), file, project };
+}
+
+export function loadProjectSnapshot(name: string) {
+  const file = safeProjectFileName(name);
+  const next = readProjectFile(join(SAVED_PROJECTS_DIR, file));
+  pendingChanges.clear();
+  commitProject(next, "load_project", "Load saved project " + file.replace(/\.json$/i, ""), "direct");
+  return { name: file.replace(/\.json$/i, ""), file, project };
+}
+
+export function importProjectJson(raw: string, source = "import") {
+  const next = JSON.parse(raw) as LadderProjectV02;
+  if (next.version !== "0.2" || next.plc?.family !== "Mitsubishi FX" || next.plc?.model !== "FX3U") {
+    throw new Error("Imported project must be Mitsubishi FX3U IR v0.2.");
+  }
+  const validation = validateProjectState(next);
+  if (!validation.valid) throw new Error(validation.issues.filter(i => i.severity === "error").map(i => i.message).join("; "));
+  pendingChanges.clear();
+  commitProject(next, "import_project", "Import project from " + source, "direct");
+  return { project, validation };
+}
 
 export function createProject(name: string, family: string, model: string): LadderProjectV02 {
   if (family !== "Mitsubishi FX" || model !== "FX3U") {
@@ -37,6 +110,7 @@ export function createProject(name: string, family: string, model: string): Ladd
     }],
   };
   addChangeLog("change", "create_project", "Create project " + name, "direct");
+  persistCurrentProject();
   return project;
 }
 
@@ -285,6 +359,7 @@ function commitProject(nextProject: LadderProjectV02, operation: string, summary
   redoStack.splice(0);
   project = cloneValue(nextProject);
   addChangeLog("change", operation, summary, source);
+  persistCurrentProject();
 }
 
 function mutateProject<T>(operation: string, summary: string, mutate: () => T): T {
@@ -295,6 +370,7 @@ function mutateProject<T>(operation: string, summary: string, mutate: () => T): 
     if (undoStack.length > HISTORY_LIMIT) undoStack.shift();
     redoStack.splice(0);
     addChangeLog("change", operation, summary, "direct");
+    persistCurrentProject();
     return result;
   } catch (error) {
     project = before;
@@ -318,6 +394,7 @@ export function undoProject() {
   redoStack.push({ project: cloneValue(project), operation: frame.operation, summary: frame.summary, created_at: new Date().toISOString() });
   project = cloneValue(frame.project);
   addChangeLog("undo", frame.operation, "Undo: " + frame.summary, "history");
+  persistCurrentProject();
   return { ...getHistory(), project };
 }
 
@@ -328,6 +405,7 @@ export function redoProject() {
   if (undoStack.length > HISTORY_LIMIT) undoStack.shift();
   project = cloneValue(frame.project);
   addChangeLog("redo", frame.operation, "Redo: " + frame.summary, "history");
+  persistCurrentProject();
   return { ...getHistory(), project };
 }
 
