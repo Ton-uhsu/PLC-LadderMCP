@@ -1,4 +1,4 @@
-import type { ActionNode, LadderNetworkV02, LadderProjectV02, LogicNode } from "./v02";
+import type { ActionNode, LadderNetworkV02, LadderProjectV02, LogicNode } from "./v02.js";
 
 export type ListInstruction = { instruction: string; device?: string };
 
