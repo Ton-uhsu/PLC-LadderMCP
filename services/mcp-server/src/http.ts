@@ -1,6 +1,7 @@
 import http from "node:http";
 import { pathToFileURL, URL } from "node:url";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
+import { fx3uRejectedExactForms, fx3uVerifiedForms } from "@plc-ladder-mcp/ladder-ir";
 import {
   addCoil,
   addContact,
@@ -98,6 +99,9 @@ export function createHttpServer(options: { token?: string } = {}) {
         await transport.handleRequest(req, res, body);
         return;
       }
+
+      if (req.method === "GET" && url.pathname === "/api/capabilities")
+        return send(res, 200, { verified_forms: fx3uVerifiedForms, rejected_forms: fx3uRejectedExactForms });
 
       if (req.method === "GET" && url.pathname === "/api/project")
         return send(res, 200, getProject());
