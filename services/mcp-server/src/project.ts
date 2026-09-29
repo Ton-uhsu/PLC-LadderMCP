@@ -24,6 +24,9 @@ export function createProject(name: string, family: string, model: string): Ladd
     throw new Error("Canonical IR v0.2 currently supports Mitsubishi FX3U only.");
   }
   pendingChanges.clear();
+  undoStack.splice(0);
+  redoStack.splice(0);
+  changeLog.splice(0);
   project = {
     version: "0.2",
     name,
@@ -33,6 +36,7 @@ export function createProject(name: string, family: string, model: string): Ladd
       networks: [{ id: 0, root: { kind: "series", id: "network-0", children: [] } }],
     }],
   };
+  addChangeLog("change", "create_project", "Create project " + name, "direct");
   return project;
 }
 
@@ -43,89 +47,110 @@ export function createNetwork(comment?: string, requestedId?: number) {
   const nextId = networks.length ? Math.max(...networks.map(n => n.id)) + 1 : 0;
   const id = requestedId ?? nextId;
   if (!Number.isInteger(id) || id < 0) throw new Error("network_id must be a non-negative integer.");
-  if (networks.some(n => n.id === id)) throw new Error(`Network ${id} already exists.`);
+  if (networks.some(n => n.id === id)) throw new Error("Network " + id + " already exists.");
 
-  const network: LadderNetworkV02 = {
-    id,
-    root: { kind: "series", id: `network-${id}`, children: [] },
-    ...(comment?.trim() ? { comment: comment.trim() } : {}),
-  };
-  networks.push(network);
-  networks.sort((a, b) => a.id - b.id);
-  return network;
+  return mutateProject("create_network", "Create network " + id, () => {
+    const network: LadderNetworkV02 = {
+      id,
+      root: { kind: "series", id: "network-" + id, children: [] },
+      ...(comment?.trim() ? { comment: comment.trim() } : {}),
+    };
+    project.programs[0].networks.push(network);
+    project.programs[0].networks.sort((a, b) => a.id - b.id);
+    return network;
+  });
 }
 
 export function addContact(device: string, mode: "NO" | "NC", networkId = 0) {
-  const root = requireSeriesRoot(networkId);
-  const node: Extract<LogicNode, { kind: "contact" }> = {
-    kind: "contact",
-    id: crypto.randomUUID(),
-    device: dev(normalizeDevice(device)),
-    mode,
-    edge: "none",
-  };
-  const outputIndex = root.children.findIndex(isOutputNode);
-  if (outputIndex >= 0) root.children.splice(outputIndex, 0, node);
-  else root.children.push(node);
-  return node;
+  const address = normalizeDevice(device);
+  return mutateProject("add_contact", "Add " + mode + " contact " + address + " to network " + networkId, () => {
+    const root = requireSeriesRoot(networkId);
+    const node: Extract<LogicNode, { kind: "contact" }> = {
+      kind: "contact",
+      id: crypto.randomUUID(),
+      device: dev(address),
+      mode,
+      edge: "none",
+    };
+    const outputIndex = root.children.findIndex(isOutputNode);
+    if (outputIndex >= 0) root.children.splice(outputIndex, 0, node);
+    else root.children.push(node);
+    return node;
+  });
 }
 
 export function addCoil(device: string, networkId = 0) {
-  return appendAction({
-    kind: "coil",
-    id: crypto.randomUUID(),
-    device: dev(normalizeDevice(device)),
-  }, networkId);
+  const address = normalizeDevice(device);
+  return mutateProject("add_coil", "Add coil " + address + " to network " + networkId, () =>
+    appendAction({
+      kind: "coil",
+      id: crypto.randomUUID(),
+      device: dev(address),
+    }, networkId)
+  );
 }
 
 export function addSet(device: string, networkId = 0) {
-  return appendAction({
-    kind: "set",
-    id: crypto.randomUUID(),
-    device: dev(normalizeDevice(device)),
-  }, networkId);
+  const address = normalizeDevice(device);
+  return mutateProject("add_set", "Add SET " + address + " to network " + networkId, () =>
+    appendAction({
+      kind: "set",
+      id: crypto.randomUUID(),
+      device: dev(address),
+    }, networkId)
+  );
 }
 
 export function addReset(device: string, networkId = 0) {
-  return appendAction({
-    kind: "reset",
-    id: crypto.randomUUID(),
-    device: dev(normalizeDevice(device)),
-  }, networkId);
+  const address = normalizeDevice(device);
+  return mutateProject("add_reset", "Add RST " + address + " to network " + networkId, () =>
+    appendAction({
+      kind: "reset",
+      id: crypto.randomUUID(),
+      device: dev(address),
+    }, networkId)
+  );
 }
 
 export function addTimer(timer: string, preset: number, networkId = 0) {
   const address = normalizeDevice(timer);
   if (!/^T\d+$/.test(address)) throw new Error("Timer target must use a T device, for example T0.");
   assertNonNegativeInteger(preset, "Timer preset");
-  return appendAction({
-    kind: "instruction",
-    id: crypto.randomUUID(),
-    opcode: "OUT",
-    operands: [dev(address), { kind: "constant", radix: "decimal", value: preset }],
-  }, networkId);
+  return mutateProject("add_timer", "Add timer " + address + " K" + preset + " to network " + networkId, () =>
+    appendAction({
+      kind: "instruction",
+      id: crypto.randomUUID(),
+      opcode: "OUT",
+      operands: [dev(address), { kind: "constant", radix: "decimal", value: preset }],
+    }, networkId)
+  );
 }
 
 export function addCounter(counter: string, preset: number, networkId = 0) {
   const address = normalizeDevice(counter);
   if (!/^C\d+$/.test(address)) throw new Error("Counter target must use a C device, for example C0.");
   assertNonNegativeInteger(preset, "Counter preset");
-  return appendAction({
-    kind: "instruction",
-    id: crypto.randomUUID(),
-    opcode: "OUT",
-    operands: [dev(address), { kind: "constant", radix: "decimal", value: preset }],
-  }, networkId);
+  return mutateProject("add_counter", "Add counter " + address + " K" + preset + " to network " + networkId, () =>
+    appendAction({
+      kind: "instruction",
+      id: crypto.randomUUID(),
+      opcode: "OUT",
+      operands: [dev(address), { kind: "constant", radix: "decimal", value: preset }],
+    }, networkId)
+  );
 }
 
 export function addInstruction(opcode: string, operands: string[], networkId = 0) {
   const normalizedOpcode = normalizeOpcode(opcode);
-  return appendAction({
-    kind: "instruction",
-    id: crypto.randomUUID(),
-    opcode: normalizedOpcode,
-    operands: operands.map(parseOperand),
-  }, networkId);
+  const parsedOperands = operands.map(parseOperand);
+  return mutateProject("add_instruction", "Add " + normalizedOpcode + " to network " + networkId, () =>
+    appendAction({
+      kind: "instruction",
+      id: crypto.randomUUID(),
+      opcode: normalizedOpcode,
+      operands: parsedOperands,
+    }, networkId)
+  );
 }
 
 export function addParallelAction(
@@ -147,7 +172,9 @@ export function addParallelAction(
         device: dev(normalizeDevice(value)),
       };
 
-  return appendAction(action, networkId, true);
+  return mutateProject("add_parallel_action", "Add parallel " + kind + " action to network " + networkId, () =>
+    appendAction(action, networkId, true)
+  );
 }
 
 function validateProjectState(target: LadderProjectV02) {
@@ -315,14 +342,14 @@ export function listPendingChanges(): PendingChange[] {
 
 export function approvePendingChange(id: string) {
   const pending = pendingChanges.get(id);
-  if (!pending) throw new Error(`Pending change ${id} not found.`);
+  if (!pending) throw new Error("Pending change " + id + " not found.");
   if (pending.base_state !== JSON.stringify(project)) {
     throw new Error("Pending change is stale because the project changed after it was proposed. Preview the edit again.");
   }
   if (!pending.validation.valid) {
     throw new Error("Pending change cannot be approved because its resulting project is invalid.");
   }
-  project = cloneValue(pending.next_project);
+  commitProject(pending.next_project, pending.operation, pending.summary, "approved");
   pendingChanges.delete(id);
   return {
     id,
