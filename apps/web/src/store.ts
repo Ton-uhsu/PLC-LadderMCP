@@ -57,6 +57,7 @@ type State = {
   loadingHistory: boolean;
   savedProjects: SavedProject[];
   setProject: (project: LadderProjectV02) => void;
+  createProject: (name: string) => Promise<void>;
   selectNetwork: (id: number) => void;
   setApiUrl: (url: string) => void;
   setApiToken: (token: string) => void;
@@ -110,6 +111,26 @@ export const useProjectStore = create<State>((set, get) => ({
     project,
     selectedNetworkId: pickNetwork(project, state.selectedNetworkId),
   })),
+
+  createProject: async (name) => {
+    const clean = name.trim() || "Untitled PLC Project";
+    const { apiUrl, apiToken } = get();
+    if (!apiUrl) {
+      const local = JSON.parse(JSON.stringify(demoProject)) as LadderProjectV02;
+      local.name = clean;
+      set({ project: local, selectedNetworkId: 0, pendingChanges: [], history: emptyHistory });
+      return;
+    }
+    const res = await fetch(`${apiUrl}/api/project`, {
+      method: "POST",
+      headers: authHeaders(apiToken, true),
+      body: JSON.stringify({ name: clean, plc_family: "Mitsubishi FX", plc_model: "FX3U" }),
+    });
+    if (!res.ok) throw new Error(await readError(res));
+    const project = await res.json() as LadderProjectV02;
+    set({ project, selectedNetworkId: 0, pendingChanges: [], history: emptyHistory, connected: true });
+    await Promise.all([get().syncSavedProjects(), get().syncHistory()]);
+  },
 
   selectNetwork: (id) => set({ selectedNetworkId: id }),
 
