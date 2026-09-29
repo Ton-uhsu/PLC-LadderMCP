@@ -21,6 +21,11 @@ Current FX3U compiler slice supports series contact conditions followed by one a
 - `add_counter`
 - `add_instruction`
 - `add_parallel_action`
+- `remove_contact`
+- `remove_action`
+- `replace_device`
+- `delete_network`
+- `modify_network`
 - `validate_project`
 - `export_project` with `gxworks2` or `samsoar2022`
 
@@ -57,6 +62,29 @@ Series
     └── SET M10
 ```
 
+## Safe edit flow
+
+Destructive/targeted edit tools use `apply=false` by default. A first call returns a structured diff plus validation without mutating the canonical project. Repeat the same call with `apply=true` to commit it.
+
+```text
+replace_device(from_device="M0", to_device="M5", network_id=0)
+→ applied=false
+→ changes=[...]
+→ validation={...}
+
+replace_device(from_device="M0", to_device="M5", network_id=0, apply=true)
+→ applied=true
+```
+
+The same preview/apply pattern is used by:
+- `remove_contact`
+- `remove_action`
+- `replace_device`
+- `delete_network`
+- `modify_network`
+
+`remove_action` automatically collapses a two-branch parallel output back to a single action after one branch is removed.
+
 ## Multiple networks
 
 ```text
@@ -82,6 +110,11 @@ POST /api/timer
 POST /api/counter
 POST /api/instruction
 POST /api/parallel-action
+POST /api/edit/remove-contact
+POST /api/edit/remove-action
+POST /api/edit/replace-device
+POST /api/edit/delete-network
+POST /api/edit/modify-network
 POST /api/validate
 GET  /api/export/gxworks2
 GET  /api/export/samsoar2022
