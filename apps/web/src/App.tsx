@@ -430,14 +430,23 @@ export default function App() {
           </div>
 
           {(active === "Ladder" || active === "IR / JSON" || active === "Validation") && <div className="network-tabs">
-            {program?.networks.map(item => <button
-              key={item.id}
-              className={item.id === network?.id ? "network-tab active" : "network-tab"}
-              onClick={() => selectNetwork(item.id)}
-            >
-              <b>Network {item.id}</b>
-              <span>{item.comment || "No comment"}</span>
-            </button>)}
+            {program?.networks.map(item => {
+              const networkValid = validateProject({
+                ...project,
+                programs: [{ ...program, networks: [item] }],
+              }).valid;
+              return <button
+                key={item.id}
+                className={item.id === network?.id ? "network-tab active" : "network-tab"}
+                onClick={() => selectNetwork(item.id)}
+              >
+                <div className="network-tab-title">
+                  <b>Network {item.id}</b>
+                  <i className={networkValid ? "network-state valid" : "network-state invalid"}>{networkValid ? "VALID" : "INVALID"}</i>
+                </div>
+                <span>{item.comment || "No comment"}</span>
+              </button>;
+            })}
           </div>}
 
           {active === "IR / JSON"
