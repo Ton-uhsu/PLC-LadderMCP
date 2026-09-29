@@ -13,7 +13,12 @@ import {
   createProject,
   exportGxWorks2Text,
   exportSamSoar,
+  deleteNetwork,
   getProject,
+  modifyNetwork,
+  removeAction,
+  removeContact,
+  replaceDevice,
   validateProject,
 } from "./project.js";
 
@@ -92,6 +97,41 @@ export function createMcpServer() {
     network_id: z.number().int().nonnegative().default(0),
   }, async ({ kind, value, operands, network_id }) =>
     json({ added: addParallelAction(kind, value, operands, network_id), project: getProject() }));
+
+  server.tool("remove_contact", "Preview or apply removal of a direct series contact by node id. Preview is the default.", {
+    contact_id: z.string().min(1),
+    network_id: z.number().int().nonnegative().default(0),
+    apply: z.boolean().default(false),
+  }, async ({ contact_id, network_id, apply }) =>
+    json(removeContact(contact_id, network_id, apply)));
+
+  server.tool("remove_action", "Preview or apply removal of an output action by action/node id. Parallel tails collapse automatically.", {
+    action_id: z.string().min(1),
+    network_id: z.number().int().nonnegative().default(0),
+    apply: z.boolean().default(false),
+  }, async ({ action_id, network_id, apply }) =>
+    json(removeAction(action_id, network_id, apply)));
+
+  server.tool("replace_device", "Preview or apply an exact PLC-device replacement. Omit network_id to replace across the current program.", {
+    from_device: z.string().min(1),
+    to_device: z.string().min(1),
+    network_id: z.number().int().nonnegative().optional(),
+    apply: z.boolean().default(false),
+  }, async ({ from_device, to_device, network_id, apply }) =>
+    json(replaceDevice(from_device, to_device, network_id, apply)));
+
+  server.tool("delete_network", "Preview or apply deletion of a network. The final remaining network cannot be deleted.", {
+    network_id: z.number().int().nonnegative(),
+    apply: z.boolean().default(false),
+  }, async ({ network_id, apply }) =>
+    json(deleteNetwork(network_id, apply)));
+
+  server.tool("modify_network", "Preview or apply network metadata changes. Currently supports the network comment.", {
+    network_id: z.number().int().nonnegative(),
+    comment: z.string().nullable(),
+    apply: z.boolean().default(false),
+  }, async ({ network_id, comment, apply }) =>
+    json(modifyNetwork(network_id, comment, apply)));
 
   server.tool("validate_project", "Validate the canonical IR v0.2 and current FX3U compiler topology rules.", {},
     async () => json(validateProject()));
