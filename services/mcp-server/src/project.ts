@@ -316,7 +316,7 @@ function validateProjectState(target: LadderProjectV02) {
         });
         continue;
       }
-      if (!root.children.some(n => n.kind === "contact")) {
+      if (!root.children.slice(0, -1).some(hasContactCondition)) {
         issues.push({
           severity: "error" as const,
           code: "MISSING_CONDITION",
@@ -811,6 +811,12 @@ function requireSeriesRoot(id: number): Extract<LogicNode, { kind: "series" }> {
   const root = requireNetwork(id).root;
   if (root.kind !== "series") throw new Error(`Network ${id} does not have a series root`);
   return root;
+}
+
+function hasContactCondition(node: LogicNode): boolean {
+  if (node.kind === "contact") return true;
+  if (node.kind === "action") return false;
+  return (node.kind === "series" ? node.children : node.branches).some(hasContactCondition);
 }
 
 function isOutputNode(node: LogicNode) {
