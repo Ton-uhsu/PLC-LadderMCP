@@ -14,7 +14,12 @@ import {
   createProject,
   exportGxWorks2Text,
   exportSamSoar,
+  deleteNetwork,
   getProject,
+  modifyNetwork,
+  removeAction,
+  removeContact,
+  replaceDevice,
   validateProject,
 } from "./project.js";
 import { createMcpServer } from "./mcp.js";
@@ -146,6 +151,40 @@ const server = http.createServer(async (req, res) => {
         ),
         project: getProject(),
       });
+    }
+
+    if (req.method === "POST" && url.pathname === "/api/edit/remove-contact") {
+      const b = await readJson(req) as any;
+      return send(res, 200, removeContact(b.contact_id, b.network_id ?? 0, b.apply ?? false));
+    }
+
+    if (req.method === "POST" && url.pathname === "/api/edit/remove-action") {
+      const b = await readJson(req) as any;
+      return send(res, 200, removeAction(b.action_id, b.network_id ?? 0, b.apply ?? false));
+    }
+
+    if (req.method === "POST" && url.pathname === "/api/edit/replace-device") {
+      const b = await readJson(req) as any;
+      return send(res, 200, replaceDevice(
+        b.from_device,
+        b.to_device,
+        b.network_id,
+        b.apply ?? false,
+      ));
+    }
+
+    if (req.method === "POST" && url.pathname === "/api/edit/delete-network") {
+      const b = await readJson(req) as any;
+      return send(res, 200, deleteNetwork(b.network_id, b.apply ?? false));
+    }
+
+    if (req.method === "POST" && url.pathname === "/api/edit/modify-network") {
+      const b = await readJson(req) as any;
+      return send(res, 200, modifyNetwork(
+        b.network_id,
+        b.comment ?? null,
+        b.apply ?? false,
+      ));
     }
 
     if (req.method === "POST" && url.pathname === "/api/validate")
