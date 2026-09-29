@@ -1,5 +1,17 @@
 import { type FormEvent, type ReactNode, useEffect, useState } from "react";
-import { LockKeyhole, LogIn, LogOut, Server, ShieldCheck } from "lucide-react";
+import {
+  Activity,
+  Bot,
+  CheckCircle2,
+  KeyRound,
+  LockKeyhole,
+  LogIn,
+  LogOut,
+  Server,
+  ShieldCheck,
+  UserRound,
+  Workflow,
+} from "lucide-react";
 import { useProjectStore } from "../store";
 import {
   clearWebSession,
@@ -11,6 +23,48 @@ import {
   type WebUser,
 } from "./session";
 import "./auth.css";
+
+function AuthBrand() {
+  return <div className="auth-brand">
+    <div className="auth-brand-mark"><Workflow size={19}/></div>
+    <div><strong>PLC Ladder</strong><span>MCP Studio</span></div>
+  </div>;
+}
+
+function LadderAccessPreview() {
+  return <div className="auth-preview-panel">
+    <div className="auth-preview-head">
+      <div>
+        <span className="auth-kicker">NETWORK 0</span>
+        <strong>Human-reviewed control flow</strong>
+      </div>
+      <div className="auth-preview-badge"><Activity size={12}/> LIVE IR PREVIEW</div>
+    </div>
+    <div className="auth-preview-canvas">
+      <svg viewBox="0 0 620 220" role="img" aria-label="Example PLC ladder network">
+        <line x1="48" y1="30" x2="48" y2="190" className="auth-wire auth-rail"/>
+        <line x1="572" y1="30" x2="572" y2="190" className="auth-wire auth-rail"/>
+        <text x="18" y="104" className="auth-step">0</text>
+        <line x1="48" y1="100" x2="168" y2="100" className="auth-wire"/>
+        <line x1="168" y1="76" x2="168" y2="124" className="auth-symbol"/>
+        <line x1="210" y1="76" x2="210" y2="124" className="auth-symbol"/>
+        <text x="189" y="61" textAnchor="middle" className="auth-device">X0</text>
+        <line x1="210" y1="100" x2="402" y2="100" className="auth-wire"/>
+        <path d="M422 100 C422 76 474 76 474 100 C474 124 422 124 422 100" className="auth-symbol auth-fill-none"/>
+        <text x="448" y="61" textAnchor="middle" className="auth-device">Y0</text>
+        <line x1="474" y1="100" x2="572" y2="100" className="auth-wire"/>
+        <text x="18" y="171" className="auth-step">END</text>
+        <line x1="48" y1="166" x2="434" y2="166" className="auth-wire auth-muted-wire"/>
+        <text x="452" y="171" className="auth-end">END</text>
+        <line x1="494" y1="166" x2="572" y2="166" className="auth-wire auth-muted-wire"/>
+      </svg>
+    </div>
+    <div className="auth-preview-note">
+      <CheckCircle2 size={14}/>
+      <span>AI proposals stay unapplied until a signed-in human approves them.</span>
+    </div>
+  </div>;
+}
 
 export function AuthGate({ children }: { children: ReactNode }) {
   const setApiUrl = useProjectStore(s => s.setApiUrl);
@@ -85,42 +139,76 @@ export function AuthGate({ children }: { children: ReactNode }) {
 
   if (checking) {
     return <div className="auth-page auth-loading">
-      <ShieldCheck size={32}/>
-      <strong>Checking session</strong>
+      <AuthBrand/>
+      <div className="auth-loading-mark"><ShieldCheck size={24}/></div>
+      <strong>Checking workspace session</strong>
       <span>Connecting to the PLC Ladder backend…</span>
     </div>;
   }
 
   if (!user) {
     return <div className="auth-page">
-      <form className="auth-card" onSubmit={submit}>
-        <div className="auth-mark"><LockKeyhole size={26}/></div>
-        <div className="auth-heading">
-          <span>PLC LADDER MCP</span>
-          <h1>Sign in</h1>
-          <p>Human access to projects, AI Changes, approval, and history.</p>
-        </div>
+      <div className="auth-shell">
+        <section className="auth-showcase">
+          <AuthBrand/>
+          <div className="auth-showcase-copy">
+            <span className="auth-kicker">AI-FIRST LADDER ENGINEERING</span>
+            <h1>Review the logic.<br/>Then let it run.</h1>
+            <p>One workspace for Ladder IR, validation, AI proposals, human approval, history, and vendor export.</p>
+          </div>
 
-        <label>
-          <span>Backend URL</span>
-          <div className="auth-input-wrap"><Server size={16}/><input value={apiUrl} onChange={e => setApiUrlInput(e.target.value)} required/></div>
-        </label>
-        <label>
-          <span>Username</span>
-          <input value={username} onChange={e => setUsername(e.target.value)} autoComplete="username" required/>
-        </label>
-        <label>
-          <span>Password</span>
-          <input type="password" value={password} onChange={e => setPassword(e.target.value)} autoComplete="current-password" required/>
-        </label>
+          <LadderAccessPreview/>
 
-        {error && <div className="auth-error">{error}</div>}
+          <div className="auth-flow">
+            <div><Bot size={15}/><span><b>01</b> AI proposes</span></div>
+            <i/>
+            <div><ShieldCheck size={15}/><span><b>02</b> Human reviews</span></div>
+            <i/>
+            <div><CheckCircle2 size={15}/><span><b>03</b> IR applies</span></div>
+          </div>
+        </section>
 
-        <button className="auth-submit" type="submit" disabled={submitting}>
-          <LogIn size={16}/>{submitting ? "Signing in…" : "Sign in"}
-        </button>
-        <small>The browser receives only a short-lived Web session. The MCP machine token stays server-side / in the AI client.</small>
-      </form>
+        <section className="auth-login-panel">
+          <form className="auth-card" onSubmit={submit}>
+            <div className="auth-login-topline">
+              <div className="auth-mark"><LockKeyhole size={20}/></div>
+              <div className="auth-access-badge"><span/> HUMAN REVIEW ACCESS</div>
+            </div>
+
+            <div className="auth-heading">
+              <span className="auth-kicker">SECURE WORKSPACE</span>
+              <h2>Sign in to MCP Studio</h2>
+              <p>Use your operator account to access projects and approve AI-generated Ladder changes.</p>
+            </div>
+
+            <div className="auth-fields">
+              <label>
+                <span>Backend</span>
+                <div className="auth-input-wrap"><Server size={15}/><input value={apiUrl} onChange={e => setApiUrlInput(e.target.value)} placeholder="https://your-vps" required/></div>
+              </label>
+              <label>
+                <span>Username</span>
+                <div className="auth-input-wrap"><UserRound size={15}/><input value={username} onChange={e => setUsername(e.target.value)} autoComplete="username" placeholder="Operator username" required/></div>
+              </label>
+              <label>
+                <span>Password</span>
+                <div className="auth-input-wrap"><KeyRound size={15}/><input type="password" value={password} onChange={e => setPassword(e.target.value)} autoComplete="current-password" placeholder="••••••••••••" required/></div>
+              </label>
+            </div>
+
+            {error && <div className="auth-error">{error}</div>}
+
+            <button className="auth-submit" type="submit" disabled={submitting}>
+              <LogIn size={16}/>{submitting ? "Signing in…" : "Enter workspace"}
+            </button>
+
+            <div className="auth-security-note">
+              <ShieldCheck size={14}/>
+              <span>Web sessions are short-lived. The MCP machine token is never exposed to this browser.</span>
+            </div>
+          </form>
+        </section>
+      </div>
     </div>;
   }
 
