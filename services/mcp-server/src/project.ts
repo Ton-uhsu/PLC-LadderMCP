@@ -149,11 +149,11 @@ export function addParallelAction(
   return appendAction(action, networkId, true);
 }
 
-export function validateProject() {
-  const result = validateFx3uV02(project);
+function validateProjectState(target: LadderProjectV02) {
+  const result = validateFx3uV02(target);
   const issues = [...result.issues];
 
-  for (const program of project.programs) {
+  for (const program of target.programs) {
     for (const network of program.networks) {
       const root = network.root;
       if (root.kind !== "series") {
@@ -185,6 +185,149 @@ export function validateProject() {
   }
 
   return { valid: !issues.some(i => i.severity === "error"), issues };
+}
+
+export function validateProject() {
+  return validateProjectState(project);
+}
+
+
+export type EditChange = {
+  path: string;
+  before: unknown;
+  after: unknown;
+};
+
+export type EditResult = {
+  operation: string;
+  applied: boolean;
+  summary: string;
+  changes: EditChange[];
+  validation: ReturnType<typeof validateProjectState>;
+};
+
+export function removeContact(contactId: string, networkId = 0, apply = false): EditResult {
+  return editProject("remove_contact", apply, draft => {
+    const root = requireSeriesRootFrom(draft, networkId);
+    const index = root.children.findIndex(node => node.kind === "contact" && node.id === contactId);
+    if (index < 0) throw new Error(`Contact ${contactId} not found in network ${networkId}.`);
+    const [removed] = root.children.splice(index, 1);
+    return {
+      summary: `Remove contact ${contactId} from network ${networkId}`,
+      changes: [{ path: `programs[0].networks[${networkId}].root.children[${index}]`, before: removed, after: null }],
+    };
+  });
+}
+
+export function removeAction(actionId: string, networkId = 0, apply = false): EditResult {
+  return editProject("remove_action", apply, draft => {
+    const root = requireSeriesRootFrom(draft, networkId);
+    const tailIndex = root.children.length - 1;
+    const tail = root.children[tailIndex];
+    if (!tail) throw new Error(`Network ${networkId} has no output action.`);
+
+    if (tail.kind === "action") {
+      if (tail.action.id !== actionId && tail.id !== actionId) {
+        throw new Error(`Action ${actionId} not found in network ${networkId}.`);
+      }
+      root.children.splice(tailIndex, 1);
+      return {
+        summary: `Remove action ${actionId} from network ${networkId}`,
+        changes: [{ path: `programs[0].networks[${networkId}].root.children[${tailIndex}]`, before: tail, after: null }],
+      };
+    }
+
+    if (tail.kind !== "parallel" || !tail.branches.every(branch => branch.kind === "action")) {
+      throw new Error("remove_action currently supports a single action tail or parallel output-action tail.");
+    }
+
+    const branchIndex = tail.branches.findIndex(branch =>
+      branch.kind === "action" && (branch.action.id === actionId || branch.id === actionId)
+    );
+    if (branchIndex < 0) throw new Error(`Action ${actionId} not found in network ${networkId}.`);
+
+    const before = cloneValue(tail);
+    tail.branches.splice(branchIndex, 1);
+
+    if (tail.branches.length === 1) root.children[tailIndex] = tail.branches[0];
+    else if (tail.branches.length === 0) root.children.splice(tailIndex, 1);
+
+    return {
+      summary: `Remove action ${actionId} from network ${networkId}`,
+      changes: [{
+        path: `programs[0].networks[${networkId}].root.children[${tailIndex}]`,
+        before,
+        after: root.children[tailIndex] ?? null,
+      }],
+    };
+  });
+}
+
+export function replaceDevice(
+  fromDevice: string,
+  toDevice: string,
+  networkId?: number,
+  apply = false,
+): EditResult {
+  const from = normalizeDevice(fromDevice);
+  const to = normalizeDevice(toDevice);
+
+  return editProject("replace_device", apply, draft => {
+    const changes: EditChange[] = [];
+    const networks = networkId === undefined
+      ? draft.programs[0].networks
+      : [requireNetworkFrom(draft, networkId)];
+
+    for (const network of networks) {
+      replaceDeviceInNode(network.root, from, to, `programs[0].networks[${network.id}].root`, changes);
+    }
+
+    if (!changes.length) {
+      throw new Error(`Device ${from} was not found${networkId === undefined ? "" : ` in network ${networkId}`}.`);
+    }
+
+    return {
+      summary: `Replace ${from} with ${to} in ${changes.length} location(s)`,
+      changes,
+    };
+  });
+}
+
+export function deleteNetwork(networkId: number, apply = false): EditResult {
+  return editProject("delete_network", apply, draft => {
+    const networks = draft.programs[0].networks;
+    if (networks.length <= 1) throw new Error("Cannot delete the last network in the project.");
+    const index = networks.findIndex(network => network.id === networkId);
+    if (index < 0) throw new Error(`Network ${networkId} not found.`);
+    const [removed] = networks.splice(index, 1);
+    return {
+      summary: `Delete network ${networkId}`,
+      changes: [{ path: `programs[0].networks[${networkId}]`, before: removed, after: null }],
+    };
+  });
+}
+
+export function modifyNetwork(
+  networkId: number,
+  comment: string | null,
+  apply = false,
+): EditResult {
+  return editProject("modify_network", apply, draft => {
+    const network = requireNetworkFrom(draft, networkId);
+    const before = network.comment ?? null;
+    const normalized = comment?.trim() || undefined;
+    if (before === (normalized ?? null)) throw new Error("Network comment is unchanged.");
+    if (normalized) network.comment = normalized;
+    else delete network.comment;
+    return {
+      summary: `Update network ${networkId} comment`,
+      changes: [{
+        path: `programs[0].networks[${networkId}].comment`,
+        before,
+        after: normalized ?? null,
+      }],
+    };
+  });
 }
 
 export function exportGxWorks2Text() {
@@ -269,6 +412,84 @@ function appendAction(action: ActionNode, networkId: number, requireExistingOutp
   }
 
   throw new Error("Network tail is not a supported output topology.");
+}
+
+
+function editProject(
+  operation: string,
+  apply: boolean,
+  mutate: (draft: LadderProjectV02) => { summary: string; changes: EditChange[] },
+): EditResult {
+  const draft = cloneValue(project);
+  const { summary, changes } = mutate(draft);
+  const validation = validateProjectState(draft);
+  if (apply) project = draft;
+  return { operation, applied: apply, summary, changes, validation };
+}
+
+function cloneValue<T>(value: T): T {
+  return JSON.parse(JSON.stringify(value)) as T;
+}
+
+function requireNetworkFrom(target: LadderProjectV02, id: number): LadderNetworkV02 {
+  const network = target.programs[0]?.networks.find(n => n.id === id);
+  if (!network) throw new Error(`Network ${id} not found`);
+  return network;
+}
+
+function requireSeriesRootFrom(
+  target: LadderProjectV02,
+  id: number,
+): Extract<LogicNode, { kind: "series" }> {
+  const root = requireNetworkFrom(target, id).root;
+  if (root.kind !== "series") throw new Error(`Network ${id} does not have a series root`);
+  return root;
+}
+
+function replaceDeviceInNode(
+  node: LogicNode,
+  from: string,
+  to: string,
+  path: string,
+  changes: EditChange[],
+) {
+  if (node.kind === "contact") {
+    if (node.device.address === from) {
+      changes.push({ path: `${path}.device.address`, before: from, after: to });
+      node.device.address = to;
+    }
+    return;
+  }
+
+  if (node.kind === "series") {
+    node.children.forEach((child, index) =>
+      replaceDeviceInNode(child, from, to, `${path}.children[${index}]`, changes)
+    );
+    return;
+  }
+
+  if (node.kind === "parallel") {
+    node.branches.forEach((branch, index) =>
+      replaceDeviceInNode(branch, from, to, `${path}.branches[${index}]`, changes)
+    );
+    return;
+  }
+
+  const action = node.action;
+  if (action.kind === "instruction") {
+    action.operands.forEach((operand, index) => {
+      if (operand.kind === "device" && operand.address === from) {
+        changes.push({ path: `${path}.action.operands[${index}].address`, before: from, after: to });
+        operand.address = to;
+      }
+    });
+    return;
+  }
+
+  if (action.device.address === from) {
+    changes.push({ path: `${path}.action.device.address`, before: from, after: to });
+    action.device.address = to;
+  }
 }
 
 function requireNetwork(id: number): LadderNetworkV02 {
