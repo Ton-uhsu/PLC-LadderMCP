@@ -590,7 +590,7 @@ function editProject(
   const validation = validateProjectState(draft);
 
   if (apply) {
-    project = draft;
+    commitProject(draft, operation, summary, "direct");
     return { operation, applied: true, summary, changes, validation };
   }
 
