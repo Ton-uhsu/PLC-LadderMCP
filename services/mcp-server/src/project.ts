@@ -6,14 +6,40 @@ import type {
   Operand,
 } from "@plc-ladder-mcp/ladder-ir";
 import { generateGxWorks2ListText, parseGxWorks2ListText, validateFx3uV02 } from "@plc-ladder-mcp/ladder-ir";
-import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
+import { copyFileSync, existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
 import { basename, dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 
 const dev = (address: string) => ({ kind: "device" as const, address });
 
-const DATA_DIR = process.env.PLC_LADDER_DATA_DIR || ".plc-ladder";
+const DEFAULT_DATA_DIR = fileURLToPath(new URL("../../../.plc-ladder/", import.meta.url));
+const LEGACY_DATA_DIR = join(process.cwd(), ".plc-ladder");
+const DATA_DIR = process.env.PLC_LADDER_DATA_DIR || DEFAULT_DATA_DIR;
 const CURRENT_PROJECT_FILE = join(DATA_DIR, "current-project.json");
 const SAVED_PROJECTS_DIR = join(DATA_DIR, "projects");
+
+function migrateLegacyWorkspaceData() {
+  if (process.env.PLC_LADDER_DATA_DIR) return;
+  if (LEGACY_DATA_DIR === DATA_DIR || !existsSync(LEGACY_DATA_DIR)) return;
+
+  const legacyCurrent = join(LEGACY_DATA_DIR, "current-project.json");
+  if (!existsSync(CURRENT_PROJECT_FILE) && existsSync(legacyCurrent)) {
+    mkdirSync(DATA_DIR, { recursive: true });
+    copyFileSync(legacyCurrent, CURRENT_PROJECT_FILE);
+  }
+
+  const legacyProjects = join(LEGACY_DATA_DIR, "projects");
+  if (existsSync(legacyProjects)) {
+    mkdirSync(SAVED_PROJECTS_DIR, { recursive: true });
+    for (const name of readdirSync(legacyProjects)) {
+      if (!name.toLowerCase().endsWith(".json")) continue;
+      const destination = join(SAVED_PROJECTS_DIR, name);
+      if (!existsSync(destination)) copyFileSync(join(legacyProjects, name), destination);
+    }
+  }
+}
+
+migrateLegacyWorkspaceData();
 
 function newEmptyProject(name = "Untitled PLC Project"): LadderProjectV02 {
   return {
