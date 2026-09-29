@@ -22,7 +22,6 @@ import {
   proposeLoadProjectSnapshot,
   proposeSemanticChanges,
   proposeSetParallelConditions,
-  rejectPendingChange,
   removeAction,
   removeContact,
   replaceDevice,
@@ -330,15 +329,6 @@ export function createMcpServer() {
       name: z.string().min(1).optional(),
     },
     async ({ name }) => json(saveProjectSnapshot(name)),
-  );
-
-  server.tool(
-    "reject_pending_change",
-    "Discard one pending AI proposal. Rejection cannot modify canonical Ladder logic.",
-    {
-      pending_change_id: z.string().min(1),
-    },
-    async ({ pending_change_id }) => json(rejectPendingChange(pending_change_id)),
   );
 
   server.tool(
