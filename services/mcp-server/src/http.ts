@@ -291,21 +291,21 @@ export function startHttpServer() {
   const port = Number(process.env.PORT ?? 3001);
   const server = createHttpServer({ token });
   server.listen(port, "0.0.0.0", () => {
-    console.log(`PLC-LadderMCP HTTP + Remote MCP: http://localhost:${port}`);
-    console.log(`Health: http://localhost:${port}/health`);
-    console.log(`Remote MCP: http://localhost:${port}/mcp`);
+    console.error(`PLC-LadderMCP HTTP + Remote MCP: http://localhost:${port}`);
+    console.error(`Health: http://localhost:${port}/health`);
+    console.error(`Remote MCP: http://localhost:${port}/mcp`);
     if (!token) {
-      console.log("Auth: disabled (PLC_LADDER_REQUIRE_AUTH=false). Do not expose this server publicly.");
+      console.error("Auth: disabled (PLC_LADDER_REQUIRE_AUTH=false). Do not expose this server publicly.");
       return;
     }
-    console.log(generatedToken ? "Auth: enabled, token auto-generated for this run." : "Auth: Bearer token required.");
-    console.log("");
-    console.log("  Paste this into the web app's Bearer token field:");
-    console.log("");
-    console.log(`  ${token}`);
-    console.log("");
+    console.error(generatedToken ? "Auth: enabled, token auto-generated for this run." : "Auth: Bearer token required.");
+    console.error("");
+    console.error("  Paste this into the web app's Bearer token field:");
+    console.error("");
+    console.error(`  ${token}`);
+    console.error("");
     if (generatedToken) {
-      console.log("  Set PLC_LADDER_TOKEN to reuse the same token across restarts.");
+      console.error("  Set PLC_LADDER_TOKEN to reuse the same token across restarts.");
     }
   });
   return server;

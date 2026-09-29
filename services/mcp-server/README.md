@@ -308,6 +308,20 @@ Remote MCP endpoint:
 http://localhost:3001/mcp
 ```
 
+## One process, two transports
+
+`src/index.ts` is the stdio MCP entry point used by AI clients. It also starts the HTTP server, so a single process owns the canonical project, the pending-change queue, and the undo history.
+
+```bash
+npm run mcp:dev
+```
+
+This is what makes AI proposals visible in the Web **AI Changes** screen. Running `npm run server` as a *separate* process creates a second copy of that in-memory state, so proposals made over stdio land in a queue the Web app never reads.
+
+Because of that, do not run `npm run server` and `npm run mcp:dev` at the same time. The stdio entry point logs a warning and keeps serving stdio if the port is already taken.
+
+Startup logging goes to stderr, because stdout is the stdio JSON-RPC channel.
+
 ## Remote MCP + security
 
 The server listens on `0.0.0.0`, so bearer auth is **on by default**. When no `PLC_LADDER_TOKEN` is set, the server generates a random token at startup and prints it:
