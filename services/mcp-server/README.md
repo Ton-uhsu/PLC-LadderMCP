@@ -124,16 +124,18 @@ The Web **Import GX Works2** button detects UTF-16 LE BOM or UTF-8 text and impo
 
 ## Persistence
 
-Every applied mutation autosaves the current canonical project to:
+Every applied mutation autosaves the current canonical project at the repository root:
 
 ```text
-.plc-ladder/current-project.json
+<repo>/.plc-ladder/current-project.json
 ```
+
+This path is resolved from the server module location, not from the npm workspace working directory. Older data accidentally written under `services/mcp-server/.plc-ladder/` is copied into the repository-root data directory automatically on startup.
 
 Named snapshots are stored in:
 
 ```text
-.plc-ladder/projects/
+<repo>/.plc-ladder/projects/
 ```
 
 MCP:
