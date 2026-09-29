@@ -7,3 +7,7 @@ dist/
 .plc-ladder/
 .plc-ladder-test-smoke/
 .plc-ladder-test-e2e/
+.env
+.env.*
+!.env.example
+.env.token

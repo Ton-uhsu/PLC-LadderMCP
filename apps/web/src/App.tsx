@@ -29,7 +29,7 @@ function LadderPreview() {
   const preview = getPreviewNetwork(network);
   if (!preview.supported) {
     const nestedActions = preview.actions;
-    const height = Math.max(270, 110 + nestedActions.length * 46);
+    const height = Math.max(270, 110 + nestedActions.length * 64);
     return <svg viewBox={`0 0 900 ${height}`} className="ladder" role="img" aria-label="Nested Ladder topology">
       <line x1="70" y1="35" x2="70" y2={height - 35} className="wire rail"/>
       <line x1="830" y1="35" x2="830" y2={height - 35} className="wire rail"/>
@@ -40,7 +40,7 @@ function LadderPreview() {
       <text x="155" y="118" className="nested-expression">{preview.conditionText}</text>
       <line x1="550" y1="100" x2="650" y2="100" className="wire"/>
       {nestedActions.map((action, index) => {
-        const y = 100 + index * 46;
+        const y = 100 + index * 64;
         return <g key={action.id}>
           {nestedActions.length > 1 && <line x1="650" y1="100" x2="650" y2={y} className="wire"/>}
           <line x1="650" y1={y} x2="690" y2={y} className="wire"/>
@@ -57,8 +57,8 @@ function LadderPreview() {
   }
 
   const { contacts, actions } = preview;
-  const ys = actions.map((_, i) => 80 + i * 42);
-  const top = ys[0] ?? 90;
+  const ys = actions.map((_, i) => 100 + i * 72);
+  const top = ys[0] ?? 100;
   const bottom = ys.at(-1) ?? 90;
   const height = Math.max(270, bottom + 120);
   const branchX = 650;
