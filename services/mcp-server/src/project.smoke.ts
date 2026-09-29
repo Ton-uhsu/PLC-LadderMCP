@@ -12,6 +12,7 @@ import {
   exportGxWorks2Text,
   deleteNetwork,
   getProject,
+  listPendingChanges,
   modifyNetwork,
   rejectPendingChange,
   removeAction,
