@@ -1,8 +1,8 @@
 # PLC-LadderMCP Requirements
 
 **Document:** `docs/01-requirements.md`  
-**Status:** Draft / Baseline  
-**Version:** 0.9  
+**Status:** Accepted / V1 Requirements Freeze  
+**Version:** 1.0  
 **Project:** PLC-LadderMCP
 
 ## 1. Project Goal
@@ -949,11 +949,11 @@ Any current validation result containing one or more `ERROR` diagnostics must bl
 
 Warnings and informational diagnostics do not block Apply/Export by default unless a more specific requirement or PLC capability rule says otherwise.
 
-### REQ-114 - Duplicate Output Coil Detection
+### REQ-114 - Duplicate Output Coil Warning
 
-If the same output device is written by ordinary `OUT` coils in more than one location, the validator must report an `ERROR` by default because scan order can cause one write to override another.
+If the same output device is written by ordinary `OUT` coils in more than one location, the validator must emit a `WARNING` by default and identify all writer locations and relevant scan-order implications.
 
-A PLC capability profile may override the default only when the target explicitly supports a well-defined valid case.
+A duplicate `OUT` pattern becomes an `ERROR` only when the selected PLC model/capability profile defines that specific use as invalid.
 
 ### REQ-115 - SET Without RST Warning
 
@@ -1226,6 +1226,12 @@ A semantic batch must support explicit dependencies or references between operat
 
 For example, an operation that adds logic to a newly created network should be able to reference the operation that created that network. The backend must validate dependency references and execution order before constructing the proposal.
 
+### REQ-159 - Authenticated Remote MCP Access
+
+Remote MCP access that can read protected project data or invoke project-affecting operations must require authentication.
+
+Anonymous clients must not be allowed to use write-capable MCP operations. V1 may use a single-admin token or equivalent API credential, while details such as credential format, transport/header convention, expiration, rotation, and finer-grained permissions are defined in solution design rather than fixed by this requirement.
+
 ---
 
 ## 4. Web Application Requirements
@@ -1366,6 +1372,8 @@ Existing PLC projects must not be destructively modified without preserving a pr
 
 AI-facing tools must not bypass the proposal, validation, Human Review, and apply lifecycle to mutate authoritative saved Ladder state directly.
 
+Remote MCP access to protected project data or project-affecting operations must be authenticated; anonymous write-capable MCP access is not permitted.
+
 ---
 
 ## 7. Out of Scope for Initial Version
@@ -1402,7 +1410,10 @@ Natural-language request                    Manual web edit
 AI Agent                                    Structured Editor
         |                                         |
         v                                         v
-Consistent project snapshot                  Draft Project State
+Authenticated MCP / Tool Interface          Draft Project State
+        |                                         |
+        v                                         |
+Consistent project snapshot                       |
         |                                         |
         v                                         |
 Semantic Change Batch                             |
@@ -1463,13 +1474,13 @@ Ingress + real domain + HTTPS
 
 The key success criterion is:
 
-> A user can ask an AI to create or modify PLC logic through a reviewed semantic batch, or make supported structured edits manually in the web application, compile/validate the relevant project state, and receive a retained real Ladder export artifact that can be used in a supported PLC IDE without manually redrawing AI-generated text.
+> A user can ask an authenticated AI client to create or modify PLC logic through a reviewed semantic batch, or make supported structured edits manually in the web application, compile/validate the relevant project state, and receive a retained real Ladder export artifact that can be used in a supported PLC IDE without manually redrawing AI-generated text.
 
 ---
 
 ## 9. Requirement Status
 
-Current baseline:
+Current V1 baseline:
 
 - REQ-001 through REQ-021 are the accepted initial PLC-LadderMCP product requirements carried forward from the previous baseline.
 - REQ-022 through REQ-035 record the V1 operating and deployment decisions confirmed during the requirements-grilling session.
@@ -1478,8 +1489,10 @@ Current baseline:
 - REQ-058 through REQ-079 record the AI change-batch, review lifecycle, rework, conflict, stale-proposal, cancellation/retry, and audit decisions confirmed during requirement grooming.
 - REQ-080 through REQ-094 record the GX Works2 / SamSoar2022 round-trip POC, compatibility, unsupported-node preservation, fidelity, and PostgreSQL/PostgREST evidence-retention decisions confirmed during requirement grooming.
 - REQ-095 through REQ-111 record the canonical Ladder IR, typed operand/instruction, stable identity, nested-branch, PLC capability-profile, timer/counter semantics, source-mapping, and schema-version decisions confirmed during requirement grooming.
-- REQ-112 through REQ-136 record the validator severity model, PLC safety diagnostics, stable diagnostic codes, explicit manual Compile workflow, compile invalidation, navigable diagnostics, and compile-run history decisions confirmed during requirement grooming.
+- REQ-112 through REQ-136 record the validator severity model, PLC safety diagnostics, stable diagnostic codes, explicit manual Compile workflow, compile invalidation, navigable diagnostics, and compile-run history decisions confirmed during requirement grooming. REQ-114 was refined in Version 1.0 so duplicate ordinary `OUT` writers are a `WARNING` by default and become an `ERROR` only when the selected PLC capability profile defines that use as invalid.
 - REQ-137 through REQ-158 record the MCP/AI semantic-batch contract, transactional proposal construction, mandatory Human Review, export-version snapshots/artifact retention, project-model/export-target separation, current-compile export gate, stale/base-revision protection, idempotency, standardized responses, typed operations, and explicit operation dependencies confirmed during requirement grooming.
+- REQ-159 requires authenticated remote MCP access for protected project data and project-affecting operations; anonymous write-capable MCP access is not allowed.
+- Version 1.0 is the accepted V1 requirements baseline. Further product-requirement changes should be explicit revisions rather than continuing requirement grooming by default.
 - GX Works2 and SamSoar2022 import are V1 targets but remain Pending POC until real IDE interchange experiments confirm the supported formats and fidelity.
 - GX Works and SamSoar2022 are the first IDE targets.
 - AI-first usage remains the primary workflow, while V1 also requires structured manual Ladder editing in the web application.
