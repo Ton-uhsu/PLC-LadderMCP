@@ -2,7 +2,7 @@
 
 **Document:** `docs/01-requirements.md`  
 **Status:** Draft / Baseline  
-**Version:** 0.6  
+**Version:** 0.7  
 **Project:** PLC-LadderMCP
 
 ## 1. Project Goal
@@ -829,6 +829,110 @@ Each POC run must retain the artifacts required to debug parser and serializer b
 
 These artifacts must be associated with the same POC run record in PostgreSQL/PostgREST.
 
+### REQ-095 - Canonical Topology-Based Ladder IR
+
+The canonical Ladder IR must represent Ladder as logical topology rather than using a vendor instruction list as the authoritative model.
+
+Core structural concepts should include nodes such as `series`, `parallel`, `contact`, `coil`, and typed instruction nodes. Vendor instruction lists such as `LD / AND / OUT` may be generated or parsed by adapters, but must not be the primary canonical representation.
+
+### REQ-096 - Typed Operands and Devices
+
+Operands and PLC devices in Ladder IR must use typed structured representations rather than relying only on strings such as `D100` or `K10`.
+
+The model must be able to distinguish concepts such as PLC devices, constants, labels/references, and instruction-specific operands so validation and vendor conversion can reason about their meaning.
+
+### REQ-097 - Stable Ladder Node Identity
+
+Every editable Ladder logic node must have a stable identity that can survive movement or reordering where the logical element remains the same.
+
+Stable node IDs must support precise diffing, Human Review, undo/redo, revision history, source mapping, and targeted AI edits without depending only on visual position.
+
+### REQ-098 - Typed Instruction Schemas
+
+Core instructions must be represented through typed schemas appropriate to their instruction family rather than only as a generic `opcode + args[]` structure.
+
+Examples include typed models for move/data-transfer, compare, timer, counter, and arithmetic instructions with explicit fields and operand constraints.
+
+### REQ-099 - Explicit Vendor-Specific Extension Nodes
+
+Features that cannot be represented faithfully using the vendor-neutral core must use an explicit vendor-specific extension representation.
+
+Such nodes should retain enough information to identify the vendor, opcode/capability, and preserved raw source or payload needed for safe same-vendor passthrough under REQ-084 and REQ-085.
+
+Vendor-specific semantics must not silently leak into unrelated core node types.
+
+### REQ-100 - Deterministic Execution Order
+
+Ladder IR must preserve deterministic logical execution order independently of its visual rendering coordinates.
+
+Validation, network reordering, diffing, and adapter compilation must be able to determine execution order from the model itself rather than inferring it from the renderer layout.
+
+### REQ-101 - Network Name Metadata Only in V1
+
+At the canonical network-container level, V1 only requires a network `name` as first-class metadata separate from the logic tree.
+
+Additional network-level description/comment metadata is not required for V1. This does not remove device comments, labels, imported vendor metadata, or other metadata preservation required elsewhere in this specification.
+
+### REQ-102 - Single Main Program in V1
+
+V1 only needs one Ladder program named `Main` per project, with multiple networks inside that program.
+
+The IR structure should remain extensible so multiple programs can be added later without redesigning the canonical Ladder model.
+
+### REQ-103 - Nested Branch Support in Canonical IR
+
+The canonical Ladder IR must support nested branch structures from V1, including series and parallel logic nested inside other branches.
+
+Adapter capability checks determine whether a particular nested structure can be exported to a selected PLC model/IDE. A target limitation must not force the core IR itself to lose nested-branch expressiveness.
+
+### REQ-104 - PLC-Model-Level Capability Validation
+
+Instruction and Ladder capability must be evaluated at the PLC-model level, not only at vendor or IDE level.
+
+Validation and export must account for differences between PLC models in supported instructions, device ranges, operand behavior, special devices, and other relevant limitations.
+
+### REQ-105 - Instruction Operand Constraints
+
+The capability model must describe instruction-specific operand constraints sufficiently for validation.
+
+Constraints may include operand count, accepted operand/device types, valid address ranges, constant or preset ranges, and PLC-model-specific restrictions.
+
+### REQ-106 - Data-Driven PLC Capability Profiles
+
+PLC capability rules must be represented through maintainable data/profile definitions rather than being scattered as hard-coded checks throughout the application.
+
+Adding or refining support for a PLC model should primarily extend its capability profile and associated adapter behavior rather than require unrelated core rewrites.
+
+### REQ-107 - Special Device Capability Metadata
+
+PLC capability profiles must include supported special devices, such as Mitsubishi special relays/registers where applicable, together with their meaning and model-specific restrictions.
+
+This information must be usable by both validation and AI-facing tooling so special devices are not treated as ordinary unrestricted addresses.
+
+### REQ-108 - Explicit Timer and Counter Semantics
+
+Timer and counter nodes must preserve semantic information needed to understand their behavior rather than storing only a textual form such as `T0 K10`.
+
+Where applicable, the model/capability layer must represent concepts such as time base or unit, preset semantics, retentive behavior, counter range, and PLC-model-specific rules.
+
+### REQ-109 - Typed Data Width and Signedness
+
+Instructions whose behavior depends on data representation, including compare, arithmetic, and data-move operations, must preserve relevant data-width and signedness semantics where applicable.
+
+Examples include distinctions such as WORD/DWORD and signed/unsigned behavior so validation and vendor conversion can detect incompatible operands or semantics.
+
+### REQ-110 - Imported Source Mapping
+
+When Ladder IR is created from an imported IDE interchange file, parsed nodes should retain traceability to their original source records, lines, or source fragments where practical.
+
+Source mapping must support parser debugging, unsupported-node diagnostics, fidelity analysis, and round-trip POC investigation.
+
+### REQ-111 - Versioned Ladder IR Schema and Migration
+
+The canonical Ladder IR must include an explicit schema version.
+
+When later releases introduce incompatible IR schema changes, the application must provide a migration path for previously persisted projects rather than assuming all stored projects already use the newest structure.
+
 ---
 
 ## 4. Web Application Requirements
@@ -1057,15 +1161,17 @@ Current baseline:
 - REQ-043 through REQ-057 record the import and Ladder-native Human Review decisions confirmed during requirement grooming.
 - REQ-058 through REQ-079 record the AI change-batch, review lifecycle, rework, conflict, stale-proposal, cancellation/retry, and audit decisions confirmed during requirement grooming.
 - REQ-080 through REQ-094 record the GX Works2 / SamSoar2022 round-trip POC, compatibility, unsupported-node preservation, fidelity, and PostgreSQL/PostgREST evidence-retention decisions confirmed during requirement grooming.
+- REQ-095 through REQ-111 record the canonical Ladder IR, typed operand/instruction, stable identity, nested-branch, PLC capability-profile, timer/counter semantics, source-mapping, and schema-version decisions confirmed during requirement grooming.
 - GX Works2 and SamSoar2022 import are V1 targets but remain Pending POC until real IDE interchange experiments confirm the supported formats and fidelity.
 - GX Works and SamSoar2022 are the first IDE targets.
 - AI-first usage remains the primary workflow, while V1 also requires structured manual Ladder editing in the web application.
 - MCP is the first preferred AI tool protocol, but the core architecture must remain protocol-independent.
 - V1 Web acts as the Ladder project control center and supports project management, structured manual editing, validation, AI review/approval, diff, history, and export.
 - V1 supports multiple projects and multiple Ladder networks per project.
+- V1 uses a single `Main` Ladder program per project while keeping the IR extensible for multiple programs later.
 - V1 is single-admin/personal-use and has no AI usage quota requirement.
 - V1 deployment uses Jenkins, GHCR, Kubernetes, PostgreSQL, staging/production separation, and real-domain HTTPS.
 - POC fixture files and run artifacts are retained in PostgreSQL and exposed through PostgREST, with append-only run history.
 - Automated scheduled PostgreSQL backup is intentionally deferred from V1.
 
-Further technical research is still required before locking down all project file formats, import/export mechanisms, IDE adapters, the exact Ladder intermediate representation, and the detailed staging/production Kubernetes topology.
+Further technical research is still required before locking down all project file formats, import/export mechanisms, IDE adapters, final capability-profile contents, and the detailed staging/production Kubernetes topology.
