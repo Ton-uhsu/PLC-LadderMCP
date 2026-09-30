@@ -2,7 +2,7 @@
 
 **Document:** `docs/01-requirements.md`  
 **Status:** Draft / Baseline  
-**Version:** 0.4  
+**Version:** 0.5  
 **Project:** PLC-LadderMCP
 
 ## 1. Project Goal
@@ -548,6 +548,164 @@ If AI proposes moving or reordering an existing network, Human Review must ident
 
 The affected network must remain independently approvable or rejectable.
 
+### REQ-058 - AI Change Batch
+
+One user prompt that produces one or more AI-proposed Ladder changes must be tracked as a single **change batch**.
+
+A change batch may contain changes to multiple networks, while each affected network remains independently reviewable under the per-network approval rules.
+
+### REQ-059 - Partial Batch Status
+
+A change batch containing a mixture of network review states must expose an aggregate partial status rather than appearing fully approved or completed.
+
+For example, if some networks are approved while others remain pending or rejected, the batch should be represented as partially approved until the current review work is resolved.
+
+### REQ-060 - Deferred Apply Until Review Round Completion
+
+Approving an individual network must not immediately mutate the saved project state.
+
+Approval should mark and lock that network for the current review round. Approved changes are applied only when the current review round reaches its apply step, so a sequence of individual button presses cannot leave the saved project in a half-reviewed state.
+
+### REQ-061 - Apply Approved Networks After Review Round
+
+At the end of a review round, networks approved in that round may be applied to the project even when other networks in the same change batch were rejected.
+
+Rejected networks must enter a rework cycle while remaining associated with the original change batch. Previously approved/applied networks must not be unnecessarily regenerated.
+
+### REQ-062 - Proposal Revision History
+
+When a rejected network is revised by AI, the system must preserve a revision history for that network proposal.
+
+Each revision should retain enough information to inspect its Ladder diff, rejection feedback, validation result, and relationship to the prior revision.
+
+### REQ-063 - Latest Revision Only Actionable
+
+Older proposal revisions must remain viewable for history and audit purposes but must be read-only.
+
+Only the latest active revision of a network proposal may be approved or rejected.
+
+### REQ-064 - Significant Scope Change Warning
+
+If a revised proposal changes materially more Ladder logic than the original request or rejection feedback reasonably implies, the system must display a clear **significant scope change** warning.
+
+The warning does not automatically block review, but it must make the expanded change scope visible before approval.
+
+### REQ-065 - Pending Review Conflict Protection
+
+V1 must prevent a new AI proposal from silently modifying a network that already has an unresolved proposal in Human Review.
+
+If a new request targets such a network, the system must report a conflict and block the overlapping proposal until the existing review is resolved, cancelled, or otherwise explicitly handled.
+
+### REQ-066 - Parallel Non-Overlapping Batches
+
+Multiple change batches may proceed in parallel when they do not modify the same Ladder networks.
+
+The existence of one active review batch must not unnecessarily block unrelated work on non-overlapping networks.
+
+### REQ-067 - Cross-Network Dependency Warning
+
+Even when two active batches modify different networks, the system should detect shared devices, labels, or other relevant logical dependencies between them.
+
+Potential cross-network or cross-batch dependency conflicts must be surfaced as warnings and evaluated by validation. Shared dependencies do not automatically require blocking every case.
+
+### REQ-068 - Integration Validation Before Apply
+
+Immediately before approved proposal changes are applied to saved project state, the system must validate them against the **latest full project state**.
+
+If integration introduces a new error or conflict, such as duplicate coils, conflicting writes, invalid dependencies, or incompatible logic, apply must stop and the affected proposal must enter an **Integration Conflict** state for resolution and review.
+
+### REQ-069 - Stale Proposal Protection
+
+Each AI proposal must retain enough base-version information to determine whether the project has changed since that proposal was generated.
+
+A proposal affected by relevant project changes must be marked **Stale** and must not be applied directly until it is revalidated or regenerated against the current project state.
+
+### REQ-070 - Manual Regeneration of Stale Proposals
+
+A stale proposal must not be silently regenerated automatically in V1.
+
+When regeneration is required, the user must explicitly trigger it so that newly generated Ladder logic is visible as a new proposal/revision and reviewed again.
+
+### REQ-071 - Dependency-Aware Stale Check
+
+A project version change alone must not force every outstanding proposal to regenerate.
+
+The stale check should evaluate the networks, devices, labels, and dependencies relevant to the proposal. If unrelated project changes occurred, the proposal may be revalidated and continue without full regeneration.
+
+### REQ-072 - Metadata-Only Changes Do Not Invalidate Logic Proposals
+
+Changes limited to comments, descriptions, or other metadata that do not alter Ladder execution behavior should not by themselves make a logic proposal stale.
+
+Changes to device mappings, instructions, network structure, execution behavior, or other logic-affecting dependencies may invalidate the proposal.
+
+### REQ-073 - Rejected Batch Revision Continuity
+
+If all proposals in a change batch are rejected, corrected proposals must continue as revisions under the same original batch rather than creating a new unrelated batch.
+
+This preserves traceability from the original user prompt through every rejection, feedback cycle, and corrected proposal.
+
+### REQ-074 - Batch Cancellation History
+
+The user must be able to cancel an active change batch.
+
+A cancelled batch must be marked **Cancelled**, must no longer permit proposals from that batch to be applied, and must retain its prompt, proposals, revisions, feedback, and validation history for later inspection.
+
+### REQ-075 - Retry Cancelled Batch as New Batch
+
+A cancelled batch must not be reopened in place.
+
+The user may choose **Retry from this batch**, which creates a new change batch and records a reference back to the cancelled source batch.
+
+### REQ-076 - Retry Uses Intent and Feedback, Not Old Proposal State
+
+When retrying from a cancelled batch, the new batch should carry forward the original user intent, relevant rejection feedback, and appropriate context.
+
+The old proposal state itself must not be reused as the authoritative starting point because the current project state may have changed.
+
+### REQ-077 - Per-Network Lifecycle Status
+
+Each network proposal inside a change batch must expose its own lifecycle status independently of the batch aggregate status.
+
+Relevant states may include, as applicable:
+
+- Pending Review
+- Approved
+- Applied
+- Rejected
+- Rework
+- Validation Failed
+- Integration Conflict
+- Stale
+- Cancelled
+
+The exact state-machine representation may be refined in solution design, but the user must be able to tell where each network is in the review/apply lifecycle.
+
+### REQ-078 - Batch Status Derived from Network States
+
+The aggregate status of a change batch must be derived from its network proposal states rather than being manually assigned by the user.
+
+For example, a batch with unresolved networks remains active, a mixture of applied and unresolved/rejected networks may be partially applied, and a batch becomes completed only when all of its network-level work has reached a terminal state appropriate to that batch.
+
+### REQ-079 - Full Change Audit Trail
+
+The system must preserve a traceable audit history for AI change batches.
+
+The audit trail should include at least:
+
+- Original user prompt
+- Change-batch identity and lineage
+- Affected networks
+- AI proposal and revision history
+- Ladder diffs
+- Validation and integration-validation results
+- User approvals and rejections
+- Rejection feedback
+- Apply events
+- Cancellation events
+- Retry relationships between batches
+
+The audit trail must support debugging and later review of why and how Ladder logic changed.
+
 ---
 
 ## 4. Web Application Requirements
@@ -773,7 +931,8 @@ Current baseline:
 - REQ-001 through REQ-021 are the accepted initial PLC-LadderMCP product requirements carried forward from the previous baseline.
 - REQ-022 through REQ-035 record the V1 operating and deployment decisions confirmed during the requirements-grilling session.
 - REQ-036 through REQ-042 record the V1 web-application decisions confirmed during the web requirements-grilling session.
-- REQ-043 through REQ-057 record the current import and Ladder-native Human Review decisions confirmed during requirement grooming.
+- REQ-043 through REQ-057 record the import and Ladder-native Human Review decisions confirmed during requirement grooming.
+- REQ-058 through REQ-079 record the AI change-batch, review lifecycle, rework, conflict, stale-proposal, cancellation/retry, and audit decisions confirmed during requirement grooming.
 - GX Works2 and SamSoar2022 import are V1 targets but remain Pending POC until real IDE interchange experiments confirm the supported formats and fidelity.
 - GX Works and SamSoar2022 are the first IDE targets.
 - AI-first usage remains the primary workflow, while V1 also requires structured manual Ladder editing in the web application.
