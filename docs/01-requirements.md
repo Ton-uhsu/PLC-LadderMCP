@@ -2,7 +2,7 @@
 
 **Document:** `docs/01-requirements.md`  
 **Status:** Draft / Baseline  
-**Version:** 0.7  
+**Version:** 0.8  
 **Project:** PLC-LadderMCP
 
 ## 1. Project Goal
@@ -421,17 +421,21 @@ V1 must provide a manual Ladder editor in the web application. The editor must b
 
 A full IDE-style drag-and-drop canvas is not required for V1.
 
-### REQ-038 - Automatic Validation for Manual Edits
+### REQ-038 - Shared Validator for Manual Edits
 
-Every manual Ladder edit in the web application must be validated automatically using the same validation rules used for AI-generated changes before that edit is committed as saved project state.
+Manual Ladder editing in the web application must use the same validator and validation rules as AI-generated logic when the user explicitly runs Compile.
+
+Manual edits must not trigger mandatory full validation on every edit. The editor may persist draft changes while compile state is tracked separately under REQ-133 and REQ-134.
 
 ### REQ-039 - Web Undo / Redo
 
 The V1 manual editor must provide undo and redo for editing actions so the user can safely reverse or reapply recent manual changes during an editing session.
 
-### REQ-040 - Autosave
+### REQ-040 - Autosave Draft Edits
 
-The V1 web application must autosave valid manual Ladder changes without requiring the user to press a Save button for each edit. Changes that fail required validation must not replace the last valid saved project state.
+The V1 web application must autosave structured manual Ladder edits without requiring the user to press a Save button for each edit.
+
+Autosave does not imply that the current draft is compiled or valid for export. Compile state must remain separate, and any logic change after a successful compile must invalidate that compile result under REQ-134.
 
 ### REQ-041 - Multiple Projects
 
@@ -933,6 +937,149 @@ The canonical Ladder IR must include an explicit schema version.
 
 When later releases introduce incompatible IR schema changes, the application must provide a migration path for previously persisted projects rather than assuming all stored projects already use the newest structure.
 
+### REQ-112 - Validation Severity Levels
+
+Validator results must use at least three severity levels: `ERROR`, `WARNING`, and `INFO`.
+
+Each level must have a clear operational meaning. `ERROR` represents an invalid state that blocks the protected operation, `WARNING` identifies suspicious or potentially unsafe logic that may still be intentional, and `INFO` provides non-blocking diagnostic context.
+
+### REQ-113 - Errors Block Apply and Export
+
+Any current validation result containing one or more `ERROR` diagnostics must block Apply and Export until the error is resolved or the selected target/logic is changed so that validation passes.
+
+Warnings and informational diagnostics do not block Apply/Export by default unless a more specific requirement or PLC capability rule says otherwise.
+
+### REQ-114 - Duplicate Output Coil Detection
+
+If the same output device is written by ordinary `OUT` coils in more than one location, the validator must report an `ERROR` by default because scan order can cause one write to override another.
+
+A PLC capability profile may override the default only when the target explicitly supports a well-defined valid case.
+
+### REQ-115 - SET Without RST Warning
+
+If a device is written by `SET` and the validator cannot find a corresponding `RST` path for that device, the validator must emit a `WARNING`, not an automatic `ERROR`.
+
+This recognizes that a permanently latched state may be intentional while still making the missing reset path visible to the user.
+
+### REQ-116 - Multiple Writers Warning
+
+If the same device is written from multiple locations or by mixed write semantics such as `OUT`, `SET`, `RST`, or equivalent instructions, the validator must emit a `WARNING` by default and identify every relevant writer and the scan-order implications.
+
+Reading the same device as a contact does not count as an additional writer. A mixed-writer case becomes an `ERROR` only when the selected PLC capability profile defines the combination as invalid.
+
+### REQ-117 - Impossible / Contradictory Condition Warning
+
+If the validator can prove that a path contains contradictory conditions that cannot be simultaneously true, such as the same device used as both NO and NC in the same required series path, it must emit a `WARNING` and identify the affected network/path.
+
+The condition does not automatically block Apply/Export because intentionally disabled logic may exist during development.
+
+### REQ-118 - Invalid Device Address Is Error
+
+If a device or address is outside the valid range or otherwise unsupported by the selected PLC model, the validator must emit an `ERROR` and block Apply/Export.
+
+### REQ-119 - Unsupported Instruction Is Error
+
+If an instruction is not supported by the selected PLC model or applicable capability profile, the validator must emit an `ERROR` and block Apply/Export.
+
+### REQ-120 - Invalid Operand Type Is Error
+
+If an instruction exists for the target PLC but an operand has an incompatible type, device class, width, or semantic category, the validator must emit an `ERROR` and block Apply/Export.
+
+### REQ-121 - Invalid Operand Count Is Error
+
+If an instruction has fewer or more operands than allowed by its typed instruction schema and PLC capability rules, the validator must emit an `ERROR` and block Apply/Export.
+
+### REQ-122 - Invalid Timer / Counter Preset Is Error
+
+Timer and counter presets that are negative where forbidden, outside the supported range, incompatible with the selected time base, or otherwise invalid for the selected PLC model must produce an `ERROR` and block Apply/Export.
+
+### REQ-123 - Duplicate Timer / Counter Definition Warning
+
+If the same timer or counter device, such as `T0` or `C0`, is defined or driven as a timer/counter from more than one location, the validator must emit a `WARNING` by default and identify all defining locations.
+
+Using a timer/counter device as a contact or other read-only reference does not count as a duplicate definition.
+
+### REQ-124 - Read-Only / Reserved Device Write Is Error
+
+If an instruction attempts to write to a special device, reserved address, or system device that the selected PLC capability profile marks as read-only or non-writable, the validator must emit an `ERROR` and block Apply/Export.
+
+### REQ-125 - Network Without Action Warning
+
+If a Ladder network contains conditions but no executable destination/action such as a coil, timer, counter, or instruction, the validator must emit a `WARNING` and identify the affected network.
+
+### REQ-126 - Invalid Ladder Topology Is Error
+
+If Ladder topology is structurally incomplete or invalid, such as an unclosed branch, disconnected/floating node, incomplete path, or other structure that cannot be compiled into valid Ladder, the validator must emit an `ERROR` and block Apply/Export.
+
+### REQ-127 - Always-ON Output Warning
+
+If an output/action is directly driven by an always-true condition, such as an always-ON system relay for the selected PLC model, the validator must emit a `WARNING` explaining that the output may remain active for every scan while the PLC is in the relevant run state.
+
+### REQ-128 - Unreachable Output Warning
+
+If static analysis can determine that an output or action can never be activated by the current logic, the validator must emit a `WARNING` and identify the affected network/path.
+
+### REQ-129 - Direct Feedback Loop Warning
+
+If a device is both read as a condition and written as an output in a direct feedback pattern, the validator must emit a `WARNING` by default when the pattern is potentially suspicious.
+
+The validator should distinguish recognized normal patterns, such as conventional self-holding/seal-in logic, from feedback loops that are more likely to be unintended. A normal self-holding pattern must not be treated as an error solely because the output device is also used as a contact.
+
+### REQ-130 - Multiple Register Writers Warning
+
+If multiple networks or instructions write the same register or data destination, the validator must emit a `WARNING` by default and identify all writer locations and relevant scan-order implications.
+
+### REQ-131 - Overlapping Register Range Warning
+
+If two write operations target overlapping memory ranges even when their starting addresses differ, the validator must emit a `WARNING` and identify the overlapping range.
+
+For example, a DWORD write spanning `D100-D101` overlaps a separate write to `D101`.
+
+### REQ-132 - Stable Validation Codes
+
+Every validation diagnostic must include a stable machine-readable code in addition to severity and human-readable text.
+
+Examples include codes such as `V_DUPLICATE_COIL` and `V_INVALID_ADDRESS`. Diagnostics should also carry enough location/context data for UI, AI tools, tests, Human Review, and logs to identify the relevant network, node, device, or instruction without parsing message text.
+
+### REQ-133 - Manual Compile Validation
+
+Manual Ladder editing must not run mandatory full validation automatically after every edit.
+
+The user explicitly runs **Compile** when they want to validate the current project state. Before manual project state is eligible for Export, the latest successful compile result must correspond to the current logic revision.
+
+AI proposal validation required by REQ-050 and integration validation required by REQ-068 remain automatic safety gates for their respective AI review/apply workflows.
+
+### REQ-134 - Compile Result Invalidation on Logic Change
+
+After a project compiles successfully, any subsequent logic-affecting Ladder change must immediately make that compile result stale.
+
+A stale compile result must not be treated as evidence that the current logic is valid. The project must return to a `Compile Required` or equivalent state and must be compiled again before protected operations such as Export.
+
+Metadata-only changes that do not affect Ladder execution semantics do not need to invalidate compile status unless the target format requires recompilation for that metadata.
+
+### REQ-135 - Navigable Compile Diagnostics
+
+Compile results must present a severity summary such as `0 Errors / 3 Warnings / 2 Info` and expose the individual diagnostics.
+
+Each diagnostic should be navigable from the compile result UI to the affected network and, where possible, directly to the relevant node, device, instruction, or path.
+
+### REQ-136 - Compile Run History
+
+Each explicit Compile operation must create a compile-run history record rather than only replacing the previous result.
+
+A compile-run record should include at least:
+
+- Timestamp
+- Project identity
+- Project revision or content hash
+- Selected PLC model/target
+- Overall result such as PASS/FAIL
+- Error, warning, and info counts
+- Full diagnostic list with stable validation codes and locations
+- User identity when user accounts exist
+
+Compile history should reference the corresponding project revision rather than duplicating a complete Ladder snapshot for every compile when a revision/history record already provides that state.
+
 ---
 
 ## 4. Web Application Requirements
@@ -946,16 +1093,19 @@ Initial web responsibilities:
 - Navigate multiple Ladder networks inside a project
 - Show Ladder preview
 - Provide structured manual Ladder editing
-- Automatically validate manual edits using the shared validator
-- Autosave valid edits
+- Autosave manual draft edits
+- Provide an explicit Compile action using the shared validator
+- Show compile state such as Compile Required, Passed, or Failed
+- Invalidate the previous compile result after logic-affecting edits
 - Provide undo/redo for manual editing
 - Show generated or modified Ladder changes
-- Display validation errors and warnings
+- Display validation errors, warnings, and information
+- Display navigable compile diagnostics
 - Display before/after diff
 - Approve or reject AI changes
-- Browse version history
+- Browse version and compile history
 - Undo/restore project versions
-- Download/export generated PLC files
+- Download/export generated PLC files only when required validation/compile gates pass
 
 A full unrestricted IDE-style drag-and-drop Ladder canvas is not required for V1. Manual editing should operate through structured Ladder operations so the same Ladder model and validation rules can be shared with AI-driven changes.
 
@@ -977,9 +1127,9 @@ The AI selects the PLC model and uses Ladder tools to create the required logic.
 
 The engine creates the structured Ladder model and target-specific project output.
 
-### Step 4 - Validation
+### Step 4 - AI Proposal Validation
 
-The project is checked for:
+AI-generated proposals are validated before Human Review as required by REQ-050. Validation checks include:
 
 - Invalid addresses
 - Unsupported instructions
@@ -989,7 +1139,9 @@ The project is checked for:
 
 ### Step 5 - Preview / Manual Edit
 
-The user can see the actual Ladder diagram in the web UI and may make supported structured manual edits. Manual edits are automatically validated and valid changes are autosaved.
+The user can see the actual Ladder diagram in the web UI and may make supported structured manual edits. Draft edits may autosave without running a full compile after each edit.
+
+When the user wants to validate the current manual project state, the user presses **Compile**. Any later logic change makes that compile result stale and requires another Compile before export.
 
 ### Step 6 - Review
 
@@ -997,16 +1149,16 @@ The user sees:
 
 - Ladder changes
 - Devices used
-- Warnings
+- Validation/compile diagnostics
 - Before/after diff
 
 ### Step 7 - Approval
 
-The user approves AI-proposed changes when approval is required.
+The user approves AI-proposed changes when approval is required. Integration validation still runs automatically immediately before approved proposal changes are applied under REQ-068.
 
 ### Step 8 - Export
 
-The user downloads or exports a project that can be used with GX Works or SamSoar2022.
+The user downloads or exports a project only after the current project state satisfies the required validation and compile gates.
 
 ---
 
@@ -1062,6 +1214,8 @@ rather than asking an LLM to manually rewrite proprietary project files.
 
 AI-driven changes and manual web editing should operate on the same structured Ladder representation and share the same validation semantics where practical.
 
+Manual editing does not require full validation after every edit; it invokes the shared validator through explicit Compile, while AI proposal/integration safety gates may invoke it automatically.
+
 ### Project Safety
 
 Existing PLC projects must not be destructively modified without preserving a previous version.
@@ -1100,16 +1254,20 @@ Natural-language request                    Manual web edit
         v                                         v
 AI Agent                                    Structured Editor
         |                                         |
-        v                                         |
-MCP / Tool Interface                             |
+        v                                         v
+MCP / Tool Interface                         Draft Project State
         |                                         |
         +-------------------+---------------------+
                             |
                             v
                   Structured Ladder Model
                             |
-                            v
-                        Validation
+             +--------------+--------------+
+             |                             |
+             v                             v
+     AI safety validation             Manual Compile
+             |                             |
+             +--------------+--------------+
                             |
                             v
                    Visual Ladder Preview
@@ -1147,7 +1305,7 @@ Ingress + real domain + HTTPS
 
 The key success criterion is:
 
-> A user can ask an AI to create or modify PLC logic, or make supported structured edits manually in the web application, and receive a real Ladder project/output that can be used in a supported PLC IDE without manually redrawing AI-generated text.
+> A user can ask an AI to create or modify PLC logic, or make supported structured edits manually in the web application, compile/validate the relevant project state, and receive a real Ladder project/output that can be used in a supported PLC IDE without manually redrawing AI-generated text.
 
 ---
 
@@ -1157,16 +1315,17 @@ Current baseline:
 
 - REQ-001 through REQ-021 are the accepted initial PLC-LadderMCP product requirements carried forward from the previous baseline.
 - REQ-022 through REQ-035 record the V1 operating and deployment decisions confirmed during the requirements-grilling session.
-- REQ-036 through REQ-042 record the V1 web-application decisions confirmed during the web requirements-grilling session.
+- REQ-036 through REQ-042 record the V1 web-application decisions confirmed during the web requirements-grilling session. REQ-038 and REQ-040 were refined in Version 0.8 to reflect explicit manual Compile rather than full auto-validation on each edit.
 - REQ-043 through REQ-057 record the import and Ladder-native Human Review decisions confirmed during requirement grooming.
 - REQ-058 through REQ-079 record the AI change-batch, review lifecycle, rework, conflict, stale-proposal, cancellation/retry, and audit decisions confirmed during requirement grooming.
 - REQ-080 through REQ-094 record the GX Works2 / SamSoar2022 round-trip POC, compatibility, unsupported-node preservation, fidelity, and PostgreSQL/PostgREST evidence-retention decisions confirmed during requirement grooming.
 - REQ-095 through REQ-111 record the canonical Ladder IR, typed operand/instruction, stable identity, nested-branch, PLC capability-profile, timer/counter semantics, source-mapping, and schema-version decisions confirmed during requirement grooming.
+- REQ-112 through REQ-136 record the validator severity model, PLC safety diagnostics, stable diagnostic codes, explicit manual Compile workflow, compile invalidation, navigable diagnostics, and compile-run history decisions confirmed during requirement grooming.
 - GX Works2 and SamSoar2022 import are V1 targets but remain Pending POC until real IDE interchange experiments confirm the supported formats and fidelity.
 - GX Works and SamSoar2022 are the first IDE targets.
 - AI-first usage remains the primary workflow, while V1 also requires structured manual Ladder editing in the web application.
 - MCP is the first preferred AI tool protocol, but the core architecture must remain protocol-independent.
-- V1 Web acts as the Ladder project control center and supports project management, structured manual editing, validation, AI review/approval, diff, history, and export.
+- V1 Web acts as the Ladder project control center and supports project management, structured manual editing, explicit manual Compile, AI review/approval, diff, history, and export.
 - V1 supports multiple projects and multiple Ladder networks per project.
 - V1 uses a single `Main` Ladder program per project while keeping the IR extensible for multiple programs later.
 - V1 is single-admin/personal-use and has no AI usage quota requirement.
