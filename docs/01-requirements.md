@@ -2,7 +2,7 @@
 
 **Document:** `docs/01-requirements.md`  
 **Status:** Draft / Baseline  
-**Version:** 0.5  
+**Version:** 0.6  
 **Project:** PLC-LadderMCP
 
 ## 1. Project Goal
@@ -706,6 +706,129 @@ The audit trail should include at least:
 
 The audit trail must support debugging and later review of why and how Ladder logic changed.
 
+### REQ-080 - Round-Trip Import/Export POC
+
+GX Works2 and SamSoar2022 support must each be proven with a real round-trip POC:
+
+```text
+IDE export
+  -> PLC-LadderMCP import
+  -> Ladder IR
+  -> PLC-LadderMCP export
+  -> IDE import
+```
+
+A POC is not considered complete merely because one export direction works; both IDE targets must demonstrate an end-to-end usable Ladder round trip for the tested fixture set.
+
+### REQ-081 - Semantic Round-Trip Equivalence
+
+Round-trip verification does not require exported files to be byte-for-byte identical to their source files.
+
+The success criterion is semantic equivalence of Ladder logic and behavior. Normalization performed by the IDE, such as device-name formatting, step numbering, headers, or non-behavioral formatting changes, is acceptable when execution semantics remain equivalent.
+
+### REQ-082 - Initial POC Fixture Coverage
+
+The first round-trip fixture set must cover at least:
+
+- Normally Open contact
+- Normally Closed contact
+- Output Coil
+- SET / RST
+- Timer
+- Counter
+- MOV
+- Compare
+- AND branch logic
+- OR branch logic
+
+Nested branches may be validated in a later fixture set after the basic round-trip set is stable.
+
+### REQ-083 - Common and Vendor-Specific Compatibility Fixtures
+
+The POC suite must contain both:
+
+1. **Common fixtures** representing equivalent logic supported by both GX Works2 and SamSoar2022.
+2. **Vendor-specific fixtures** for instructions or features that exist in only one target environment or have vendor-specific semantics.
+
+The system must not require every vendor-specific instruction to be portable across IDEs in order to claim round-trip support for its original vendor.
+
+### REQ-084 - Preserve Unsupported Instructions on Import
+
+When an imported project contains an instruction or feature that PLC-LadderMCP does not yet understand, the system should continue importing the rest of the project when safe rather than rejecting the entire project automatically.
+
+The unsupported portion must be represented explicitly as an **Unsupported / Vendor-Specific** node or equivalent preserved structure, retain the original raw source needed for later round-trip handling, and must not be silently rewritten by AI.
+
+### REQ-085 - Safe Vendor Passthrough for Unsupported Nodes
+
+Unsupported or vendor-specific nodes whose raw source has been preserved should be exportable back to their original vendor through passthrough when the surrounding edits have not invalidated that passthrough.
+
+If a surrounding structural change makes preservation unsafe or ambiguous, the system must block or warn rather than silently emitting potentially incorrect Ladder logic.
+
+### REQ-086 - Cross-Vendor Export Compatibility Gate
+
+When exporting a project to a different target vendor, PLC-LadderMCP must detect vendor-specific instructions, structures, or capabilities that the destination does not support.
+
+Cross-vendor export must be blocked when a real incompatibility would make the resulting logic invalid or semantically incorrect. The system must identify the affected network/instruction and distinguish portable content from vendor-specific content.
+
+### REQ-087 - Lossy Metadata Import Warning
+
+An import may succeed with warnings when Ladder behavior is preserved but non-behavioral metadata such as comments, labels, symbols, or descriptions cannot be fully retained.
+
+The system must report which metadata was lost, normalized, or reduced rather than silently discarding it.
+
+### REQ-088 - Logic-Fidelity Failure Is Read-Only
+
+If an imported network cannot be represented faithfully enough in Ladder IR to preserve expected behavior, the project may be opened for diagnostic inspection but must enter a **read-only diagnostic** state for the affected unsafe scope.
+
+The system must prevent AI modification, apply, or export of logic whose behavior cannot be represented faithfully until the fidelity issue is resolved.
+
+### REQ-089 - Separate Import and Export Verification
+
+Adapter verification must record import and export capability independently for each target IDE.
+
+At minimum, evidence must distinguish:
+
+- IDE -> PLC-LadderMCP import result
+- PLC-LadderMCP -> IDE export result
+- End-to-end round-trip result
+
+A passing result in one direction must not be interpreted as proof that the opposite direction also works.
+
+### REQ-090 - Adapter Compatibility Matrix
+
+The project must maintain a compatibility matrix at the instruction/feature level for GX Works2 and SamSoar2022.
+
+The matrix should record states such as `PASS`, `FAIL`, `PARTIAL`, or `N/A` and distinguish import, export, and round-trip verification where applicable.
+
+### REQ-091 - POC Fixture and Evidence Persistence via PostgreSQL/PostgREST
+
+POC fixtures, test evidence, and compatibility results must be persisted in PostgreSQL and exposed to the application through PostgREST rather than relying on local files as the primary evidence store.
+
+Stored evidence should include enough metadata to identify the target vendor, fixture type, verification direction, result state, warnings/errors, and checksum or equivalent integrity information.
+
+### REQ-092 - Store Actual Fixture Files in PostgreSQL
+
+The actual GX Works2 and SamSoar2022 interchange files used by POC runs must be stored in PostgreSQL, not only referenced by filesystem paths.
+
+The stored file content must be retrievable through the application's PostgreSQL/PostgREST data path so a fixture can be reproduced without depending on the original developer workstation.
+
+### REQ-093 - Append-Only POC Run History
+
+Repeated POC or regression runs must create new run records rather than overwriting previous results.
+
+Historical runs must remain available so changes such as `FAIL -> PASS` or `PASS -> FAIL` can be inspected over time, while the application may additionally expose the latest result for convenience.
+
+### REQ-094 - Full POC Artifact Retention
+
+Each POC run must retain the artifacts required to debug parser and serializer behavior, including at least:
+
+- Original source interchange file
+- File generated by PLC-LadderMCP
+- Expected Ladder IR
+- Actual Ladder IR
+
+These artifacts must be associated with the same POC run record in PostgreSQL/PostgREST.
+
 ---
 
 ## 4. Web Application Requirements
@@ -933,6 +1056,7 @@ Current baseline:
 - REQ-036 through REQ-042 record the V1 web-application decisions confirmed during the web requirements-grilling session.
 - REQ-043 through REQ-057 record the import and Ladder-native Human Review decisions confirmed during requirement grooming.
 - REQ-058 through REQ-079 record the AI change-batch, review lifecycle, rework, conflict, stale-proposal, cancellation/retry, and audit decisions confirmed during requirement grooming.
+- REQ-080 through REQ-094 record the GX Works2 / SamSoar2022 round-trip POC, compatibility, unsupported-node preservation, fidelity, and PostgreSQL/PostgREST evidence-retention decisions confirmed during requirement grooming.
 - GX Works2 and SamSoar2022 import are V1 targets but remain Pending POC until real IDE interchange experiments confirm the supported formats and fidelity.
 - GX Works and SamSoar2022 are the first IDE targets.
 - AI-first usage remains the primary workflow, while V1 also requires structured manual Ladder editing in the web application.
@@ -941,6 +1065,7 @@ Current baseline:
 - V1 supports multiple projects and multiple Ladder networks per project.
 - V1 is single-admin/personal-use and has no AI usage quota requirement.
 - V1 deployment uses Jenkins, GHCR, Kubernetes, PostgreSQL, staging/production separation, and real-domain HTTPS.
+- POC fixture files and run artifacts are retained in PostgreSQL and exposed through PostgREST, with append-only run history.
 - Automated scheduled PostgreSQL backup is intentionally deferred from V1.
 
 Further technical research is still required before locking down all project file formats, import/export mechanisms, IDE adapters, the exact Ladder intermediate representation, and the detailed staging/production Kubernetes topology.
