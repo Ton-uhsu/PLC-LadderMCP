@@ -13,6 +13,7 @@ import {
   getPreviewNetwork,
   validateProject,
 } from "./ladder";
+import { ManualEditor } from "./persistence/ManualEditor";
 import { useProjectStore } from "./store";
 
 type Vendor = "GX Works2" | "SamSoar2022";
@@ -224,6 +225,7 @@ function AIChangesPanel() {
 
 
 function HistoryPanel() {
+  const database = useProjectStore(s => s.storageMode === "database");
   const connected = useProjectStore(s => s.connected);
   const history = useProjectStore(s => s.history);
   const loadingHistory = useProjectStore(s => s.loadingHistory);
@@ -247,7 +249,7 @@ function HistoryPanel() {
   return <div className="history-panel">
     <div className="history-toolbar">
       <div>
-        <b>Project history</b>
+        <b>{database ? "Local session undo / redo" : "Project history"}</b>
         <span>{history.undo_count} undo step{history.undo_count === 1 ? "" : "s"} · {history.redo_count} redo step{history.redo_count === 1 ? "" : "s"}</span>
       </div>
       <div className="history-actions">
@@ -279,8 +281,8 @@ function HistoryPanel() {
 
     {!loadingHistory && history.entries.length === 0 && <div className="changes-empty compact">
       <HistoryIcon size={24}/>
-      <strong>No history yet</strong>
-      <span>Create or edit Ladder logic and the applied changes will appear here.</span>
+      <strong>{database ? "Immutable revisions are saved in PostgreSQL" : "No history yet"}</strong>
+      <span>{database ? "Undo / redo tracks edits in this session. A historical revision browser is not available yet." : "Create or edit Ladder logic and the applied changes will appear here."}</span>
     </div>}
 
     <div className="history-list">
@@ -303,6 +305,15 @@ function HistoryPanel() {
 
 
 export default function App() {
+  const storageMode = useProjectStore(s => s.storageMode);
+  const projectId = useProjectStore(s => s.projectId);
+  const revision = useProjectStore(s => s.revision);
+  const saveStatus = useProjectStore(s => s.saveStatus);
+  const saveError = useProjectStore(s => s.saveError);
+  const dirty = useProjectStore(s => s.dirty);
+  const switching = useProjectStore(s => s.switching);
+  const reloadLatest = useProjectStore(s => s.reloadLatest);
+
   const project = useProjectStore(s => s.project);
   const selectedNetworkId = useProjectStore(s => s.selectedNetworkId);
   const selectNetwork = useProjectStore(s => s.selectNetwork);
@@ -331,6 +342,13 @@ export default function App() {
     setSaveName(project.name);
   }, [project.name]);
 
+  useEffect(() => {
+    if (!dirty) return;
+    const warn = (event: BeforeUnloadEvent) => { event.preventDefault(); event.returnValue = ""; };
+    window.addEventListener("beforeunload", warn);
+    return () => window.removeEventListener("beforeunload", warn);
+  }, [dirty]);
+
   const result = useMemo(() => validateProject(project), [project]);
   const program = project.programs[0];
   const network = program?.networks.find(item => item.id === selectedNetworkId) ?? program?.networks[0];
@@ -349,7 +367,7 @@ export default function App() {
         <div className="brand-mark"><Workflow size={19}/></div>
         <div><strong>PLC Ladder</strong><span>MCP Studio</span></div>
       </div>
-      <button className="new-project" onClick={() => {
+      <button className="new-project" disabled={switching} onClick={() => {
         const name = prompt("Project name", "Untitled PLC Project");
         if (name !== null) createProject(name).catch(error => alert(String(error)));
       }}><Plus size={17}/> New project</button>
@@ -401,7 +419,7 @@ export default function App() {
               }
             }}
           />
-          <button className="ghost" onClick={() => importRef.current?.click()}><FolderOpen size={16}/> Import GX Works2</button>
+          <button className="ghost" disabled={switching || (storageMode === "database" && !projectId)} onClick={() => importRef.current?.click()}><FolderOpen size={16}/> Import GX Works2</button>
           <button className="primary" onClick={() => alert(result.valid ? "Project is valid." : result.issues.join("\n"))}>
             <Play size={15}/> Validate
           </button>
@@ -418,7 +436,7 @@ export default function App() {
       <div className="server-bar">
         <input value={serverInput} onChange={e => setServerInput(e.target.value)} placeholder="http://localhost:3001 or Cloudflare URL"/>
         <input className="token-input" type="password" value={tokenInput} onChange={e => setTokenInput(e.target.value)} placeholder="Bearer token (optional locally)"/>
-        <button onClick={() => {
+        <button disabled={dirty || switching} onClick={() => {
           setApiUrl(serverInput);
           setApiToken(tokenInput);
           setTimeout(async () => {
@@ -465,10 +483,12 @@ export default function App() {
           {active === "IR / JSON"
             ? <pre className="json-view">{JSON.stringify(project, null, 2)}</pre>
             : active === "AI Changes"
-              ? <AIChangesPanel/>
+              ? <>{storageMode === "database" ? <div className="changes-empty">AI review for this saved project will be available after batch persistence integration.</div> : <AIChangesPanel/>}</>
               : active === "History"
                 ? <HistoryPanel/>
                 : <div className="canvas"><LadderPreview/></div>}
+
+          {storageMode === "database" && active === "Ladder" && <ManualEditor/>}
 
           {active !== "AI Changes" && active !== "History" && <div className="network-note">
             <CircleDot size={14}/>
@@ -494,27 +514,36 @@ export default function App() {
               <span>FORMAT</span>
               <b>{vendor === "GX Works2" ? "List CSV · UTF-16 LE BOM" : "CSV · UTF-8 BOM"}</b>
             </div>
-            <button className="export-button" onClick={exportFile} disabled={!result.valid}>
+            <button className="export-button" onClick={exportFile} disabled={!result.valid || storageMode === "database"}>
               <Download size={16}/> Generate {vendor} file
             </button>
-            <p>Generated directly from canonical Ladder IR v0.2 through the shared compiler path.</p>
+            <p>{storageMode === "database" ? "Export awaits revision-linked Compile and artifact persistence." : "Generated from canonical Ladder IR v0.2."}</p>
           </section>
 
           <section className="panel project-files">
-            <div className="panel-head compact"><div><span className="kicker">PERSISTENCE</span><h2>Project files</h2></div><FolderOpen size={19}/></div>
+            <div className="panel-head compact"><div><span className="kicker">PERSISTENCE</span><h2>{storageMode === "database" ? "Saved projects" : "Project files"}</h2></div><FolderOpen size={19}/></div>
             <label>Save as</label>
-            <input value={saveName} onChange={e => setSaveName(e.target.value)} placeholder="Project snapshot name"/>
-            <button className="ghost project-file-button" disabled={!connected} onClick={() => saveProject(saveName).catch(error => alert(String(error)))}>Save JSON snapshot</button>
+            <input value={storageMode === "database" ? project.name : saveName} disabled={switching || (storageMode === "database" && !projectId)} onChange={e => {
+              if (storageMode === "database") setProject({ ...project, name: e.target.value }); else setSaveName(e.target.value);
+            }} placeholder="Project snapshot name"/>
+            <button className="ghost project-file-button" disabled={!connected || switching || (storageMode === "database" && !projectId)} onClick={() => saveProject(storageMode === "database" ? undefined : saveName).catch(error => alert(String(error)))}>{storageMode === "database" ? "Save now / Retry" : "Save JSON snapshot"}</button>
             <label>Saved projects</label>
-            <select value={savedSelection} onChange={e => setSavedSelection(e.target.value)}>
+            <select disabled={switching} value={savedSelection} onChange={e => setSavedSelection(e.target.value)}>
               <option value="">Select saved project</option>
-              {savedProjects.map(item => <option key={item.file} value={item.name}>{item.name}</option>)}
+              {savedProjects.map(item => <option key={item.file} value={item.id ?? item.name}>{item.name} {item.revision_no ? `· r${item.revision_no}` : ""}</option>)}
             </select>
             <div className="project-file-actions">
               <button className="ghost" disabled={!connected} onClick={() => syncSavedProjects().catch(error => alert(String(error)))}>Refresh</button>
-              <button className="ghost" disabled={!connected || !savedSelection} onClick={() => loadProject(savedSelection).catch(error => alert(String(error)))}>Load</button>
+              <button className="ghost" disabled={!connected || !savedSelection || switching} onClick={() => loadProject(savedSelection).catch(error => alert(String(error)))}>Load</button>
             </div>
-            <p>Current IR also autosaves on every applied mutation to <code>.plc-ladder/current-project.json</code>.</p>
+            {storageMode === "database" ? <div>
+              <p role="status">{projectId ? `Revision ${revision} · ${saveStatus}` : "Create or select a saved project to start editing."}</p>
+              {saveError && <p role="alert">{saveError}</p>}
+              <button className="ghost" onClick={() => downloadText("ladder-draft.json", JSON.stringify(project, null, 2))}>Download draft JSON</button>
+              {projectId && <button className="ghost" disabled={switching || saveStatus === "saving"} onClick={() => {
+                if (!dirty || confirm("Discard this local draft and load the latest saved revision? Download the draft first to keep a copy.")) reloadLatest().catch(error => alert(String(error)));
+              }}>Load latest revision</button>}
+            </div> : <p>Legacy JSON workspace. PostgreSQL is not configured on this server.</p>}
           </section>
 
           <section className="panel checks">

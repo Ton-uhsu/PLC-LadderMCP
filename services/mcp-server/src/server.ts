@@ -86,9 +86,10 @@ export function createApplicationServer(options: { token?: string; webAuth?: Web
         });
       }
 
-      if (url.pathname === "/api/persistence/projects" || url.pathname.startsWith("/api/persistence/projects/")) {
+      if (url.pathname === "/api/persistence/status" || url.pathname === "/api/persistence/projects" || url.pathname.startsWith("/api/persistence/projects/")) {
         const session = webAuth.verifySession(bearerToken(req));
         if (!session) return send(res, 401, { error: "Human Web login required." });
+        if (url.pathname === "/api/persistence/status" && req.method === "GET") return send(res, 200, { configured: Boolean(options.projectRepository) });
         if (!options.projectRepository) return send(res, 503, { error: "PostgreSQL is not configured." });
         return await handleProjectPersistence(req, res, options.projectRepository, session.sub);
       }

@@ -10,7 +10,11 @@ This slice implements the project/revision foundation from [the persistence desi
 - Save retries deduplicate by project, actor and request ID; reused keys with different payloads conflict. Identical saves do not manufacture revisions.
 - Descriptive name/comment/default-target edits change content history but preserve the logic hash. Logic/topology/order/identity edits change the logic hash.
 
-The current browser editor and MCP/review routes still use the legacy JSON/in-memory workflow. They are not silently connected to this database yet. The new API is an explicit foundation for their later integration; database projects do not appear automatically in the existing project picker. No automatic import of `.plc-ladder` data occurs. AI has no new direct-save tool.
+The Web project picker now uses UUIDs and PostgreSQL when the authenticated capability endpoint reports it configured. Run `npm run dev`, connect to `http://localhost:3001` and sign in with the human admin credentials above. Create or load a project, edit its name, network comment, contact or coil, and watch the revision/save status. Edit bursts debounce for 500 ms; saves serialize and preserve edits made during an outstanding request. Restart/reload and select the same project to read its saved state.
+
+Save now / Retry retains the original request key and payload after an uncertain save response. A stale conflict retains the draft and blocks project switching; Download draft JSON before confirming Load latest. Unsaved drafts live in browser memory; a tab-close warning helps prevent loss, but does not make an offline durable copy. Undo / redo covers this browser session and saves the resulting snapshot as another revision. Changing server is blocked while dirty. New project creation is not yet idempotent: refresh the picker after an uncertain Create response before deciding to create again.
+
+Legacy MCP/review routes remain separate and cannot update the selected database project through this UI. AI Review and Export are unavailable for database projects until their revision-bound persistence integration is implemented. Servers explicitly reporting PostgreSQL unconfigured retain the legacy Web workflow. No automatic import of `.plc-ladder` data occurs. AI has no new direct-save tool.
 
 Batch/review persistence, Compile/export gates/history, restore UX and PostgREST evidence are later slices. Current IR v0.2 is supported strictly: unknown fields/schema versions are rejected rather than discarded. This does not claim the full future V1 IR migration is implemented.
 
@@ -42,6 +46,7 @@ All routes require a human Web session from `POST /auth/login`. The MCP machine 
 
 | Method/path | Body / result |
 | --- | --- |
+| GET `/api/persistence/status` | `{ configured: boolean }` for the authenticated Web capability check |
 | GET `/api/persistence/projects` | Up to 100 projects with current revision context |
 | POST `/api/persistence/projects` | `{ snapshot, defaultExportTarget? }` → initial revision, HTTP 201 |
 | GET `/api/persistence/projects/:projectId` | Exact current saved revision and `ir_snapshot` |
@@ -52,7 +57,7 @@ Revision numbers are decimal strings, UUIDs identify projects/revisions, and ret
 
 Save conflicts: HTTP 409 `STALE_REVISION` with `currentRevision` or `IDEMPOTENCY_CONFLICT`. Reload/reconcile a stale draft before saving; do not just swap the base number and overwrite current state. A new changed intent needs a new requestId; transport retries reuse the original key/body. Malformed requests return 400, missing project/revision 404, oversized payload 413, unavailable persistence 503. Error responses do not expose database credentials/details.
 
-Autosave accepts structurally representable uncompiled drafts, including semantically invalid device addresses. It does not imply Compile success or Export eligibility. The frontend integration will debounce edit bursts before this save endpoint.
+Autosave accepts structurally representable uncompiled drafts, including semantically invalid device addresses. It does not imply Compile success or Export eligibility. The Web editor debounces edit bursts before this save endpoint.
 
 ### Minimal local exercise
 
@@ -88,11 +93,14 @@ Restart the backend and read the project again using a fresh login if necessary.
 
 ```powershell
 npm run db:test
+npm run web:test
 npm run mcp:build
 npm run build
 npm run mcp:test
 npm run mcp:e2e
 ```
+
+Web tests cover serialized saves, exact transport retries, conflict recovery, project switching, logout during a save, debounce/undo and reopening saved state against an embedded PostgreSQL repository.
 
 The always-on persistence tests use PGlite (embedded PostgreSQL engine, test dependency only) and cover real SQL migrations/triggers/FKs, canonical hashes, malformed IR, transaction rollback after revision insertion, historical reads, retry/no-op behavior, competing saves, actual application HTTP handler authentication and close/reopen disk durability. PGlite serializes connections: this is not proof of native multi-session PostgreSQL locking or exact PostgreSQL 18.6 behavior.
 

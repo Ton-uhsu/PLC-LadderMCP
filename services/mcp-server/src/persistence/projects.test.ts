@@ -70,7 +70,9 @@ async function exercise(db: Kysely<Database>) {
   const base = '/api/persistence/projects';
   assert.equal((await request(base)).status, 401);
   assert.equal((await request(base, 'machine-only')).status, 401);
+  assert.equal((await request('/api/persistence/status', 'machine-only')).status, 401);
   const token = webAuth.issueSession();
+  assert.deepEqual((await request('/api/persistence/status', token)).body, { configured: true });
   assert.equal((await request(`${base}/${initial.project_id}`, token)).body.revision_no, '3');
   const stale = await request(`${base}/${initial.project_id}`, token,
     { baseRevision: '1', requestId: 'api-stale', snapshot: fixture });

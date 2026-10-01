@@ -80,3 +80,9 @@ main { min-width:0; } header { height:82px; border-bottom:1px solid #27272a; dis
 .network-tab-title{display:flex;align-items:center;justify-content:space-between;gap:8px}
 .network-state{font-style:normal;font-size:7px;letter-spacing:.08em;font-weight:800;border:1px solid #3f3f46;border-radius:999px;padding:2px 5px}
 .network-state.valid{color:#86efac}.network-state.invalid{color:#fca5a5}
+
+.manual-editor { padding: 18px; border-top: 1px solid var(--border, #293241); }
+.manual-editor label { display: flex; gap: 10px; align-items: center; margin: 10px 0; }
+.manual-editor input { flex: 1; min-width: 0; }
+.manual-editor input, .manual-editor select { background: #101722; color: #edf3ff; border: 1px solid #344358; padding: 8px; border-radius: 6px; }
+.manual-editor button { margin-right: 8px; padding: 8px; }

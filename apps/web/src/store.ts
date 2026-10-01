@@ -1,5 +1,8 @@
 import { create } from "zustand";
+import { parseGxWorks2ListText } from "@plc-ladder-mcp/ladder-ir";
 import type { LadderProjectV02 } from "@plc-ladder-mcp/ladder-ir";
+import { DurableWorkspace } from "./persistence/workspace";
+import { projectApi } from "./persistence/api";
 import { demoProject } from "./ladder";
 
 const savedApi = localStorage.getItem("plc-ladder-api") ?? "";
@@ -35,7 +38,7 @@ export type HistoryState = {
   entries: HistoryEntry[];
 };
 
-export type SavedProject = { name: string; file: string };
+export type SavedProject = { name: string; file: string; id?: string; revision_no?: string };
 
 const emptyHistory: HistoryState = {
   can_undo: false,
@@ -46,6 +49,14 @@ const emptyHistory: HistoryState = {
 };
 
 type State = {
+  storageMode: "legacy" | "database";
+  projectId: string | null;
+  revision: string | null;
+  dirty: boolean;
+  switching: boolean;
+  saveStatus: "saved" | "pending" | "saving" | "error" | "conflict";
+  saveError: string;
+  reloadLatest: () => Promise<void>;
   project: LadderProjectV02;
   selectedNetworkId: number;
   apiUrl: string;
@@ -96,6 +107,9 @@ function pickNetwork(project: LadderProjectV02, preferred: number) {
 }
 
 export const useProjectStore = create<State>((set, get) => ({
+  storageMode: "legacy", projectId: null, revision: null, dirty: false, switching: false,
+  saveStatus: "saved", saveError: "",
+  reloadLatest: () => durable.reloadDiscardingDraft(),
   project: demoProject,
   selectedNetworkId: 0,
   apiUrl: savedApi,
@@ -107,12 +121,13 @@ export const useProjectStore = create<State>((set, get) => ({
   loadingHistory: false,
   savedProjects: [],
 
-  setProject: (project) => set(state => ({
-    project,
-    selectedNetworkId: pickNetwork(project, state.selectedNetworkId),
-  })),
+  setProject: (project) => {
+    if (get().storageMode === "database") { durable.edit(project); return; }
+    set(state => ({ project, selectedNetworkId: pickNetwork(project, state.selectedNetworkId) }));
+  },
 
   createProject: async (name) => {
+    if (get().storageMode === "database") { await durable.create(name); return; }
     const clean = name.trim() || "Untitled PLC Project";
     const { apiUrl, apiToken } = get();
     if (!apiUrl) {
@@ -136,12 +151,15 @@ export const useProjectStore = create<State>((set, get) => ({
 
   setApiUrl: (url) => {
     const clean = url.trim().replace(/\/$/, "");
+    if (clean !== get().apiUrl && get().dirty) throw new Error("Download or save the current draft before changing servers.");
+    if (clean !== get().apiUrl) durable.reset();
     localStorage.setItem("plc-ladder-api", clean);
     set({ apiUrl: clean, connected: false, pendingChanges: [], history: emptyHistory, savedProjects: [] });
   },
 
   setApiToken: (token) => {
     const clean = token.trim();
+    if (clean !== get().apiToken) durable.suspend();
     sessionStorage.setItem("plc-ladder-token", clean);
     set({ apiToken: clean, connected: false });
   },
@@ -149,6 +167,21 @@ export const useProjectStore = create<State>((set, get) => ({
   syncProject: async () => {
     const { apiUrl, apiToken, selectedNetworkId } = get();
     if (!apiUrl) throw new Error("Set server URL first");
+    const status = await fetch(`${apiUrl}/api/persistence/status`, { headers: authHeaders(apiToken) });
+    if (!status.ok) throw new Error(await readError(status));
+    const capability = await status.json() as { configured: boolean };
+    if (capability.configured) {
+      set({ storageMode: "database", connected: true, pendingChanges: [], history: emptyHistory });
+      await durable.refresh();
+      if (durable.state.dirty) return; // Sync never discards an unsaved draft.
+      const remembered = localStorage.getItem(`plc-ladder-project:${apiUrl}`);
+      const selected = durable.state.projects.find(p => p.id === durable.state.projectId || p.id === remembered) ?? durable.state.projects[0];
+      if (selected) await durable.select(selected.id);
+      else set({ project: { version: "0.2", name: "No project selected", plc: { family: "Mitsubishi FX", model: "FX3U" }, programs: [] }, selectedNetworkId: 0 });
+      return;
+    }
+    if (durable.state.dirty) throw new Error("Database is unavailable; your draft is retained.");
+    set({ storageMode: "legacy", projectId: null, revision: null });
     try {
       const res = await fetch(`${apiUrl}/api/project`, { headers: authHeaders(apiToken) });
       if (!res.ok) throw new Error(await readError(res));
@@ -162,6 +195,7 @@ export const useProjectStore = create<State>((set, get) => ({
   },
 
   syncPendingChanges: async () => {
+    if (get().storageMode === "database") { set({ pendingChanges: [], loadingChanges: false }); return; }
     const { apiUrl, apiToken } = get();
     if (!apiUrl) return set({ pendingChanges: [], loadingChanges: false });
     set({ loadingChanges: true });
@@ -176,6 +210,7 @@ export const useProjectStore = create<State>((set, get) => ({
   },
 
   approvePendingChange: async (id) => {
+    if (get().storageMode === "database") throw new Error("Database Human Review integration is not available yet.");
     const { apiUrl, apiToken, selectedNetworkId } = get();
     if (!apiUrl) throw new Error("Set server URL first");
     const res = await fetch(`${apiUrl}/api/changes/approve`, {
@@ -190,6 +225,7 @@ export const useProjectStore = create<State>((set, get) => ({
   },
 
   rejectPendingChange: async (id) => {
+    if (get().storageMode === "database") throw new Error("Database Human Review integration is not available yet.");
     const { apiUrl, apiToken } = get();
     if (!apiUrl) throw new Error("Set server URL first");
     const res = await fetch(`${apiUrl}/api/changes/reject`, {
@@ -202,6 +238,7 @@ export const useProjectStore = create<State>((set, get) => ({
   },
 
   syncHistory: async () => {
+    if (get().storageMode === "database") return;
     const { apiUrl, apiToken } = get();
     if (!apiUrl) return set({ history: emptyHistory, loadingHistory: false });
     set({ loadingHistory: true });
@@ -216,6 +253,7 @@ export const useProjectStore = create<State>((set, get) => ({
   },
 
   undoProject: async () => {
+    if (get().storageMode === "database") { durable.undo(); return; }
     const { apiUrl, apiToken, selectedNetworkId } = get();
     if (!apiUrl) throw new Error("Set server URL first");
     const res = await fetch(`${apiUrl}/api/history/undo`, { method: "POST", headers: authHeaders(apiToken) });
@@ -227,6 +265,7 @@ export const useProjectStore = create<State>((set, get) => ({
   },
 
   redoProject: async () => {
+    if (get().storageMode === "database") { durable.redo(); return; }
     const { apiUrl, apiToken, selectedNetworkId } = get();
     if (!apiUrl) throw new Error("Set server URL first");
     const res = await fetch(`${apiUrl}/api/history/redo`, { method: "POST", headers: authHeaders(apiToken) });
@@ -238,6 +277,7 @@ export const useProjectStore = create<State>((set, get) => ({
   },
 
   syncSavedProjects: async () => {
+    if (get().storageMode === "database") { await durable.refresh(); return; }
     const { apiUrl, apiToken } = get();
     if (!apiUrl) return set({ savedProjects: [] });
     const res = await fetch(`${apiUrl}/api/projects`, { headers: authHeaders(apiToken) });
@@ -246,6 +286,10 @@ export const useProjectStore = create<State>((set, get) => ({
   },
 
   saveProject: async (name) => {
+    if (get().storageMode === "database") {
+      if (name && name !== get().project.name) durable.edit({ ...get().project, name });
+      await durable.flush(); return;
+    }
     const { apiUrl, apiToken, project } = get();
     if (!apiUrl) throw new Error("Set server URL first");
     const res = await fetch(`${apiUrl}/api/projects/save`, {
@@ -258,6 +302,7 @@ export const useProjectStore = create<State>((set, get) => ({
   },
 
   loadProject: async (name) => {
+    if (get().storageMode === "database") { await durable.select(name); return; }
     const { apiUrl, apiToken, selectedNetworkId } = get();
     if (!apiUrl) throw new Error("Set server URL first");
     const res = await fetch(`${apiUrl}/api/projects/load`, {
@@ -272,6 +317,7 @@ export const useProjectStore = create<State>((set, get) => ({
   },
 
   importGxWorks2: async (content) => {
+    if (get().storageMode === "database") { get().setProject(parseGxWorks2ListText(content)); return; }
     const { apiUrl, apiToken } = get();
     if (!apiUrl) throw new Error("Connect to the server before importing GX Works2.");
     const res = await fetch(`${apiUrl}/api/import/gxworks2`, {
@@ -285,3 +331,16 @@ export const useProjectStore = create<State>((set, get) => ({
     await Promise.all([get().syncHistory(), get().syncPendingChanges()]);
   },
 }));
+
+const durable: DurableWorkspace = new DurableWorkspace(projectApi(() => useProjectStore.getState()));
+durable.subscribe(state => {
+  const current = useProjectStore.getState();
+  useProjectStore.setState({ projectId: state.projectId, revision: state.revision, dirty: state.dirty,
+    switching: state.switching, saveStatus: state.saveStatus, saveError: state.error,
+    ...(state.project ? { project: state.project, selectedNetworkId: pickNetwork(state.project, current.selectedNetworkId) } : {}),
+    savedProjects: state.projects.map(p => ({ ...p, file: p.id })),
+    history: { ...emptyHistory, can_undo: state.undo.length > 0, can_redo: state.redo.length > 0,
+      undo_count: state.undo.length, redo_count: state.redo.length },
+  });
+  if (state.projectId) localStorage.setItem(`plc-ladder-project:${current.apiUrl}`, state.projectId);
+});

@@ -14,7 +14,8 @@
     "db:up": "docker compose -f compose.local.yaml up -d --wait",
     "db:stop": "docker compose -f compose.local.yaml stop",
     "db:migrate": "npm --workspace services/mcp-server run db:migrate",
-    "db:test": "npm --workspace services/mcp-server run test:persistence"
+    "db:test": "npm --workspace services/mcp-server run test:persistence",
+    "web:test": "node --import tsx --test apps/web/tests/*.test.ts"
   },
   "workspaces": [
     "apps/*",

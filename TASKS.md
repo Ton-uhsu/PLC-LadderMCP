@@ -10,3 +10,8 @@
   - Boundary: new human project API; existing UI/MCP review path stays legacy until the next persistence integration slice. No AI direct-write route.
 
   - Verified: embedded PostgreSQL tests, backend/Web builds, existing semantic smoke and HTTP auth/MCP E2E. Native pg multi-session suite supplied but not run here (Docker unavailable); run locally before declaring native PostgreSQL validation complete.
+
+- [x] WORK-002 — Connect Web project picker and manual autosave to PostgreSQL → owner: docs/designs/persistence-database-architecture.md
+  - Scope: UUID project selection, durable create/read/save, debounced serialized autosave, retry identity and stale-conflict recovery; legacy review stays isolated. No VPS.
+  - Verify: project switching, edit-during-save, retry/no duplicate revision, retained conflict draft, auth/session changes; Web/backend build and regressions.
+  - Verified: 6 Web workspace tests (including embedded PostgreSQL), embedded database/auth tests, Web/backend builds, semantic smoke and actual HTTP auth/MCP E2E. Native PostgreSQL multi-session coverage still requires local Docker; browser visual automation was not run.
