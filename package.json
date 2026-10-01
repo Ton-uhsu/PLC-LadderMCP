@@ -10,7 +10,11 @@
     "mcp:build": "npm --workspace services/mcp-server run build",
     "server": "npm --workspace services/mcp-server run server",
     "mcp:test": "npm --workspace services/mcp-server run test:smoke",
-    "mcp:e2e": "npm --workspace services/mcp-server run test:e2e"
+    "mcp:e2e": "npm --workspace services/mcp-server run test:e2e",
+    "db:up": "docker compose -f compose.local.yaml up -d --wait",
+    "db:stop": "docker compose -f compose.local.yaml stop",
+    "db:migrate": "npm --workspace services/mcp-server run db:migrate",
+    "db:test": "npm --workspace services/mcp-server run test:persistence"
   },
   "workspaces": [
     "apps/*",

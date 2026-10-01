@@ -1,0 +1,12 @@
+# Current Work
+
+## Active
+
+## Done
+- [x] WORK-001 — Local PostgreSQL project/revision foundation → owner: docs/designs/persistence-database-architecture.md
+  - Scope: Kysely + pg, immutable versioned IR snapshots, optimistic save/read API, local Docker Compose and guide. No VPS/deployment or broad stack migration.
+  - Requirements: REQ-016, REQ-023, REQ-033, REQ-040, REQ-041, REQ-095, REQ-097, REQ-111, REQ-150, REQ-156.
+  - Verify: real PostgreSQL migration/restart durability, immutable history, stale concurrent saves, rollback, metadata/logic hashes, auth boundaries, existing smoke/E2E/build.
+  - Boundary: new human project API; existing UI/MCP review path stays legacy until the next persistence integration slice. No AI direct-write route.
+
+  - Verified: embedded PostgreSQL tests, backend/Web builds, existing semantic smoke and HTTP auth/MCP E2E. Native pg multi-session suite supplied but not run here (Docker unavailable); run locally before declaring native PostgreSQL validation complete.

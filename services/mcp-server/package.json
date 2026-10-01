@@ -12,15 +12,21 @@
     "start": "node dist/index.js",
     "server": "tsx src/server.ts",
     "test:smoke": "tsx src/project.smoke-runner.ts",
-    "test:e2e": "tsx src/http.e2e.ts"
+    "test:e2e": "tsx src/http.e2e.ts",
+    "db:migrate": "tsx src/persistence/migrate.ts",
+    "test:persistence": "node --import tsx --test src/persistence/*.test.ts"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.17.0",
-    "zod": "^3.24.0",
-    "@plc-ladder-mcp/ladder-ir": "0.2.0"
+    "@plc-ladder-mcp/ladder-ir": "0.2.0",
+    "kysely": "^0.29.6",
+    "pg": "^8.23.1",
+    "zod": "^3.24.0"
   },
   "devDependencies": {
+    "@electric-sql/pglite": "^0.5.8",
     "@types/node": "^22.0.0",
+    "@types/pg": "^8.23.1",
     "tsx": "^4.19.0",
     "typescript": "^5.7.0"
   }

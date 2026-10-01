@@ -4,6 +4,10 @@ import { pathToFileURL, URL } from "node:url";
 import { createHttpServer } from "./http.js";
 import { createWebAuth, type WebAuth } from "./auth/web-auth.js";
 
+import { createDatabase } from "./persistence/database.js";
+import { ProjectRepository } from "./persistence/projects.js";
+import { handleProjectPersistence } from "./persistence/http.js";
+
 function bearerToken(req: http.IncomingMessage) {
   const authorization = req.headers.authorization ?? "";
   const match = /^Bearer\s+(.+)$/i.exec(authorization);
@@ -34,7 +38,7 @@ function generateMachineToken() {
   return randomBytes(32).toString("base64url");
 }
 
-export function createApplicationServer(options: { token?: string; webAuth?: WebAuth } = {}) {
+export function createApplicationServer(options: { token?: string; webAuth?: WebAuth; projectRepository?: ProjectRepository } = {}) {
   const machineToken = options.token ?? process.env.PLC_LADDER_TOKEN?.trim() ?? "";
   const webAuth = options.webAuth ?? createWebAuth();
   const legacy = createHttpServer({ token: machineToken });
@@ -82,6 +86,13 @@ export function createApplicationServer(options: { token?: string; webAuth?: Web
         });
       }
 
+      if (url.pathname === "/api/persistence/projects" || url.pathname.startsWith("/api/persistence/projects/")) {
+        const session = webAuth.verifySession(bearerToken(req));
+        if (!session) return send(res, 401, { error: "Human Web login required." });
+        if (!options.projectRepository) return send(res, 503, { error: "PostgreSQL is not configured." });
+        return await handleProjectPersistence(req, res, options.projectRepository, session.sub);
+      }
+
       if (url.pathname.startsWith("/api/") && webAuth.enabled) {
         const session = webAuth.verifySession(bearerToken(req));
         if (!session) {
@@ -111,7 +122,10 @@ export function startApplicationServer() {
   const generatedMachineToken = !envToken && machineToken.length > 0;
   const webAuth = createWebAuth();
   const port = Number(process.env.PORT ?? 3001);
-  const server = createApplicationServer({ token: machineToken, webAuth });
+  const db = process.env.DATABASE_URL ? createDatabase(process.env.DATABASE_URL) : undefined;
+  const server = createApplicationServer({ token: machineToken, webAuth,
+    projectRepository: db ? new ProjectRepository(db) : undefined });
+  server.on("close", () => { if (db) void db.destroy(); });
 
   server.listen(port, "0.0.0.0", () => {
     console.error(`PLC-LadderMCP HTTP + Remote MCP: http://localhost:${port}`);

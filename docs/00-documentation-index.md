@@ -26,3 +26,6 @@ PLC-LadderMCP documentation is organized by canonical ownership.
 - Format investigation belongs in `research/*`.
 - Real IDE verification results belong in `evidence/*`.
 - The roadmap must be derived from the accepted requirements and solution design rather than becoming a second source of product requirements.
+
+## Local development guides
+- [`guides/local-postgresql-persistence.md`](./guides/local-postgresql-persistence.md) — local database setup, revision API and verification.
