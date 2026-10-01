@@ -193,3 +193,16 @@ node --import tsx scripts/test-editor-browser.mjs
 ```
 
 `PLC_EDITOR_BROWSER_PATH` can point to an existing Chromium/headless-shell executable. The harness prints its temporary screenshot directory and checks both storage modes, properties/branch/network edits, toolbar and keyboard Undo, zoom, database reopening and old-backend error handling. Do not treat PGlite browser tests as native PostgreSQL 18.6 verification. A Windows Git Bash invocation can use `PLC_EDITOR_BROWSER_PATH="C:/path/to/chrome.exe" node --import tsx scripts/test-editor-browser.mjs` if using an existing browser.
+
+### Ladder editing shortcuts
+
+Click a symbol, or use arrow keys to select across the rung/branches and adjacent networks; Home/End select the first/last symbol. Enter or double-click opens a buffered Edit symbol dialog; Update element saves, while Cancel/Esc discards dialog input. Device input is trimmed and uppercased.
+
+- `C` / `O`: insert a contact / output using toolbar entry.
+- `Ctrl+C` / `Ctrl+X` / `Ctrl+V`: copy / cut / paste the selected element or subtree using the editor's session clipboard. Normal text-field shortcuts remain native.
+- `Ctrl+D`: duplicate selection. Select the network gutter first to duplicate the entire network after it, including its label.
+- `Ctrl+Z`, `Ctrl+Shift+Z` / `Ctrl+Y`: undo / redo.
+- `Delete`: remove the selected element. Whole-network deletion uses Delete network and retains the last-network guard.
+- `Ctrl+F`: substring search for device/instruction labels across all networks; Next/Previous selects and scrolls to each match.
+
+Right-click a symbol for Edit/Copy/Cut/Paste/Duplicate/Delete. Directional keys navigate the menu; Esc closes it. Select compound groups through Rung structure for subtree operations. Copies receive new node/action IDs. A cut moved within the same project keeps its IDs unless Undo has restored them; collisions and cross-project paste allocate fresh IDs. Output paste uses the toolbar's explicit output fanout rules. Clipboard supports one element, subtree, or copied network at a time and is cleared by a page reload; it does not use the OS clipboard. Clipboard operations edit the draft IR and do not imply successful Compile or full IDE instruction support.

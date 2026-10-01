@@ -5,6 +5,11 @@
 None.
 
 ## Done
+- [x] WORK-007 | feat: practical Ladder editing commands | 2026-10-01 | feature | → owner: docs/roadmap/phase-02-local-ui/task-005-structured-editor-renderer.md
+  - Delivered: structured clipboard and duplicate, whole-network copy, right-click actions, buffered symbol dialog, keyboard branch/network navigation, scrolling and device/instruction search. Human canonical IR save path; no VPS.
+  - Verified: 18 Web tests, Web build; optional Chromium QA passed local and PGlite modes including cut identity, copy/duplicate undo, dialog cancel/validation/operand update, branch navigation, search, saved reload and retained backend errors. Visual QA desktop/narrow workspace and dialog.
+  - Handoff: single-selection in-app clipboard; whole-network cut disabled. TASK-005 remains Partial for V1 typed semantics, rendered Review and revision-bound Compile; native gate stays TEST-001.
+
 - [x] WORK-006 | feat: canvas-first Ladder editor workspace | 2026-10-01 | feature | → owner: docs/roadmap/phase-02-local-ui/task-005-structured-editor-renderer.md
   - Delivered: dark multi-network canvas, toolbar entry, compact properties, grid/gutter/zoom, keyboard edits and secondary tools; no UUIDs in the normal editor view. Backend 404 gives update/restart guidance without mutating displayed IR.
   - Verified: 16 Web tests, Web/backend builds, smoke/HTTP E2E; optional browser harness passed local and PGlite application modes including save/reopen, properties, branch/network edits, Undo/Redo, keyboard and retained 404 failure state. Visual QA at 1600/1100/520px.
@@ -19,11 +24,6 @@ None.
   - Delivered: settings/name/default target, stable-ID network controls, human-only stale-safe local manual edits and busy guards. No VPS or broad stack migration.
   - Verified: Web tests 9/9; persistence tests 7 pass/2 native skipped; Web/backend builds, semantic smoke and HTTP auth/MCP E2E.
   - Handoff: owning TASK-004 remains Partial for browser acceptance (Chromium download blocked) and durable Review/Compile context integration. Next implementation owner: TASK-005.
-
-- [x] WORK-002 — Connect Web project picker and manual autosave to PostgreSQL → owner: docs/designs/persistence-database-architecture.md
-  - Scope: UUID project selection, durable create/read/save, debounced serialized autosave, retry identity and stale-conflict recovery; legacy review stays isolated. No VPS.
-  - Verify: project switching, edit-during-save, retry/no duplicate revision, retained conflict draft, auth/session changes; Web/backend build and regressions.
-  - Verified: 6 Web workspace tests (including embedded PostgreSQL), embedded database/auth tests, Web/backend builds, semantic smoke and actual HTTP auth/MCP E2E. Native PostgreSQL multi-session coverage still requires local Docker; browser visual automation was not run.
 
 - [x] WORK-003 — Goose SQL migrations for the reviewed V1 database model
   - Scope: versioned up/down SQL, existing foundation adoption, migration CLI, SQL round-trip tests and local guide; no VPS or new workflow APIs.

@@ -198,3 +198,20 @@ button:disabled { cursor: not-allowed; opacity: .45; }
 .editor-rung { grid-template-columns:56px minmax(0,1fr); }
 .editor-ruler { grid-template-columns:56px repeat(7,minmax(0,1fr)); }
 body:has(.editor-mode) .auth-session-chip { bottom:34px; }
+
+.editor-context-menu { position: fixed; z-index: 80; width: 180px; background: #202734; border: 1px solid #526079; padding: 5px; box-shadow: 0 8px 24px #0008; border-radius: 5px; }
+.editor-context-menu button { display: block; width: 100%; text-align: left; padding: 7px; color: #d4dde9; background: transparent; border: 0; }
+.editor-context-menu button:hover { background: #30476a; }
+.editor-context-menu button:disabled { opacity: .4; }
+.editor-dialog-backdrop { position: fixed; inset: 0; z-index: 90; display: flex; align-items: center; justify-content: center; background: #0009; }
+.editor-symbol-dialog { width: min(440px, calc(100vw - 32px)); max-height: 85vh; overflow: auto; padding: 20px; border-radius: 8px; background: #202734; color: #d4dde9; box-shadow: 0 16px 48px #0008; }
+.editor-symbol-dialog input, .editor-symbol-dialog select { background: #141a24; color: #d4dde9; border: 1px solid #526079; padding: 7px; }
+.editor-symbol-dialog label { display: block; margin: 10px 0; }
+.editor-symbol-dialog button { margin: 6px 5px 0 0; }
+
+.editor-symbol-dialog h3 { font-size: 16px; margin: 0 0 16px; }
+.editor-symbol-dialog label { display: grid; gap: 6px; font-size: 12px; color: #abbacf; }
+.editor-symbol-dialog input, .editor-symbol-dialog select { width: 100%; border-radius: 4px; box-sizing: border-box; }
+.editor-symbol-dialog .operand-row { display: block; border-top: 1px solid #384357; padding-top: 6px; }
+.editor-symbol-dialog button { padding: 8px 12px; border: 1px solid #526079; border-radius: 4px; background: #29394f; color: #d4dde9; }
+.editor-symbol-dialog p { font-size: 12px; color: #abbacf; }

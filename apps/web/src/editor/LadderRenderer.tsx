@@ -1,7 +1,7 @@
 import React from 'react';
 import { childNodes, type LogicNode } from '@plc-ladder-mcp/ladder-ir';
 import { layoutLadder, nodeLabel } from './layout';
-export function LadderRenderer({ root, selectedId, onSelect, onEdit, theme = 'light', minWidth = 0 }: { root: LogicNode; selectedId: string | null; onSelect: (id: string) => void; onEdit?: (id: string) => void; theme?: 'light' | 'dark'; minWidth?: number }) {
+export function LadderRenderer({ root, selectedId, onSelect, onEdit, onContextMenu, theme = 'light', minWidth = 0 }: { root: LogicNode; selectedId: string | null; onSelect: (id: string) => void; onEdit?: (id: string) => void; onContextMenu?: (id: string, x: number, y: number) => void; theme?: 'light' | 'dark'; minWidth?: number }) {
   const layout = layoutLadder(root, minWidth);
   const ink = theme === 'dark' ? '#d4dde9' : '#27272a';
   const paper = theme === 'dark' ? '#181c23' : '#f4f4f5';
@@ -14,8 +14,8 @@ export function LadderRenderer({ root, selectedId, onSelect, onEdit, theme = 'li
     {layout.nodes.map(({ node, x, y, width, height }) => {
       const children = childNodes(node); const selected = node.id === selectedId; const center = node.kind === 'action' ? x + width - Math.max(80, nodeLabel(node).length * 4 + 24) : x + width / 2, baseline = y + 44;
       if (children?.length) return selected ? <rect key={node.id} x={x + 2} y={y + 4} width={width - 4} height={height - 8} rx="5" fill="none" stroke="#2563eb" strokeWidth="2" strokeDasharray="6 4" pointerEvents="none"/> : null;
-      return <g key={node.id} data-node-id={node.id} role="button" tabIndex={0} aria-label={`${nodeLabel(node)} · ${node.id}`} aria-pressed={selected} onClick={() => onSelect(node.id)} onDoubleClick={() => onEdit?.(node.id)} onKeyDown={e => {
-        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onSelect(node.id); }
+      return <g key={node.id} data-node-id={node.id} role="button" tabIndex={0} aria-label={`${nodeLabel(node)} · ${node.id}`} aria-pressed={selected} onClick={() => onSelect(node.id)} onDoubleClick={() => onEdit?.(node.id)} onContextMenu={e => { e.preventDefault(); onContextMenu?.(node.id, e.clientX, e.clientY); }} onKeyDown={e => {
+        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.stopPropagation(); onSelect(node.id); if (e.key === 'Enter') onEdit?.(node.id); }
       }} className="ladder-element">
         <rect x={x + 3} y={y + 3} width={width - 6} height="82" rx="5" fill={selected ? (theme === 'dark' ? '#243e61' : '#dbeafe') : 'transparent'} stroke={selected ? '#2563eb' : 'transparent'}/>
         <title>{`${nodeLabel(node)} · ${node.id}`}</title>

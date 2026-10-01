@@ -1,10 +1,11 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useId, useState } from 'react';
 import { childNodes, editStructured, listNodes, fx3uVerifiedForms, type LogicNode, type StructuredEdit } from '@plc-ladder-mcp/ladder-ir';
 import { useProjectStore } from '../store';
 import { nodeLabel } from '../editor/layout';
 import { newElement, operandInput, readOperand, type NewElement, type OperandInput } from '../editor/inspector';
 
 export function Inspector({ node, disabled, onUpdate }: { node: LogicNode; disabled: boolean; onUpdate: (node: LogicNode) => Promise<void> }) {
+  const opcodeListId = useId();
   const [draft, setDraft] = useState(() => structuredClone(node));
   const [operands, setOperands] = useState<OperandInput[]>(node.kind === 'action' && node.action.kind === 'instruction' ? node.action.operands.map(operandInput) : []);
   const [error, setError] = useState('');
@@ -17,6 +18,8 @@ export function Inspector({ node, disabled, onUpdate }: { node: LogicNode; disab
     e.preventDefault(); setError('');
     try {
       const next = structuredClone(draft);
+      const device = next.kind === 'contact' ? next.device : next.kind === 'action' && next.action.kind !== 'instruction' ? next.action.device : null;
+      if (device) { device.address = device.address.trim().toUpperCase(); if (!device.address) throw new Error('Device address is required.'); }
       if (next.kind === 'action' && next.action.kind === 'instruction') {
         next.action.opcode = next.action.opcode.trim().toUpperCase();
         if (!next.action.opcode) throw new Error('Instruction opcode is required.');
@@ -35,8 +38,8 @@ export function Inspector({ node, disabled, onUpdate }: { node: LogicNode; disab
       <label>Device<input required disabled={disabled} value={draft.action.device.address} onChange={e => { if (draft.action.kind !== 'instruction') setDraft({ ...draft, action: { ...draft.action, device: { kind: 'device', address: e.target.value } } }); }}/></label>
     </>}
     {draft.kind === 'action' && draft.action.kind === 'instruction' && <>
-      <label>Instruction opcode<input required list="instruction-opcodes" disabled={disabled} value={draft.action.opcode} onChange={e => { if (draft.action.kind === 'instruction') setDraft({ ...draft, action: { ...draft.action, opcode: e.target.value } }); }}/></label>
-      <datalist id="instruction-opcodes">{[...new Set(fx3uVerifiedForms.map(f => f.opcode))].map(opcode => <option key={opcode} value={opcode}/>)}</datalist>
+      <label>Instruction opcode<input required list={opcodeListId} disabled={disabled} value={draft.action.opcode} onChange={e => { if (draft.action.kind === 'instruction') setDraft({ ...draft, action: { ...draft.action, opcode: e.target.value } }); }}/></label>
+      <datalist id={opcodeListId}>{[...new Set(fx3uVerifiedForms.map(f => f.opcode))].map(opcode => <option key={opcode} value={opcode}/>)}</datalist>
       {operands.map((operand, index) => <div className="operand-row" key={index}>
         <label>Operand {index + 1} type<select disabled={disabled} value={operand.kind} onChange={e => setOperands(operands.map((o, i) => i === index ? { ...o, kind: e.target.value as OperandInput['kind'] } : o))}><option value="device">Device</option><option value="decimal">Decimal (K)</option><option value="hex">Hex (H)</option></select></label>
         <label>Operand {index + 1} value<input disabled={disabled} value={operand.value} onChange={e => setOperands(operands.map((o, i) => i === index ? { ...o, value: e.target.value } : o))}/></label>

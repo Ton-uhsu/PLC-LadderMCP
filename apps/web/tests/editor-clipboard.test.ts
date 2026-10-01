@@ -1,0 +1,32 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { editStructured, listNodes, type LadderProjectV02 } from '@plc-ladder-mcp/ladder-ir';
+import { captureSelection, pasteSelection } from '../src/editor/clipboard.ts';
+const fixture: LadderProjectV02 = { version: '0.2', name: 'Clipboard', plc: { family: 'Mitsubishi FX', model: 'FX3U' }, programs: [{ name: 'Main', networks: [{ id: 2, comment: 'Interlock', root: { kind: 'series', id: 'root', children: [{ kind: 'parallel', id: 'branch', branches: [{ kind: 'contact', id: 'x', device: { kind: 'device', address: 'X0' }, mode: 'NC', edge: 'none' }, { kind: 'contact', id: 'm', device: { kind: 'device', address: 'M0' }, mode: 'NO' }] }, { kind: 'action', id: 'out', action: { kind: 'instruction', id: 'inner', opcode: 'MOV', operands: [{ kind: 'constant', radix: 'hex', value: 255 }, { kind: 'device', address: 'D0' }] } }] } }] }] };
+let serial = 0; const id = () => `fresh-${serial++}`;
+const identities = (p: LadderProjectV02) => p.programs[0].networks.flatMap(n => listNodes(n.root).flatMap(l => l.node.kind === 'action' ? [l.node.id, l.node.action.id] : [l.node.id]));
+test('copy nested branch and whole network preserves semantics while allocating independent IDs', () => {
+  const before = JSON.stringify(fixture);
+  const clip = captureSelection(fixture, 2, 'branch', 'project');
+  const result = pasteSelection(fixture, 2, 'branch', clip, 'project', 'after', id);
+  assert.equal(new Set(identities(result.project)).size, identities(result.project).length);
+  const copied = listNodes(result.project.programs[0].networks[0].root).find(n => n.node.id === result.selectedId)!.node;
+  assert.equal(copied.kind, 'parallel'); if (copied.kind === 'parallel') assert.deepEqual(copied.branches.map(n => n.kind === 'contact' && [n.device.address, n.mode]), [['X0', 'NC'], ['M0', 'NO']]);
+  const whole = pasteSelection(result.project, 2, 'root', captureSelection(fixture, 2, 'root', 'project'), 'project', 'after', id);
+  assert.equal(whole.networkId, 3); assert.equal(whole.project.programs[0].networks[1].comment, 'Interlock');
+  assert.equal(new Set(identities(whole.project)).size, identities(whole.project).length);
+  assert.ok(JSON.stringify(whole.project).includes('"radix":"hex","value":255'));
+  assert.equal(JSON.stringify(fixture), before);
+});
+test('cut/paste preserves moved identity only if absent in same project; undo collision and cross-project use fresh IDs', () => {
+  const clip = captureSelection(fixture, 2, 'x', 'project', true);
+  const removed = editStructured(fixture, 2, { kind: 'remove', nodeId: 'x' }).project;
+  const moved = pasteSelection(removed, 2, 'm', clip, 'project', 'after', id);
+  assert.equal(moved.selectedId, 'x');
+  const collision = pasteSelection(fixture, 2, 'm', clip, 'project', 'after', id);
+  assert.notEqual(collision.selectedId, 'x');
+  assert.equal(new Set(identities(collision.project)).size, identities(collision.project).length);
+  assert.notEqual(pasteSelection(removed, 2, 'm', clip, 'other-project', 'after', id).selectedId, 'x');
+  assert.throws(() => captureSelection(fixture, 2, 'root', 'project', true), /Delete network/);
+  assert.throws(() => pasteSelection(fixture, 2, 'root', captureSelection(fixture, 2, 'root', 'project'), 'project', 'after', () => 'duplicate'), /unique/);
+});

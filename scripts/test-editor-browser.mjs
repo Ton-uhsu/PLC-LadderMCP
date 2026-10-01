@@ -37,6 +37,41 @@ for(let mode=0;mode<2;mode++){
  await page.getByLabel('Network label',{exact:true}).fill('Start / interlock'); await page.getByLabel('Network label',{exact:true}).press('Tab'); await page.locator('.rung-comment').first().getByText('Start / interlock',{exact:true}).waitFor();
  await page.waitForFunction(()=>!document.querySelector('[aria-label="Delete element"]').disabled); await page.locator('.editor-stage').focus(); await page.locator('.editor-stage').press('Delete'); await page.locator('.editor-rung').first().getByText('NO X2',{exact:true}).waitFor({state:'hidden'});
  await page.waitForFunction(()=>!document.querySelector('[aria-label="Undo edit"]').disabled); await page.locator('.editor-stage').press('Control+z'); await page.locator('.editor-rung').first().getByText('NO X2',{exact:true}).waitFor();
+ // Real editor commands: copy/paste, cut/move identity, dialog, context menu and whole-rung duplicate.
+ const stage = page.locator('.editor-stage');
+ const x2 = page.locator('.editor-rung').first().locator('[data-node-id]').filter({hasText:'NO X2'});
+ await x2.click(); const movedId = await x2.getAttribute('data-node-id');
+ await stage.focus(); await stage.press('Control+c'); await stage.press('Control+v');
+ await page.waitForFunction(()=>Array.from(document.querySelectorAll('.editor-rung:first-of-type [data-node-id]')).filter(n=>n.textContent.includes('NO X2')).length===2);
+ await page.waitForFunction(()=>!document.querySelector('[aria-label="Undo edit"]').disabled); await page.getByRole('button',{name:'Undo edit',exact:true}).click();
+ await page.waitForFunction(()=>Array.from(document.querySelectorAll('.editor-rung:first-of-type [data-node-id]')).filter(n=>n.textContent.includes('NO X2')).length===1);
+ await x2.click(); await stage.focus(); await stage.press('Control+x'); await x2.waitFor({state:'hidden'});
+ await page.waitForFunction(()=>!document.querySelector('[aria-label="Paste selection"]').disabled); await stage.press('Control+v'); await x2.waitFor();
+ assert.equal(await x2.getAttribute('data-node-id'), movedId);
+ await x2.dblclick(); const dialog=page.getByRole('dialog',{name:'Edit symbol'}); await dialog.waitFor();
+ await page.screenshot({path:`${shots}/editor-symbol-dialog-${mode}.png`});
+ await dialog.getByLabel('Device',{exact:true}).fill('   '); await dialog.getByRole('button',{name:'Update element',exact:true}).click(); await dialog.getByRole('alert').filter({hasText:'Device address is required'}).waitFor();
+ await dialog.getByLabel('Device',{exact:true}).fill(' x4 '); await dialog.getByRole('button',{name:'Update element',exact:true}).click(); await dialog.waitFor({state:'hidden'});
+ const x4=page.locator('.editor-rung').first().locator('[data-node-id]').filter({hasText:'NO X4'}); await x4.waitFor();
+ await x4.click(); await stage.focus(); await stage.press('ArrowRight');
+ assert.ok((await page.locator('.editor-rung').first().locator('[data-node-id][aria-pressed="true"]').getAttribute('aria-label')).includes('OUT Y1'));
+ await x4.click(); await stage.focus(); await stage.press('ArrowUp');
+ assert.ok((await page.locator('.editor-rung').first().locator('[data-node-id][aria-pressed="true"]').getAttribute('aria-label')).includes('NO X1'));
+ await x4.focus(); await x4.press('Enter'); await dialog.waitFor(); await dialog.getByLabel('Device',{exact:true}).fill('X9'); await dialog.getByRole('button',{name:'Cancel',exact:true}).click(); assert.equal(await x4.count(),1);
+ await x4.click({button:'right'}); await page.getByRole('menuitem',{name:'Duplicate · Ctrl+D',exact:true}).click();
+ await page.waitForFunction(()=>Array.from(document.querySelectorAll('.editor-rung:first-of-type [data-node-id]')).filter(n=>n.textContent.includes('NO X4')).length===2);
+ await page.getByRole('button',{name:'Undo edit',exact:true}).click(); await page.waitForFunction(()=>document.querySelectorAll('.editor-rung:first-of-type [data-node-id]').length===4);
+ await page.locator('.rung-gutter').first().click(); await stage.focus(); await stage.press('Control+d'); await page.waitForFunction(()=>document.querySelectorAll('.editor-rung').length===3);
+ await page.getByRole('button',{name:'Undo edit',exact:true}).click(); await page.waitForFunction(()=>document.querySelectorAll('.editor-rung').length===2);
+ await page.locator('.rung-gutter').first().click();
+ await stage.focus(); await stage.press('Control+f'); await page.getByLabel('Find device or instruction').fill('T0'); await page.getByLabel('Find device or instruction').press('Enter');
+ await page.waitForFunction(()=>document.querySelectorAll('.rung-gutter')[1].getAttribute('aria-pressed')==='true');
+ assert.ok((await page.locator('.editor-rung').nth(1).locator('[data-node-id][aria-pressed="true"]').getAttribute('aria-label')).includes('T0'));
+ const timer = page.locator('.editor-rung').nth(1).locator('[data-node-id]').filter({hasText:'OUT T0 K10'});
+ await timer.dblclick(); await dialog.waitFor(); await dialog.getByLabel('Operand 2 value',{exact:true}).fill('20'); await dialog.getByRole('button',{name:'Update element',exact:true}).click(); await dialog.waitFor({state:'hidden'}); await page.locator('.editor-rung').nth(1).getByText('OUT T0 K20',{exact:true}).waitFor();
+ await page.getByRole('button',{name:'Close search',exact:true}).click();
+ await stage.press('Home'); await stage.press('ArrowUp'); await page.waitForFunction(()=>document.querySelectorAll('.rung-gutter')[0].getAttribute('aria-pressed')==='true');
+ await page.locator('.rung-gutter').first().click();
  if(!mode){
   await page.route('**/api/manual/project',r=>r.fulfill({status:404,contentType:'application/json',body:'{"error":"Not found"}'}));
   await page.getByRole('button',{name:'Insert NO contact',exact:true}).click(); await page.getByLabel('Element address or instruction').fill('X3'); await page.getByLabel('Element address or instruction').press('Enter');
@@ -46,7 +81,7 @@ for(let mode=0;mode<2;mode++){
  if(mode){await page.getByRole('status').filter({hasText:/saved/}).waitFor();await page.reload();await page.getByRole('heading',{name:'Conveyor control',exact:true}).waitFor();assert.equal(await page.locator('.editor-rung').count(),2);assert.equal(await page.locator('.editor-rung').first().locator('[data-node-id]').count(),4);}
  await page.setViewportSize({width:520,height:800}); await page.screenshot({path:`${shots}/editor-workspace-${mode}-520.png`,fullPage:true});
  await page.setViewportSize({width:1100,height:800}); await page.screenshot({path:`${shots}/editor-workspace-${mode}-1100.png`,fullPage:true});
- assert.deepEqual(errors,[]); console.log(`PASS browser ${mode?'PostgreSQL':'local'} insert/properties/branch/networks/undo/redo/keyboard/zoom${mode?'/reload':'/old-backend-error'}`); await context.close();
+ assert.deepEqual(errors,[]); console.log(`PASS browser ${mode?'PostgreSQL':'local'} insert/properties/branch/networks/clipboard/cut-identity/dialog/context-menu/duplicate/find/navigation/undo/redo/keyboard/zoom${mode?'/reload':'/old-backend-error'}`); await context.close();
 }
 console.log('Browser QA screenshots: '+shots);
 }finally{await browser?.close();await vite.close();for(const s of servers)await new Promise(r=>s.close(r));await db.destroy();await rm(temp,{recursive:true,force:true});}
