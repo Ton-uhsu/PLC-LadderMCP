@@ -11,22 +11,28 @@ element selection/inspector, contacts/coils/timers/counters/instructions/branche
 
 ## Current evidence and limits
 
-มี basic editor สำหรับ database project: comment/contact/action device, add NO/coil; legacy UI ยังไม่แสดง editor นี้. Nested preview บางกรณีใช้ NESTED CONDITION ไม่ใช่ branch rendering จริง.
+Implemented 2026-10-01 (WORK-005): recursive Ladder SVG วาด series/parallel และ nested branches ตาม canonical IR รวม parallel outputs. เลือก leaf จากภาพด้วย mouse/keyboard หรือเลือก group จากรายการ elements; inspector แก้ contact mode/edge/device, OUT/SET/RST และ instruction opcode/typed device/decimal/hex operands. เพิ่ม timer/counter preset forms ตาม IR v0.2 เดิม, series/parallel groups, insert/remove/reorder/wrap โดยรักษา ID ของ node/action เดิมและไม่แก้ network อื่น.
 
-Implementation anchors: `apps/web/src/persistence/ManualEditor.tsx; apps/web/src/App.tsx`. Repository baseline: `88b376703e69d26d5b545af7515fb5bb0cca8661`. Historical execution records are in [TASKS.md](../../../TASKS.md); architecture ownership stays in [solution design](../../03-solution-design.md).
+ใช้ได้ทั้ง PostgreSQL และ legacy local ผ่าน human-only edit API; PostgreSQL autosave ทำ immutable revisions และ session Undo/Redo เดิม. Inspector เป็น buffered form: Update element เป็น structured editing operation แล้ว autosave โดยไม่ต้องกด Save project. กลุ่มว่าง/invalid drafts เก็บได้แต่ไม่ถือว่า Compile ผ่าน; ไม่มี drag-and-drop canvas scope ใหม่.
+
+ยัง Partial: browser interaction/responsive acceptance ยังไม่รัน; real rendered Review diff/highlight ต้องต่อ TASK-008 และ explicit revision-bound Compile ต้อง TASK-007. Typed instruction families, timer time-base/retentive semantics, device comments/labels และ source-map completeness ยังอยู่ TASK-003. Opcode suggestions ไม่ใช่ compatibility certificate; current compiler ยังมี root/output topology limits และต้องรายงาน error แทนเปลี่ยนภาพหรือ IR ให้ตรง adapter.
+
+Implementation anchors: `apps/web/src/editor/*; apps/web/src/persistence/ManualEditor.tsx; packages/ladder-ir/src/structured-edit.ts`. Repository baseline: `88b376703e69d26d5b545af7515fb5bb0cca8661`. Historical execution records are in [TASKS.md](../../../TASKS.md); architecture ownership stays in [solution design](../../03-solution-design.md).
 
 ## Completion checks
 
-These checks operationalize the referenced frozen requirements; they do not add product scope. For Partial/Planned tasks, boxes remain unchecked until task-specific verification is recorded.
+These checks operationalize the referenced frozen requirements; they do not add product scope. Check boxes only where task-specific verification is recorded; Partial retains the remaining acceptance scope.
 
-- [ ] edit operations เปลี่ยน canonical IR
-- [ ] nested topology ไม่ยุบเป็นภาพที่เปลี่ยนความหมาย
-- [ ] node identity stable
-- [ ] undo/redo และ autosave ไม่เท่ากับ Compile
-- [ ] ไม่มีข้อกำหนด drag-and-drop IDE ใหม่
+- [x] edit operations เปลี่ยน canonical IR
+- [x] nested topology ไม่ยุบเป็นภาพที่เปลี่ยนความหมาย
+- [x] node identity stable
+- [x] undo/redo และ autosave ไม่เท่ากับ Compile
+- [x] ไม่มีข้อกำหนด drag-and-drop IDE ใหม่
 
 ## Verification / handoff
 
-Verify the relevant unit/domain/UI/HTTP behavior and race/error paths, then record dated evidence here or link the owning Test/evidence artifact. Real IDE compatibility requires real IDE evidence; generated output or schema existence alone is insufficient. Before source changes, use spec-architect readiness and open a WORK entry linking this task. Resolve contract details against canonical design before implementing; do not use illustrative UI fixture data as saved/compiled/applied state.
+2026-10-01: `npm run web:test` 14/14 passed, including targeted nested edits/identity guards, recursive rendering/selection markup, hex round-trip, session Undo/Redo, incomplete draft autosave and reopen/historical reads through embedded PostgreSQL. `npm run db:test` 7 passed / 2 native suites skipped. Web/backend builds, IR fixture, semantic smoke and actual HTTP auth/MCP E2E passed. Static React SVGs for nested conditions and M0→six parallel outputs were rasterized and visually inspected; this verifies fixture rendering, not browser interactions or real IDE compatibility.
+
+Browser acceptance pending because Chromium is unavailable (download failed in WORK-004). Local exercise: create a project; select root and append contact then coil; inspect device/mode, select a leaf and insert after it, move/remove, wrap a condition in parallel, select its empty branch and add contacts, edit timer/counter/instruction operands, Undo/Redo and reload. Verify SVG and element tree agree, keyboard selection works, narrow layouts scroll, errors preserve state and busy controls prevent overlapping edits. NC+edge drafts must fail the current compiler rather than silently lose inversion. Native persistence remains TEST-001. Real IDE compatibility requires real IDE evidence; generated output or schema existence alone is insufficient. Before source changes, use spec-architect readiness and open a WORK entry linking this task. Resolve contract details against canonical design before implementing; do not use illustrative UI fixture data as saved/compiled/applied state.
 
 [Phase index](./README.md) · [Project roadmap](../../02-project-roadmap.md)

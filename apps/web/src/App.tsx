@@ -1,123 +1,29 @@
-import { parseGxWorks2ListText } from "@plc-ladder-mcp/ladder-ir";
+import { listNodes, parseGxWorks2ListText } from "@plc-ladder-mcp/ladder-ir";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Activity, AlertTriangle, Bot, Braces, CheckCircle2, ChevronDown, CircleDot, Download,
   FileCode2, FolderOpen, History as HistoryIcon, Network, Play, Plus, Redo2, RefreshCw, Settings2, ShieldCheck, Undo2, Workflow, XCircle,
 } from "lucide-react";
 import {
-  actionLabel,
   downloadBytes,
   downloadText,
   generateGxWorks2,
   generateSamSoar,
-  getPreviewNetwork,
   validateProject,
 } from "./ladder";
 import { ProjectSettings } from "./projects/ProjectSettings";
 import { NetworkControls } from "./projects/NetworkControls";
+import { LadderRenderer } from "./editor/LadderRenderer";
 import { ManualEditor } from "./persistence/ManualEditor";
 import { useProjectStore } from "./store";
 
 type Vendor = "GX Works2" | "SamSoar2022";
 
-function LadderPreview() {
+function LadderPreview({ selectedId, onSelect }: { selectedId: string | null; onSelect: (id: string) => void }) {
   const project = useProjectStore(s => s.project);
   const selectedNetworkId = useProjectStore(s => s.selectedNetworkId);
-  const network = project.programs[0]?.networks.find(item => item.id === selectedNetworkId);
-
-  if (!network) {
-    return <div className="json-view">No Ladder network in the current IR.</div>;
-  }
-
-  const preview = getPreviewNetwork(network);
-  if (!preview.supported) {
-    const nestedActions = preview.actions;
-    const height = Math.max(270, 110 + nestedActions.length * 64);
-    return <svg viewBox={`0 0 900 ${height}`} className="ladder" role="img" aria-label="Nested Ladder topology">
-      <line x1="70" y1="35" x2="70" y2={height - 35} className="wire rail"/>
-      <line x1="830" y1="35" x2="830" y2={height - 35} className="wire rail"/>
-      <text x="28" y="105" className="step">{network.id}</text>
-      <line x1="70" y1="100" x2="140" y2="100" className="wire"/>
-      <rect x="140" y="65" width="410" height="70" rx="6" className="symbol fill-none"/>
-      <text x="155" y="94" className="nested-label">NESTED CONDITION</text>
-      <text x="155" y="118" className="nested-expression">{preview.conditionText}</text>
-      <line x1="550" y1="100" x2="650" y2="100" className="wire"/>
-      {nestedActions.map((action, index) => {
-        const y = 100 + index * 64;
-        return <g key={action.id}>
-          {nestedActions.length > 1 && <line x1="650" y1="100" x2="650" y2={y} className="wire"/>}
-          <line x1="650" y1={y} x2="690" y2={y} className="wire"/>
-          <rect x="690" y={y - 18} width="112" height="36" className="symbol fill-none"/>
-          <text x="746" y={y + 5} textAnchor="middle" className="device">{actionLabel(action)}</text>
-          <line x1="802" y1={y} x2="830" y2={y} className="wire"/>
-        </g>;
-      })}
-      <text x="28" y={height - 50} className="step">END</text>
-      <line x1="70" y1={height - 55} x2="685" y2={height - 55} className="wire muted-wire"/>
-      <text x="705" y={height - 49} className="end">END</text>
-      <line x1="755" y1={height - 55} x2="830" y2={height - 55} className="wire muted-wire"/>
-    </svg>;
-  }
-
-  const { contacts, actions } = preview;
-  const ys = actions.map((_, i) => 100 + i * 72);
-  const top = ys[0] ?? 100;
-  const bottom = ys.at(-1) ?? 90;
-  const height = Math.max(270, bottom + 120);
-  const branchX = 650;
-  const firstContactX = 190;
-  const maxContactX = 570;
-  const gap = contacts.length > 1
-    ? Math.min(110, (maxContactX - firstContactX) / (contacts.length - 1))
-    : 0;
-  const contactXs = contacts.map((_, i) => firstContactX + i * gap);
-  const lastContactRight = contactXs.length ? contactXs.at(-1)! + 20 : 70;
-
-  return <svg viewBox={`0 0 900 ${height}`} className="ladder" role="img" aria-label="Ladder preview">
-    <line x1="70" y1="35" x2="70" y2={height - 35} className="wire rail"/>
-    <line x1="830" y1="35" x2="830" y2={height - 35} className="wire rail"/>
-    <text x="28" y={top + 5} className="step">{network.id}</text>
-
-    {contacts.map((contact, i) => {
-      const x = contactXs[i];
-      const previousRight = i === 0 ? 70 : contactXs[i - 1] + 20;
-      return <g key={contact.id}>
-        <line x1={previousRight} y1={top} x2={x - 20} y2={top} className="wire"/>
-        <line x1={x - 20} y1={top - 24} x2={x - 20} y2={top + 24} className="symbol"/>
-        <line x1={x + 20} y1={top - 24} x2={x + 20} y2={top + 24} className="symbol"/>
-        {contact.mode === "NC" && <line x1={x - 23} y1={top + 25} x2={x + 23} y2={top - 25} className="symbol"/>}
-        <text x={x} y={top - 36} textAnchor="middle" className="device">
-          {contact.device.address}{contact.edge === "rising" ? " ↑" : contact.edge === "falling" ? " ↓" : ""}
-        </text>
-      </g>;
-    })}
-    <line x1={lastContactRight} y1={top} x2={branchX} y2={top} className="wire"/>
-
-    {actions.length > 1 && <line x1={branchX} y1={top} x2={branchX} y2={bottom} className="wire"/>}
-    {actions.map((action, i) => {
-      const y = ys[i];
-      const label = actionLabel(action);
-      return <g key={action.id}>
-        <line x1={branchX} y1={y} x2="690" y2={y} className="wire"/>
-        {action.kind === "coil" ? <>
-          <path d={`M708 ${y} C708 ${y - 22} 755 ${y - 22} 755 ${y} C755 ${y + 22} 708 ${y + 22} 708 ${y}`} className="symbol fill-none"/>
-          <line x1="755" y1={y} x2="830" y2={y} className="wire"/>
-          <text x="732" y={y - 28} textAnchor="middle" className="device">{label}</text>
-        </> : <>
-          <rect x="690" y={y - 20} width="112" height="40" className="symbol fill-none"/>
-          <line x1="802" y1={y} x2="830" y2={y} className="wire"/>
-          <text x="746" y={y + 5} textAnchor="middle" className="device">{label}</text>
-        </>}
-      </g>;
-    })}
-
-    {!actions.length && <text x="680" y={top - 20} className="device">No output action</text>}
-
-    <text x="28" y={bottom + 75} className="step">END</text>
-    <line x1="70" y1={bottom + 70} x2="685" y2={bottom + 70} className="wire muted-wire"/>
-    <text x="705" y={bottom + 76} className="end">END</text>
-    <line x1="755" y1={bottom + 70} x2="830" y2={bottom + 70} className="wire muted-wire"/>
-  </svg>;
+  const network = project.programs[0]?.networks.find(n => n.id === selectedNetworkId);
+  return network ? <LadderRenderer root={network.root} selectedId={listNodes(network.root).some(l => l.node.id === selectedId) ? selectedId : network.root.id} onSelect={onSelect}/> : <div className="json-view">No Ladder network in the current IR.</div>;
 }
 
 function formatDiffValue(value: unknown) {
@@ -337,6 +243,8 @@ export default function App() {
   const [tokenInput, setTokenInput] = useState(apiToken);
   const [vendor, setVendor] = useState<Vendor>("SamSoar2022");
   const [active, setActive] = useState("Ladder");
+  const [selectedElementId, setSelectedElementId] = useState<string | null>(null);
+  useEffect(() => { setSelectedElementId(null); }, [projectId, selectedNetworkId]);
   const [saveName, setSaveName] = useState(project.name);
   const [savedSelection, setSavedSelection] = useState("");
   const importRef = useRef<HTMLInputElement>(null);
@@ -362,9 +270,9 @@ export default function App() {
   const result = useMemo(() => validateProject(project), [project]);
   const program = project.programs[0];
   const network = program?.networks.find(item => item.id === selectedNetworkId) ?? program?.networks[0];
-  const preview = network ? getPreviewNetwork(network) : null;
-  const contactSummary = preview?.contacts.map(c => `${c.mode === "NC" ? "NOT " : ""}${c.device.address}`).join(" AND ") || "No contact";
-  const outputSummary = preview?.actions.map(actionLabel).join(", ") || "No output";
+  const elements = network ? listNodes(network.root) : [];
+  const contactCount = elements.filter(l => l.node.kind === 'contact').length;
+  const actionCount = elements.filter(l => l.node.kind === 'action').length;
 
   const exportFile = () => {
     if (vendor === "SamSoar2022") downloadText("plc-ladder-samsoar.csv", generateSamSoar(project));
@@ -499,15 +407,15 @@ export default function App() {
               ? <>{storageMode === "database" ? <div className="changes-empty">AI review for this saved project will be available after batch persistence integration.</div> : <AIChangesPanel/>}</>
               : active === "History"
                 ? <HistoryPanel/>
-                : <div className="canvas"><LadderPreview/></div>}
+                : <div className="canvas"><LadderPreview selectedId={selectedElementId} onSelect={setSelectedElementId}/></div>}
 
           {active === "Ladder" && <NetworkControls/>}
 
-          {storageMode === "database" && active === "Ladder" && <ManualEditor/>}
+          {active === "Ladder" && <ManualEditor selectedId={selectedElementId} onSelect={setSelectedElementId}/>}
 
           {active !== "AI Changes" && active !== "History" && active !== "Project settings" && <div className="network-note">
             <CircleDot size={14}/>
-            <span><b>Network {network?.id ?? "—"}</b> — <code>{preview?.conditionText || contactSummary}</code> drives <code>{outputSummary}</code>.</span>
+            <span><b>Network {network?.id ?? "—"}</b> · {contactCount} contacts · {actionCount} actions. Select a Ladder element to inspect or edit it.</span>
           </div>}
         </section>
 

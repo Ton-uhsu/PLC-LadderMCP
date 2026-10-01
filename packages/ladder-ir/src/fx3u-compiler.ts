@@ -1,3 +1,4 @@
+import { operandToFxText } from "./fx3u-capabilities.js";
 import type { ActionNode, LadderNetworkV02, LadderProjectV02, LogicNode } from "./v02.js";
 
 export type ListInstruction = { instruction: string; device?: string };
@@ -10,9 +11,7 @@ function actionToList(action: ActionNode): ListInstruction[] {
     case "instruction":
       return [{
         instruction: action.opcode,
-        device: action.operands.map(o =>
-          o.kind === "device" ? o.address : (o.radix === "hex" ? "H" : "K") + o.value
-        ).join(" "),
+        device: action.operands.map(operandToFxText).join(" "),
       }];
   }
 }
@@ -22,6 +21,7 @@ type ContactNode = Extract<LogicNode, { kind: "contact" }>;
 
 function contactMnemonic(node: ContactNode, mode: CombineMode) {
   const edge = node.edge ?? "none";
+  if (edge !== "none" && node.mode === "NC") throw new Error("NC edge contacts are not supported by this compiler.");
   if (mode === "load") {
     if (edge === "rising") return "LDP";
     if (edge === "falling") return "LDF";

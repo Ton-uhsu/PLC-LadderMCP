@@ -7,6 +7,7 @@ import type {
 } from "@plc-ladder-mcp/ladder-ir";
 import {
   compileProject,
+  operandToFxText,
   generateGxWorks2ListText,
   validateFx3uV02,
 } from "@plc-ladder-mcp/ladder-ir";
@@ -180,11 +181,7 @@ export function generateGxWorks2(project: LadderProjectV02): Uint8Array {
 
 export function actionLabel(action: ActionNode) {
   if (action.kind === "instruction") {
-    const operands = action.operands.map(operand =>
-      operand.kind === "device"
-        ? operand.address
-        : `${operand.radix === "hex" ? "H" : "K"}${operand.value}`
-    ).join(" ");
+    const operands = action.operands.map(operandToFxText).join(" ");
     return `${action.opcode}${operands ? ` ${operands}` : ""}`;
   }
   return action.kind === "coil"

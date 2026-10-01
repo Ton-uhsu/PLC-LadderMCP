@@ -5,6 +5,11 @@
 None.
 
 ## Done
+- [x] WORK-005 | feat: structured Ladder editor and topology renderer | 2026-10-01 | feature | → owner: docs/roadmap/phase-02-local-ui/task-005-structured-editor-renderer.md
+  - Delivered: nested series/parallel SVG, element selection/inspector, stable-ID insert/remove/reorder/wrap, contact/output/timer/counter/instruction operands in both local and database modes. Fixed hex formatting and blocked unsupported NC-edge compilation; related gap evidence in TASK-003.
+  - Verified: Web tests 14/14, persistence tests 7 pass/2 native skipped, Web/backend builds, IR fixture, smoke and HTTP E2E; visually inspected two rasterized React SVG fixtures.
+  - Handoff: TASK-005 stays Partial for browser acceptance, typed V1 IR completion and rendered Review/Compile integration. No VPS or broad stack migration.
+
 - [x] WORK-004 | feat: project settings and network management | 2026-10-01 | feature | → owner: docs/roadmap/phase-02-local-ui/task-004-project-network-ui.md
   - Delivered: settings/name/default target, stable-ID network controls, human-only stale-safe local manual edits and busy guards. No VPS or broad stack migration.
   - Verified: Web tests 9/9; persistence tests 7 pass/2 native skipped; Web/backend builds, semantic smoke and HTTP auth/MCP E2E.

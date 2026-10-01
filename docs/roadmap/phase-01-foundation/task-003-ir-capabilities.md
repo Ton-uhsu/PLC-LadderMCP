@@ -11,7 +11,9 @@
 
 ## Current evidence and limits
 
-IR v0.2, FX3U compiler/validator/catalog และ fixtures มีแล้วรวมใน ladder-ir. Package separation และความครบถ้วนตาม V1 ยังต้องตรวจ; support ต้องจำกัดตาม opcode/operand ที่มีหลักฐาน.
+IR v0.2, FX3U compiler/validator/catalog และ fixtures มีแล้วรวมใน ladder-ir.
+
+2026-10-01 supporting fix from WORK-005: shared FX operand formatter converts numeric hex constants to hexadecimal digits (`255 → HFF`) consistently for compiler, exact-form checks and UI. Regression covers typed-hex GX List serialize/import/compile round-trip; no new real IDE claim. Compiler explicitly rejects NC+edge contacts instead of silently emitting a non-inverted edge mnemonic. Structured edit helpers preserve subtree/action IDs; broader typed schema/profile/source-map completion remains open. Package separation และความครบถ้วนตาม V1 ยังต้องตรวจ; support ต้องจำกัดตาม opcode/operand ที่มีหลักฐาน.
 
 Implementation anchors: `packages/ladder-ir; docs/contracts/fx3u-capability-catalog.md`. Repository baseline: `88b376703e69d26d5b545af7515fb5bb0cca8661`. Historical execution records are in [TASKS.md](../../../TASKS.md); architecture ownership stays in [solution design](../../03-solution-design.md).
 

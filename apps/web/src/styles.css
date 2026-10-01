@@ -102,3 +102,27 @@ main { min-width:0; } header { height:82px; border-bottom:1px solid #27272a; dis
 .network-controls form input { flex: 1; min-width: 160px; }
 button:disabled { cursor: not-allowed; opacity: .45; }
 @media (max-width: 900px) { .project-settings { grid-template-columns: 1fr; } }
+
+.ladder-scroll { width:100%; overflow:auto; }
+.topology-ladder { display:block; max-width:none; }
+.ladder-element { cursor:pointer; outline:none; }
+.ladder-element:focus > rect:first-child { stroke:#2563eb; stroke-width:2; }
+.structured-editor-grid { display:grid; grid-template-columns:minmax(150px, .65fr) minmax(0, 1fr); gap:18px; }
+.manual-editor h3 { margin:0 0 8px; }
+.manual-editor p { color:#a1a1aa; font-size:12px; line-height:1.6; }
+.element-tree { max-height:540px; overflow:auto; border:1px solid #35383e; border-radius:6px; }
+.element-tree .element-item { display:block; width:100%; margin:0; text-align:left; border:0; border-bottom:1px solid #29292d; background:#101113; color:#e4e4e7; padding:10px; }
+.element-item span,.element-item small { display:block; overflow-wrap:anywhere; }
+.element-item small { font-size:9px; margin-top:4px; color:#8d94a1; }
+.element-tree .selected { background:#1d304c; box-shadow:inset 3px 0 #60a5fa; }
+.inspector-panel { min-width:0; }
+.inspector-panel h4 { margin:0 0 8px; }
+.element-id { font-size:10px; color:#8d94a1; overflow-wrap:anywhere; }
+.element-actions { display:flex; flex-wrap:wrap; gap:6px; margin:14px 0; }
+.element-actions button { margin:0; }
+.manual-editor .element-inspector label,.manual-editor .element-insert label { display:grid; grid-template-columns:1fr; gap:6px; font-size:12px; }
+.element-inspector button { margin-bottom:8px; }
+.operand-row { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:8px; align-items:end; padding:6px 0; border-bottom:1px solid #29292d; }
+.operand-row > button { grid-column:1/-1; justify-self:start; }
+.element-insert { border-top:1px solid #35383e; margin-top:16px; padding-top:10px; }
+@media(max-width:760px) { .structured-editor-grid { grid-template-columns:1fr; } .element-tree { max-height:240px; } }

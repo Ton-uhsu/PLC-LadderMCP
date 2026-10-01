@@ -42,7 +42,7 @@ export const fx3uRejectedExactForms = [
 
 export function operandToFxText(operand: Operand): string {
   if (operand.kind === "device") return operand.address.toUpperCase();
-  return (operand.radix === "hex" ? "H" : "K") + operand.value;
+  return operand.radix === "hex" ? "H" + operand.value.toString(16).toUpperCase() : "K" + operand.value;
 }
 
 function sameForm(opcode: string, operands: string[], candidate: { opcode: string; operands: readonly string[] }) {

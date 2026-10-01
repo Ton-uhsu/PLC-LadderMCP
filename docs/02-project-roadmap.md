@@ -9,7 +9,7 @@
 
 ## 1. Current focus
 
-ทำ local UI ใน **Phase 02** ต่อ: TASK-004 มี Project settings/network controls และ automated domain/API tests แล้ว; ยังรอ browser acceptance และ durable workflow context checks. งาน implement ถัดไปคือ **TASK-005: structured editor/renderer**. ยังไม่เริ่ม VPS deployment.
+ทำ local UI ใน **Phase 02** ต่อ: TASK-004 มี Project settings/network controls และ automated domain/API tests แล้ว; ยังรอ browser acceptance และ durable workflow context checks. TASK-005 มี structured editor/recursive renderer พร้อม domain/SQL/static SVG tests แล้ว แต่ยัง Partial ตาม acceptance ที่เหลือ. งานถัดไปคือ **TASK-006 + TASK-007: explicit Compile และ diagnostics** ตาม dependencies. ยังไม่เริ่ม VPS deployment.
 
 ผู้ใช้ต้องการทำ local/UI ก่อนงาน VPS. สามารถเตรียม UI layout, Ladder rendering, structured interactions และ tests ด้วย local dev ได้ก่อน Docker. แต่ UI ที่ต้องพึ่ง workflow API ต้องแสดง unavailable เมื่อ API ยังไม่มี; ไม่ใช้ fake Compile/Apply/Export success และไม่ถือ in-memory draft เป็น PostgreSQL autosave. **TEST-001 เป็น gate ก่อนยืนยัน native database integration ของ Phase 03/04** และก่อน release; สามารถเริ่ม Docker local verification เมื่อผู้ใช้พร้อมโดยไม่ต้องใช้ VPS
 
@@ -23,11 +23,11 @@
 | Project persistence | Kysely + pg, immutable IR v0.2 revisions, human API, UUID picker และ debounced serialized Web autosave | ทำงานเมื่อ DATABASE_URL พร้อม; native PostgreSQL tests ยังไม่รัน |
 | Database migrations | Goose Up/Down 4 ชุด, 27 domain tables, adoption จาก Kysely, CLI validate/embedded SQL tests | workflow APIs และ PostgREST roles/functions ยังขาด |
 | Ladder engine | IR v0.2, FX3U compiler/validator/capability catalog และ fixtures | V1 modeling/diagnostics/package separation ยังไม่ครบ |
-| Web | Login, project/network views, basic database manual editor, legacy AI review/history/export | legacy และ database workflows ยังแยกกัน; full editor/rendered review/Compile history ยังขาด; settings/network UI รอ browser acceptance |
+| Web | Login, project/network views, basic database manual editor, legacy AI review/history/export | legacy และ database workflows ยังแยกกัน; typed V1 instruction completeness/rendered review/Compile history ยังขาด; settings/network/structured editor UI รอ browser acceptance |
 | IDE evidence | มีบันทึก real GX Works2 verification บาง topology/opcode/operand ใน canonical evidence | ไม่ใช่ blanket compatibility; import/SamSoar/round-trip scope ยัง Pending POC |
 | Production | GitHub Pages และ local backend เป็น development baseline | ยังไม่ใช่ V1 Jenkins/GHCR/Kubernetes production target |
 
-แหล่งรายละเอียด: [local persistence guide](./guides/local-postgresql-persistence.md), [capability contract](./contracts/fx3u-capability-catalog.md), [IDE research](./research/plc-ide-import-export.md), [verification matrix](./evidence/fx3u-verification-matrix.md). บันทึก execution ก่อน roadmap อยู่ใน [TASKS.md](../TASKS.md), WORK-001–004
+แหล่งรายละเอียด: [local persistence guide](./guides/local-postgresql-persistence.md), [capability contract](./contracts/fx3u-capability-catalog.md), [IDE research](./research/plc-ide-import-export.md), [verification matrix](./evidence/fx3u-verification-matrix.md). บันทึก execution ก่อน roadmap อยู่ใน [TASKS.md](../TASKS.md), WORK-001–005
 
 ## 3. Phase overview
 
