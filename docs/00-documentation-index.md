@@ -5,7 +5,7 @@ PLC-LadderMCP documentation is organized by canonical ownership.
 ## Core
 - `01-requirements.md` — accepted V1 requirements freeze (REQ-001 through REQ-159).
 - `03-solution-design.md` — V1 architecture overview and design index.
-- `02-project-roadmap.md` — to be derived after the V1 solution design is finalized enough to sequence implementation work.
+- [`02-project-roadmap.md`](./02-project-roadmap.md) — implementation status, local-first sequencing, phase/task dependencies and V1 requirement traceability.
 
 ## Detailed design documents
 - `designs/tech-stack.md` — accepted V1 technology baseline and migration direction.
