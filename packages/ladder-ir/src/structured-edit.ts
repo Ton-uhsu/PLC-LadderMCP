@@ -3,6 +3,9 @@ import type { LadderProjectV02, LogicNode } from './v02.js';
 export function childNodes(node: LogicNode): LogicNode[] | null {
   return node.kind === 'series' ? node.children : node.kind === 'parallel' ? node.branches : null;
 }
+export function containsAction(node: LogicNode): boolean {
+  return node.kind === 'action' || (childNodes(node) ?? []).some(containsAction);
+}
 export type NodeLocation = { node: LogicNode; parent: LogicNode | null; index: number; depth: number };
 export function listNodes(root: LogicNode): NodeLocation[] {
   const result: NodeLocation[] = [];

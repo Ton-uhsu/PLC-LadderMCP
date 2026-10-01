@@ -5,7 +5,7 @@ import type {
   LogicNode,
   Operand,
 } from "@plc-ladder-mcp/ladder-ir";
-import { generateGxWorks2ListText, parseGxWorks2ListText, validateFx3uV02, normalizeWires } from "@plc-ladder-mcp/ladder-ir";
+import { generateGxWorks2ListText, parseGxWorks2ListText, validateFx3uV02, normalizeWires, containsAction, outputActions } from "@plc-ladder-mcp/ladder-ir";
 import { copyFileSync, existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
 import { basename, dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -372,7 +372,7 @@ function validateProjectState(target: LadderProjectV02) {
         });
         continue;
       }
-      if (!root.children.slice(0, -1).some(hasConditionPath)) {
+      if (!root.children.slice(0, root.children.findIndex(containsAction)).some(hasConditionPath)) {
         issues.push({
           severity: "error" as const,
           code: "MISSING_CONDITION",
@@ -380,7 +380,7 @@ function validateProjectState(target: LadderProjectV02) {
           path: `network[${network.id}].root`,
         });
       }
-      if (!root.children.some(isOutputNode)) {
+      if (!root.children.some(containsAction)) {
         issues.push({
           severity: "error" as const,
           code: "MISSING_OUTPUT",
@@ -699,7 +699,8 @@ export function exportSamSoar(target: LadderProjectV02 = project) {
       const root = network.root;
       if (root.kind !== "series") throw new Error("SamSoar adapter currently requires a series root.");
 
-      const conditions = root.children.slice(0, -1).map(normalizeWires).filter((node): node is LogicNode => node !== null);
+      const outputIndex = root.children.findIndex(containsAction);
+      const conditions = root.children.slice(0, outputIndex).map(normalizeWires).filter((node): node is LogicNode => node !== null);
       if (conditions.some(node => node.kind !== 'contact')) throw new Error('SamSoar adapter currently supports direct series contact conditions only; nested conditions cannot be omitted.');
       const contacts = conditions as Extract<LogicNode, { kind: 'contact' }>[];
       if (!contacts.length) lines.push(`LD,${samDevice('M8000')}`);
@@ -710,13 +711,10 @@ export function exportSamSoar(target: LadderProjectV02 = project) {
         lines.push(`${mnemonic},${samDevice(contact.device.address)}`);
       });
 
-      const tail = root.children[root.children.length - 1];
-      const outputs = tail?.kind === "parallel" ? tail.branches : tail ? [tail] : [];
+      const outputs = outputActions({kind:'series',id:root.id,children:root.children.slice(outputIndex)});
       for (const output of outputs) {
-        if (output.kind !== "action" || output.action.kind !== "coil") {
-          throw new Error("SamSoar adapter currently supports coil outputs only.");
-        }
-        lines.push(`OUT,${samDevice(output.action.device.address)}`);
+        if (output.kind !== 'coil') throw new Error('SamSoar adapter currently supports coil outputs only.');
+        lines.push(`OUT,${samDevice(output.device.address)}`);
       }
       lines.push("POP");
     }

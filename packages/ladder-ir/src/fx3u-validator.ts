@@ -1,5 +1,6 @@
 import type { LadderProjectV02, LogicNode } from "./v02.js";
-import { normalizeWires } from "./fx3u-compiler.js";
+import { normalizeWires, outputActions } from "./fx3u-compiler.js";
+import { containsAction } from "./structured-edit.js";
 import { inspectFx3uInstructionForm } from "./fx3u-capabilities.js";
 
 export type ValidationIssue={severity:"error"|"warning";code:string;message:string;path:string};
@@ -34,7 +35,10 @@ export function validateFx3uV02(project:LadderProjectV02){
  project.programs.forEach((p,pi)=>p.networks.forEach((n,ni)=>walk(n.root,`programs[${pi}].networks[${ni}].root`,issues)));
  project.programs.forEach((p,pi)=>p.networks.forEach((n,ni)=>{
    if(n.root.kind !== 'series') return;
-   const conditions=n.root.children.slice(0,-1);
+   const outputIndex=n.root.children.findIndex(containsAction);
+   if(outputIndex < 0) return;
+   try { outputActions({kind:'series',id:n.root.id,children:n.root.children.slice(outputIndex)}); } catch(error) { issues.push({severity:'error',code:'OUTPUT_TOPOLOGY',message:error instanceof Error ? error.message : String(error),path:`programs[${pi}].networks[${ni}].root`}); }
+   const conditions=n.root.children.slice(0,outputIndex);
    try { if(conditions.length && conditions.every(c=>normalizeWires(c)===null)) issues.push({severity:"warning",code:"ALWAYS_ON_OUTPUT",message:"Wire path bypasses all conditions; outputs are driven while the PLC is in RUN mode.",path:`programs[${pi}].networks[${ni}].root`}); } catch { /* walk already reports gaps */ }
  }));
  return {valid:!issues.some(i=>i.severity==="error"),issues};

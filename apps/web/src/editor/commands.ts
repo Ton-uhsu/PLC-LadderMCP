@@ -1,4 +1,4 @@
-import { childNodes, editStructured, listNodes, type LadderProjectV02, type LogicNode } from '@plc-ladder-mcp/ladder-ir';
+import { childNodes, containsAction, editStructured, listNodes, type LadderProjectV02, type LogicNode } from '@plc-ladder-mcp/ladder-ir';
 import { newElement, readOperand, type NewElement } from './inspector';
 export type EditorTool = NewElement | 'nc';
 export function toolElement(tool: EditorTool, input: string, id: () => string): LogicNode {
@@ -20,25 +20,28 @@ export function insertElement(project: LadderProjectV02, networkId: number, sele
   const root = project.programs[0]?.networks.find(n => n.id === networkId)?.root;
   if (!root) throw new Error('Select a network.');
   const selected = listNodes(root).find(l => l.node.id === selectedId) ?? listNodes(root)[0];
-  if (selected.node.kind === 'wire' && node.kind !== 'wire' && node.kind !== 'action' && selected.parent) {
+  let branch = selected;
+  while (branch.parent && branch.parent.kind !== 'parallel') branch = listNodes(root).find(n => n.node.id === branch.parent!.id)!;
+  const outputPlaceholder = branch.parent?.kind === 'parallel' && containsAction(branch.parent) && !containsAction(branch.node);
+  if (selected.node.kind === 'wire' && node.kind !== 'wire' && selected.parent && (node.kind !== 'action' || outputPlaceholder)) {
+    if (outputPlaceholder && node.kind !== 'action') throw new Error('This is an output branch. Choose a coil or instruction for this cell.');
     const inserted = editStructured(project, networkId, { kind: 'insert', parentId: selected.parent.id, index: selected.index, node });
     const result = editStructured(inserted.project, networkId, { kind: 'remove', nodeId: selected.node.id });
     return { ...result, selectedId: node.id };
   }
   if (node.kind === 'action' && root.kind === 'series') {
-    const tail = root.children.at(-1);
-    if (tail?.kind === 'parallel' && tail.branches.every(n => n.kind === 'action')) return editStructured(project, networkId, { kind: 'insert', parentId: tail.id, index: tail.branches.length, node });
-    if (tail?.kind === 'action') {
-      const containerId = id(), emptyId = id();
-      let next = editStructured(project, networkId, { kind: 'wrap', nodeId: tail.id, group: 'parallel', containerId, branchId: emptyId });
-      next = editStructured(next.project, networkId, { kind: 'remove', nodeId: emptyId });
-      return editStructured(next.project, networkId, { kind: 'insert', parentId: containerId, index: 1, node });
-    }
-    return editStructured(project, networkId, { kind: 'insert', parentId: root.id, index: root.children.length, node });
+    const outputIndex = root.children.findIndex(containsAction);
+    if (outputIndex < 0) return editStructured(project, networkId, { kind: 'insert', parentId: root.id, index: root.children.length, node });
+    const existing = root.children.slice(outputIndex);
+    if (existing.length === 1 && existing[0].kind === 'parallel') return editStructured(project, networkId, { kind: 'insert', parentId: existing[0].id, index: existing[0].branches.length, node });
+    let next = project;
+    for (const output of [...existing].reverse()) next = editStructured(next, networkId, { kind: 'remove', nodeId: output.id }).project;
+    const oldOutput: LogicNode = existing.length === 1 ? existing[0] : { kind: 'series', id: id(), children: existing };
+    return { ...editStructured(next, networkId, { kind: 'insert', parentId: root.id, index: outputIndex, node: { kind: 'parallel', id: id(), branches: [oldOutput, node] } }), selectedId: node.id };
   }
   const children = childNodes(selected.node);
   if (children) {
-    const index = selected.node.kind === 'series' ? children.findIndex(n => n.kind === 'action' || n.kind === 'parallel' && n.branches.every(b => b.kind === 'action')) : -1;
+    const index = selected.node.kind === 'series' ? children.findIndex(n => containsAction(n)) : -1;
     return editStructured(project, networkId, { kind: 'insert', parentId: selected.node.id, index: index < 0 ? children.length : index, node });
   }
   if (!selected.parent) throw new Error('Select a series or branch.');

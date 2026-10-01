@@ -33,7 +33,7 @@ for(let mode=0;mode<2;mode++){
  await page.getByRole('button',{name:'Network',exact:true}).click(); await page.waitForFunction(()=>document.querySelectorAll('.editor-rung').length===2);
  await add('NC contact','M0'); await add('Timer','T0 K10');
  await page.locator('.rung-gutter').first().click(); await page.locator('.editor-rung').first().locator('[data-node-id]').first().click(); await page.getByRole('button',{name:'Add parallel branch',exact:true}).click();
- await page.locator('.editor-rung').first().getByText('Empty series · draft',{exact:true}).click(); await add('NO contact','X2');
+ await page.locator('.editor-rung').first().getByText('Empty series',{exact:true}).click(); await add('NO contact','X2');
  await page.getByLabel('Network label',{exact:true}).fill('Start / interlock'); await page.getByLabel('Network label',{exact:true}).press('Tab'); await page.locator('.rung-comment').first().getByText('Start / interlock',{exact:true}).waitFor();
  await page.waitForFunction(()=>!document.querySelector('[aria-label="Delete element"]').disabled); await page.locator('.editor-stage').focus(); await page.locator('.editor-stage').press('Delete'); await page.locator('.editor-rung').first().getByText('NO X2',{exact:true}).waitFor({state:'hidden'});
  await page.waitForFunction(()=>!document.querySelector('[aria-label="Undo edit"]').disabled); await page.locator('.editor-stage').press('Control+z'); await page.locator('.editor-rung').first().getByText('NO X2',{exact:true}).waitFor();
@@ -54,7 +54,7 @@ for(let mode=0;mode<2;mode++){
  await dialog.getByLabel('Device',{exact:true}).fill(' x4 '); await dialog.getByRole('button',{name:'Update element',exact:true}).click(); await dialog.waitFor({state:'hidden'});
  const x4=page.locator('.editor-rung').first().locator('[data-node-id]').filter({hasText:'NO X4'}); await x4.waitFor();
  await x4.click(); await stage.focus(); await stage.press('ArrowRight');
- assert.ok((await page.locator('.editor-rung').first().locator('[data-node-id][aria-pressed="true"]').getAttribute('aria-label')).includes('OUT Y1'));
+ assert.ok((await page.locator('.editor-statusbar').textContent()).includes('Column 1'));
  await x4.click(); await stage.focus(); await stage.press('ArrowUp');
  assert.ok((await page.locator('.editor-rung').first().locator('[data-node-id][aria-pressed="true"]').getAttribute('aria-label')).includes('NO X1'));
  await x4.focus(); await x4.press('Enter'); await dialog.waitFor(); await dialog.getByLabel('Device',{exact:true}).fill('X9'); await dialog.getByRole('button',{name:'Cancel',exact:true}).click(); assert.equal(await x4.count(),1);
@@ -72,23 +72,44 @@ for(let mode=0;mode<2;mode++){
  await page.getByRole('button',{name:'Close search',exact:true}).click();
  await stage.press('Home'); await stage.press('ArrowUp'); await page.waitForFunction(()=>document.querySelectorAll('.rung-gutter')[0].getAttribute('aria-pressed')==='true');
  await page.locator('.rung-gutter').first().click();
- // Ctrl+arrow wires: all four directions, gaps, Undo/Redo and durable reload.
+ // Integer grid: individual implicit segments and one-column coil wiring.
+ // Deleting a projected wire must disconnect that cell, never its neighboring coil.
+ const projected=page.locator('.editor-rung').first().locator('[data-cell-row="1"][data-cell-column="1"]');
+ await projected.click(); await stage.focus(); await stage.press('Delete');
+ const deletedPadding=page.locator('.editor-rung').first().locator('[data-node-id][aria-label^="Disconnected wire"]');
+ await deletedPadding.waitFor(); assert.equal(await deletedPadding.getAttribute('data-cell-column'),'1');
+ assert.equal(await page.locator('.editor-rung').first().getByText('OUT Y1',{exact:true}).count(),1);
+ await page.waitForFunction(()=>!document.querySelector('[aria-label="Undo edit"]').disabled); await stage.press('Control+z'); await deletedPadding.waitFor({state:'hidden'});
  const m0 = page.locator('.editor-rung').nth(1).locator('[data-node-id]').filter({hasText:'NC M0'});
  await m0.click(); await stage.focus(); await stage.press('Control+ArrowRight');
  const wires = page.locator('.editor-rung').nth(1).locator('[data-node-id]');
- const gap = wires.filter({hasText:'Disconnected wire'});
- await page.waitForFunction(()=>document.querySelectorAll('.editor-rung')[1].querySelectorAll('[data-node-id]').length===3);
- await page.waitForFunction(()=>!document.querySelector('[aria-label="Undo edit"]').disabled);
- await stage.press('Control+ArrowLeft'); await gap.waitFor();
- await page.waitForFunction(()=>!document.querySelector('[aria-label="Undo edit"]').disabled); await stage.press('Control+ArrowRight'); await gap.waitFor({state:'hidden'});
- await page.waitForFunction(()=>!document.querySelector('[aria-label="Undo edit"]').disabled); await stage.press('Control+z'); await gap.waitFor();
- await page.waitForFunction(()=>!document.querySelector('[aria-label="Redo edit"]').disabled); await stage.press('Control+y'); await gap.waitFor({state:'hidden'});
+ const gap = page.locator('.editor-rung').nth(1).locator('[data-node-id][aria-label^="Disconnected wire"]');
+ await gap.waitFor(); assert.equal(await gap.getAttribute('data-cell-column'),'1'); assert.equal(await gap.getAttribute('data-cell-span'),'1');
+ await page.waitForFunction(()=>!document.querySelector('[aria-label="Undo edit"]').disabled); await stage.press('ArrowRight'); await stage.press('Control+ArrowLeft'); await gap.waitFor({state:'hidden'});
+ await page.waitForFunction(()=>!document.querySelector('[aria-label="Undo edit"]').disabled); await stage.press('Control+ArrowRight'); await gap.waitFor(); assert.equal(await gap.getAttribute('data-cell-column'),'2');
+ await page.waitForFunction(()=>!document.querySelector('[aria-label="Undo edit"]').disabled); await stage.press('Control+z'); await gap.waitFor({state:'hidden'});
+ await page.waitForFunction(()=>!document.querySelector('[aria-label="Redo edit"]').disabled); await stage.press('Control+y'); await gap.waitFor();
+ await page.waitForFunction(()=>!document.querySelector('[aria-label="Undo edit"]').disabled); await stage.press('ArrowRight'); await stage.press('Control+ArrowLeft'); await gap.waitFor({state:'hidden'});
  for(const direction of ['Up','Down']) {
   await page.waitForFunction(()=>!document.querySelector('[aria-label="Undo edit"]').disabled); await stage.press('Control+Arrow'+direction); await gap.waitFor();
   await page.waitForFunction(()=>!document.querySelector('[aria-label="Undo edit"]').disabled); await stage.press('Control+Arrow'+direction); await gap.waitFor({state:'hidden'});
  }
- await page.waitForFunction(()=>!document.querySelector('[aria-label="Undo edit"]').disabled); await stage.press('Control+ArrowLeft'); await gap.waitFor();
+ await page.waitForFunction(()=>!document.querySelector('[aria-label="Undo edit"]').disabled); await stage.press('ArrowRight'); await stage.press('Control+ArrowLeft'); await gap.waitFor();
+ await stage.evaluate(el=>el.scrollLeft=0);
+ const wireBox=await gap.locator('rect').boundingBox(); assert.ok(Math.abs(wireBox.width-115)<1,JSON.stringify({wireBox,zoom:await page.locator('.zoom-label').textContent()}));
+ const contactCell=page.locator('.editor-rung').nth(1).locator('[data-node-id]').filter({hasText:'NC M0'}).locator('rect');
+ const contactBox=await contactCell.boundingBox(); const columnBox=await page.locator('[data-ruler-column="0"]').boundingBox();
+ assert.ok(Math.abs(contactBox.x+contactBox.width/2-columnBox.x-columnBox.width/2)<1);
+ const selectedColumn=await page.locator('[data-ruler-column="2"]').boundingBox(); assert.ok(Math.abs(wireBox.x+wireBox.width/2-selectedColumn.x-selectedColumn.width/2)<1);
  await page.screenshot({path:`${shots}/editor-wire-gap-${mode}.png`,fullPage:true});
+ const output=page.locator('.editor-rung').first().locator('[data-node-id]').filter({hasText:'OUT Y1'});
+ await output.click(); await stage.focus(); await stage.press('Control+ArrowDown');
+ const outputGap=page.locator('.editor-rung').first().locator('[data-node-id][aria-label^="Disconnected wire"]'); await outputGap.waitFor(); assert.equal(await outputGap.getAttribute('data-cell-column'),'9');
+ await outputGap.click(); await add('Output coil','Y2'); await page.locator('.editor-rung').first().getByText('OUT Y2',{exact:true}).waitFor();
+ await page.waitForFunction(()=>!document.querySelector('[aria-label="Undo edit"]').disabled); await page.getByRole('button',{name:'Undo edit',exact:true}).click(); await outputGap.waitFor();
+ await page.waitForFunction(()=>!document.querySelector('[aria-label="Undo edit"]').disabled); await page.getByRole('button',{name:'Undo edit',exact:true}).click(); await outputGap.waitFor({state:'hidden'});
+ await output.click(); await stage.focus(); await stage.press('Control+ArrowLeft'); await outputGap.waitFor(); assert.equal(await outputGap.getAttribute('data-cell-column'),'8');
+ await page.waitForFunction(()=>!document.querySelector('[aria-label="Undo edit"]').disabled); await page.getByRole('button',{name:'Undo edit',exact:true}).click(); await outputGap.waitFor({state:'hidden'});
  await page.locator('.rung-gutter').first().click();
  if(!mode){
   await page.route('**/api/manual/project',r=>r.fulfill({status:404,contentType:'application/json',body:'{"error":"Not found"}'}));
@@ -96,10 +117,10 @@ for(let mode=0;mode<2;mode++){
   await page.getByRole('alert').filter({hasText:'restart npm run server'}).waitFor(); assert.equal(await page.locator('.editor-rung').first().locator('[data-node-id]').count(),4); await page.unroute('**/api/manual/project'); await page.getByRole('button',{name:'Cancel',exact:true}).click(); await page.getByRole('button',{name:'Dismiss',exact:true}).click();
  }
  await page.getByRole('button',{name:'Zoom out',exact:true}).click(); await page.screenshot({path:`${shots}/editor-workspace-${mode}.png`,fullPage:true});
- if(mode){await page.getByRole('status').filter({hasText:/saved/}).waitFor();await page.reload();await page.getByRole('heading',{name:'Conveyor control',exact:true}).waitFor();assert.equal(await page.locator('.editor-rung').count(),2);assert.equal(await page.locator('.editor-rung').first().locator('[data-node-id]').count(),4);assert.equal(await page.locator('.editor-rung').nth(1).locator('[data-node-id]').filter({hasText:'Disconnected wire'}).count(),1);}
+ if(mode){await page.getByRole('status').filter({hasText:/saved/}).waitFor();await page.reload();await page.getByRole('heading',{name:'Conveyor control',exact:true}).waitFor();assert.equal(await page.locator('.editor-rung').count(),2);assert.equal(await page.locator('.editor-rung').first().locator('[data-node-id]').count(),4);assert.equal(await page.locator('.editor-rung').nth(1).locator('[data-node-id][aria-label^="Disconnected wire"]').count(),1);}
  await page.setViewportSize({width:520,height:800}); await page.screenshot({path:`${shots}/editor-workspace-${mode}-520.png`,fullPage:true});
  await page.setViewportSize({width:1100,height:800}); await page.screenshot({path:`${shots}/editor-workspace-${mode}-1100.png`,fullPage:true});
- assert.deepEqual(errors,[]); console.log(`PASS browser ${mode?'PostgreSQL':'local'} insert/properties/branch/networks/clipboard/cut-identity/dialog/context-menu/duplicate/find/navigation/undo/redo/keyboard/zoom/ctrl-arrow-wires${mode?'/reload':'/old-backend-error'}`); await context.close();
+ assert.deepEqual(errors,[]); console.log(`PASS browser ${mode?'PostgreSQL':'local'} insert/properties/branch/networks/clipboard/cut-identity/dialog/context-menu/duplicate/find/navigation/undo/redo/keyboard/zoom/cell-grid/coil-wires/ctrl-arrow-wires${mode?'/reload':'/old-backend-error'}`); await context.close();
 }
 console.log('Browser QA screenshots: '+shots);
 }finally{await browser?.close();await vite.close();for(const s of servers)await new Promise(r=>s.close(r));await db.destroy();await rm(temp,{recursive:true,force:true});}

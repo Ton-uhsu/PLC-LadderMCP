@@ -38,7 +38,7 @@ test('vertical shortcut adds/removes only empty wire branches and preserves nest
     const filled = insertElement(added.project, 0, wire.id, toolElement('contact', 'M0', id), 'after', id);
     assert.throws(() => editWire(filled.project, 0, 'x', direction, id), /contains symbols/);
     assert.ok(nodes(filled.project).some(n => n.node.id === 'x'));
-    assert.throws(() => editWire(filled.project, 0, 'out', 'down', id), /condition side/);
+    assert.ok(nodes(editWire(filled.project, 0, 'out', 'down', id).project).some(n => n.node.id === 'out'));
   }
   assert.throws(() => editWire(fixture, 0, 'x', 'right', () => 'x'), /unique/);
 });
@@ -68,5 +68,5 @@ test('connected bypass is Boolean TRUE, warns on unconditional outputs, and neve
   root.children[0].branches.pop(); root.children[0].branches.push({kind:'series',id:'empty',children:[]});
   assert.throws(()=>compileProject(invalid), /Empty condition/);
   root.children[0].branches.pop(); root.children[0].branches.push({kind:'action',id:'extra-output',action:{kind:'coil',id:'extra-action',device:{kind:'device',address:'Y1'}}});
-  assert.throws(()=>compileProject(invalid), /cannot bypass an output/);
+  assert.throws(()=>compileProject(invalid), /condition|output/);
 });

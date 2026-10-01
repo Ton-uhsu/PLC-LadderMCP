@@ -2,9 +2,13 @@
 
 ## Active
 
-None.
 
 ## Done
+- [x] WORK-009 | fix: fixed-column Ladder grid and output wire editing | 2026-10-01 | fix | → owner: docs/roadmap/phase-02-local-ui/task-005-structured-editor-renderer.md
+  - Delivered: fixed 120px columns/88px rows; one wire/contact per cell, aligned ruler, cell cursor/arrow navigation and Ctrl-arrow segment editing. Coil-side wires and output placeholders preserve existing outputs; completed branches compile/export without dropping actions.
+  - Verified: 24 Web tests, Web/backend builds, original IR fixture, semantic smoke and HTTP E2E; persistence 7 pass/2 native skipped. Chromium local/PGlite modes passed exact ruler/cell geometry, coil branch fill, occupied-cell protection, Undo/Redo and saved gap reload; desktop/narrow captures inspected.
+  - Handoff: rebuild/restart Web and backend together. Structured tree positions are projected to the grid; arbitrary floating connections remain unsupported. TASK-005 stays Partial for typed V1 IR/Review/revision-bound Compile; no VPS or real IDE/native database claim.
+
 - [x] WORK-008 | feat: Ctrl-arrow Ladder wire editing | 2026-10-01 | feature | → owner: docs/roadmap/phase-02-local-ui/task-005-structured-editor-renderer.md
   - Delivered: horizontal connected/gap toggles, vertical empty branch add/remove, canonical wire snapshots and Undo/Redo. Occupied branches/output symbols are protected. Compile rejects gaps; connected bypass semantics are explicit. SamSoar rejects unsupported nested conditions instead of dropping them.
   - Verified: 21 Web tests, Web/backend builds, persistence 7 pass/2 native skipped, original IR fixture, semantic smoke and HTTP E2E (node --import tsx workaround for CLI pipe permissions). Browser local/PGlite modes passed all Ctrl directions, undo/redo and saved gap reload; screenshots inspected.
@@ -25,9 +29,5 @@ None.
   - Verified: Web tests 14/14, persistence tests 7 pass/2 native skipped, Web/backend builds, IR fixture, smoke and HTTP E2E; visually inspected two rasterized React SVG fixtures.
   - Handoff: TASK-005 stays Partial for browser acceptance, typed V1 IR completion and rendered Review/Compile integration. No VPS or broad stack migration.
 
-- [x] WORK-004 | feat: project settings and network management | 2026-10-01 | feature | → owner: docs/roadmap/phase-02-local-ui/task-004-project-network-ui.md
-  - Delivered: settings/name/default target, stable-ID network controls, human-only stale-safe local manual edits and busy guards. No VPS or broad stack migration.
-  - Verified: Web tests 9/9; persistence tests 7 pass/2 native skipped; Web/backend builds, semantic smoke and HTTP auth/MCP E2E.
-  - Handoff: owning TASK-004 remains Partial for browser acceptance (Chromium download blocked) and durable Review/Compile context integration. Next implementation owner: TASK-005.
 
 Older records: [October work archive](docs/task-archive/2026-10.md).

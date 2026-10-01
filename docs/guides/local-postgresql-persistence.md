@@ -196,7 +196,7 @@ node --import tsx scripts/test-editor-browser.mjs
 
 ### Ladder editing shortcuts
 
-Click a symbol, or use arrow keys to select across the rung/branches and adjacent networks; Home/End select the first/last symbol. Enter or double-click opens a buffered Edit symbol dialog; Update element saves, while Cancel/Esc discards dialog input. Device input is trimmed and uppercased.
+Click a cell, or use arrow keys to move one column/row across the rung and adjacent networks; Home/End select the first/last column. Wires and contacts occupy one fixed-width column; long instructions span whole columns. Enter or double-click opens a buffered Edit symbol dialog; Update element saves, while Cancel/Esc discards dialog input. Device input is trimmed and uppercased.
 
 - `C` / `O`: insert a contact / output using toolbar entry.
 - `Ctrl+C` / `Ctrl+X` / `Ctrl+V`: copy / cut / paste the selected element or subtree using the editor's session clipboard. Normal text-field shortcuts remain native.
@@ -209,9 +209,9 @@ Right-click a symbol for Edit/Copy/Cut/Paste/Duplicate/Delete. Directional keys 
 
 ### Ctrl-arrow wire editing
 
-Update/rebuild/restart the backend along with the Web app for wire support. Select a contact, condition group or wire on the canvas, then use:
+Update/rebuild/restart the backend along with the Web app for wire support. Select a grid cell on the canvas, then use:
 
-- **Ctrl+Left / Ctrl+Right:** add a wire on that side; on an existing wire, toggle connection/gap. A gap is shown with orange open endpoints.
-- **Ctrl+Up / Ctrl+Down:** add an incomplete branch above/below, or remove an adjacent empty/wire-only branch. Repeating the shortcut removes the newly added empty branch. Occupied branches remain intact and show an error explaining the block.
+- **Ctrl+Left / Ctrl+Right:** move one column in that direction and add/toggle that cell's wire. Connected segments become gaps; gaps become connected. A gap has orange open endpoints. Contact/coil cells are protected.
+- **Ctrl+Up / Ctrl+Down:** add an incomplete branch above/below the selected cell, or remove an adjacent empty/wire-only branch. Repeating the shortcut removes the newly added empty branch. Filled branches remain intact and show an error explaining the block.
 
-Select a new branch gap and Ctrl+Left/Right to connect it, or insert a contact on it to replace the gap. Use Ctrl+Z / Ctrl+Y to undo/redo. Gaps autosave and reload as drafts; they block Compile/Apply/Export. A connected bypass changes logic and may produce an Always-ON warning. See the [wire design](../designs/ladder-wire-editing.md) for compiler and adapter limitations.
+To reconnect a gap, start one cell beside it and use Ctrl+Left/Right toward it. Toolbar insertion replaces a selected wire with a contact; an output branch placeholder requires a coil/instruction. Wires can be edited before/after coils without deleting the coil. Output branches cannot be completed with a bare wire alone. Blank space is not automatically a connection; start additional rows through Ctrl+Up/Down. Use Ctrl+Z / Ctrl+Y to undo/redo. Gaps autosave and reload as drafts and block Compile/Apply/Export. A connected condition bypass may produce an Always-ON warning. See the [wire design](../designs/ladder-wire-editing.md) for compiler and adapter limitations.

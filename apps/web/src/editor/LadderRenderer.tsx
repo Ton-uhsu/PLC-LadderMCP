@@ -1,7 +1,7 @@
 import React from 'react';
 import { childNodes, type LogicNode } from '@plc-ladder-mcp/ladder-ir';
-import { layoutLadder, nodeLabel } from './layout';
-export function LadderRenderer({ root, selectedId, onSelect, onEdit, onContextMenu, theme = 'light', minWidth = 0 }: { root: LogicNode; selectedId: string | null; onSelect: (id: string) => void; onEdit?: (id: string) => void; onContextMenu?: (id: string, x: number, y: number) => void; theme?: 'light' | 'dark'; minWidth?: number }) {
+import { COLUMN_WIDTH, ROW_HEIGHT, GRID_X, GRID_Y, layoutLadder, nodeLabel, type GridCell } from './layout';
+export function LadderRenderer({ root, selectedId, onSelect, onEdit, onContextMenu, onCellSelect, cursor, theme = 'light', minWidth = 0 }: { root: LogicNode; selectedId: string | null; onSelect: (id: string) => void; onEdit?: (id: string) => void; onContextMenu?: (id: string, x: number, y: number) => void; onCellSelect?: (cell: GridCell) => void; cursor?: { row: number; column: number } | null; theme?: 'light' | 'dark'; minWidth?: number }) {
   const layout = layoutLadder(root, minWidth);
   const ink = theme === 'dark' ? '#d4dde9' : '#27272a';
   const paper = theme === 'dark' ? '#181c23' : '#f4f4f5';
@@ -11,10 +11,13 @@ export function LadderRenderer({ root, selectedId, onSelect, onEdit, onContextMe
       <line x1="24" y1="20" x2="24" y2={layout.height - 20}/><line x1={layout.width - 24} y1="20" x2={layout.width - 24} y2={layout.height - 20}/>
       {layout.wires.map((w, i) => <line key={i} {...w}/>)}
     </g>
+    {layout.cells.filter(cell => !cell.nodeId).map(cell => <g key={`cell-${cell.row}-${cell.column}`} role="button" tabIndex={onCellSelect ? 0 : undefined} aria-label={`${cell.kind === 'wire' ? 'Wire' : 'Empty cell'} row ${cell.row + 1} column ${cell.column}`} data-cell-row={cell.row} data-cell-column={cell.column} onClick={() => onCellSelect?.(cell)} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.stopPropagation(); onCellSelect?.(cell); } }}>
+      <rect x={GRID_X + cell.column * COLUMN_WIDTH} y={GRID_Y + cell.row * ROW_HEIGHT} width={COLUMN_WIDTH} height={ROW_HEIGHT} fill={cursor?.row === cell.row && cursor.column === cell.column ? '#243e61' : 'transparent'} fillOpacity="0.65" stroke={cursor?.row === cell.row && cursor.column === cell.column ? '#60a5fa' : 'transparent'}/>
+    </g>)}
     {layout.nodes.map(({ node, x, y, width, height }) => {
-      const children = childNodes(node); const selected = node.id === selectedId; const center = node.kind === 'action' ? x + width - Math.max(80, nodeLabel(node).length * 4 + 24) : x + width / 2, baseline = y + 44;
+      const children = childNodes(node); const selected = cursor ? !children?.length && cursor.row === (y - GRID_Y) / ROW_HEIGHT && cursor.column >= (x - GRID_X) / COLUMN_WIDTH && cursor.column < (x + width - GRID_X) / COLUMN_WIDTH : node.id === selectedId; const center = x + width / 2, baseline = y + 44;
       if (children?.length) return selected ? <rect key={node.id} x={x + 2} y={y + 4} width={width - 4} height={height - 8} rx="5" fill="none" stroke="#2563eb" strokeWidth="2" strokeDasharray="6 4" pointerEvents="none"/> : null;
-      return <g key={node.id} data-node-id={node.id} role="button" tabIndex={0} aria-label={`${nodeLabel(node)} · ${node.id}`} aria-pressed={selected} onClick={() => onSelect(node.id)} onDoubleClick={() => onEdit?.(node.id)} onContextMenu={e => { e.preventDefault(); onContextMenu?.(node.id, e.clientX, e.clientY); }} onKeyDown={e => {
+      return <g key={node.id} data-node-id={node.id} data-cell-row={(y - GRID_Y) / ROW_HEIGHT} data-cell-column={(x - GRID_X) / COLUMN_WIDTH} data-cell-span={width / COLUMN_WIDTH} role="button" tabIndex={0} aria-label={`${nodeLabel(node)} · ${node.id}`} aria-pressed={selected} onClick={e => { if (onCellSelect) { const bounds = e.currentTarget.ownerSVGElement!.getBoundingClientRect(); const column = Math.floor(((e.clientX - bounds.left) * layout.width / bounds.width - GRID_X) / COLUMN_WIDTH); const cell = layout.cells.find(c => c.nodeId === node.id && c.column === column) ?? layout.cells.find(c => c.nodeId === node.id)!; onCellSelect(cell); } else onSelect(node.id); }} onDoubleClick={() => onEdit?.(node.id)} onContextMenu={e => { e.preventDefault(); onContextMenu?.(node.id, e.clientX, e.clientY); }} onKeyDown={e => {
         if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.stopPropagation(); onSelect(node.id); if (e.key === 'Enter') onEdit?.(node.id); }
       }} className="ladder-element">
         <rect x={x + 3} y={y + 3} width={width - 6} height="82" rx="5" fill={selected ? (theme === 'dark' ? '#243e61' : '#dbeafe') : 'transparent'} stroke={selected ? '#2563eb' : 'transparent'}/>
@@ -30,7 +33,7 @@ export function LadderRenderer({ root, selectedId, onSelect, onEdit, onContextMe
             <line x1={center - 26} y1={baseline} x2={center - 16} y2={baseline}/><line x1={center + 16} y1={baseline} x2={center + 26} y2={baseline}/>
           </> : <rect x={node.kind === 'action' ? center - Math.max(48, nodeLabel(node).length * 4 + 12) : x + 16} y={baseline - 15} width={node.kind === 'action' ? Math.max(96, nodeLabel(node).length * 8 + 24) : width - 32} height="30" fill={paper} strokeDasharray={children ? '4 3' : undefined}/>}
         </g>
-        <text x={center} y={node.kind === 'action' && node.action.kind === 'instruction' || children ? baseline + 5 : y + 20} textAnchor="middle" fill={node.kind === "wire" && !node.connected ? "#f59e0b" : ink} fontFamily="monospace" fontSize="13">{children ? `Empty ${node.kind} · draft` : nodeLabel(node)}</text>
+        <text x={center} y={node.kind === 'action' && node.action.kind === 'instruction' || children ? baseline + 5 : y + 20} textAnchor="middle" fill={node.kind === "wire" && !node.connected ? "#f59e0b" : ink} fontFamily="monospace" fontSize="13">{children ? `Empty ${node.kind}` : node.kind === 'wire' ? node.connected ? '' : 'Gap' : nodeLabel(node).length > (width - 16) / 8 ? nodeLabel(node).slice(0, Math.floor((width - 16) / 8) - 1) + '…' : nodeLabel(node)}</text>
         {node.kind === 'contact' && node.edge && node.edge !== 'none' && <text x={center} y={baseline + 5} textAnchor="middle" fill={ink} fontSize="14">{node.edge === 'rising' ? '↑' : '↓'}</text>}
       </g>;
     })}

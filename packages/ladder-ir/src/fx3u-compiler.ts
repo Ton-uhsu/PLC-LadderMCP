@@ -1,4 +1,5 @@
 import { operandToFxText } from "./fx3u-capabilities.js";
+import { childNodes, containsAction } from "./structured-edit.js";
 import type { ActionNode, LadderNetworkV02, LadderProjectV02, LogicNode } from "./v02.js";
 
 export type ListInstruction = { instruction: string; device?: string };
@@ -102,11 +103,25 @@ function compileCondition(node: LogicNode, mode: CombineMode): ListInstruction[]
   return out;
 }
 
-function isActionTail(node: LogicNode | undefined): boolean {
-  return !!node && (
-    node.kind === "action" ||
-    (node.kind === "parallel" && node.branches.length > 0 && node.branches.every(branch => branch.kind === "action"))
-  );
+// Output wiring is connectivity, not a Boolean condition bypass. Each path must end in an action.
+export function outputActions(node: LogicNode): ActionNode[] {
+  if (node.kind === 'action') return [node.action];
+  if (node.kind === 'wire') { if (!node.connected) throw new Error('Disconnected wire: complete the output path before Compile/Export.'); throw new Error('Output branch requires an output symbol. Insert a coil or instruction on its wire.'); }
+  if (node.kind === 'contact') throw new Error('Conditional output branches are not supported by this compiler.');
+  const children = childNodes(node)!;
+  if (!children.length) throw new Error('Output branch is incomplete. Insert an output symbol.');
+  if (node.kind === 'parallel') return children.flatMap(outputActions);
+  function connection(item: LogicNode): void {
+    if(item.kind === 'contact') throw new Error('Conditional output branches are not supported by this compiler.');
+    if (item.kind === 'wire') { if (!item.connected) throw new Error('Disconnected wire: complete the output path before Compile/Export.'); return; }
+    const parts = childNodes(item);
+    if (!parts?.length) throw new Error('Output wiring path is incomplete.');
+    parts.forEach(connection);
+  }
+  for (const child of children) if (!containsAction(child)) connection(child);
+  const outputs = children.filter(containsAction);
+  if (outputs.length !== 1) throw new Error('Output path requires exactly one output symbol or parallel output group.');
+  return outputActions(outputs[0]);
 }
 
 /**
@@ -136,16 +151,12 @@ export function normalizeWires(node: LogicNode): LogicNode | null {
 export function compileNetwork(network: LadderNetworkV02): ListInstruction[] {
   const original = network.root;
   if (original.kind !== 'series') throw new Error('v0.2 compiler currently requires a series root.');
-  if (!isActionTail(original.children.at(-1))) throw new Error('Network must end in an action or parallel output actions.');
-  const children = original.children.map(normalizeWires).filter((child): child is LogicNode => child !== null);
-  const root = { ...original, children };
-
-  const tail = root.children.at(-1);
-  if (!isActionTail(tail)) throw new Error("Network must end in an action or parallel output actions.");
-
-  const conditions = root.children.slice(0, -1);
-  const hasWire = (node: LogicNode): boolean => node.kind === 'wire' || (node.kind === 'series' ? node.children : node.kind === 'parallel' ? node.branches : []).some(hasWire);
-  if (!conditions.length && !hasWire(original)) throw new Error("Network requires at least one condition.");
+  const outputIndex = original.children.findIndex(containsAction);
+  if (outputIndex < 0) throw new Error('Network requires an output symbol.');
+  const sourceConditions = original.children.slice(0, outputIndex);
+  const conditions = sourceConditions.map(normalizeWires).filter((child): child is LogicNode => child !== null);
+  if (!sourceConditions.length) throw new Error('Network requires at least one condition or explicit connected condition wire.');
+  const actions = outputActions({ kind: 'series', id: original.id, children: original.children.slice(outputIndex) });
 
   const out: ListInstruction[] = [];
   if (conditions.length) out.push(...compileCondition(conditions[0], "load"));
@@ -157,15 +168,6 @@ export function compileNetwork(network: LadderNetworkV02): ListInstruction[] {
       out.push({ instruction: "ANB" });
     }
   }
-
-  if (!tail) throw new Error("Network has no output.");
-  if (tail.kind === "action") return [...out, ...actionToList(tail.action)];
-  if (tail.kind !== "parallel") throw new Error("Network output topology is unsupported.");
-
-  const actions = tail.branches.map(branch => {
-    if (branch.kind !== "action") throw new Error("Output parallel may only contain action branches.");
-    return branch.action;
-  });
 
   if (actions.length === 1) return [...out, ...actionToList(actions[0])];
   actions.forEach((action, index) => {
