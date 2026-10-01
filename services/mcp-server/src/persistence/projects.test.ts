@@ -8,7 +8,7 @@ import { Kysely, PGliteDialect, sql } from 'kysely';
 import { PGlite } from '@electric-sql/pglite';
 import { m0ToY0Y5Fixture } from '@plc-ladder-mcp/ladder-ir';
 import { createDatabase, type Database } from './database.js';
-import { migrateDatabase } from './migrate.js';
+import { migrateDatabase } from './test-support/migrations.js';
 import { ProjectRepository } from './projects.js';
 import { createApplicationServer } from '../server.js';
 import { createWebAuth } from '../auth/web-auth.js';

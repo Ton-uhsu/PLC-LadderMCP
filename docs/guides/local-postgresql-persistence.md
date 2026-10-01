@@ -4,7 +4,7 @@ This slice implements the project/revision foundation from [the persistence desi
 
 ## What is available
 
-- Kysely + pg database connection and forward-only migration.
+- Kysely + pg application queries and Goose SQL migrations with explicit Up/Down.
 - Immutable versioned IR v0.2 JSONB snapshots, same-project head/parent FKs and database history-mutation triggers.
 - Human-authenticated project create/list/current/historical reads and optimistic autosave.
 - Save retries deduplicate by project, actor and request ID; reused keys with different payloads conflict. Identical saves do not manufacture revisions.
@@ -16,11 +16,11 @@ Save now / Retry retains the original request key and payload after an uncertain
 
 Legacy MCP/review routes remain separate and cannot update the selected database project through this UI. AI Review and Export are unavailable for database projects until their revision-bound persistence integration is implemented. Servers explicitly reporting PostgreSQL unconfigured retain the legacy Web workflow. No automatic import of `.plc-ladder` data occurs. AI has no new direct-save tool.
 
-Batch/review persistence, Compile/export gates/history, restore UX and PostgREST evidence are later slices. Current IR v0.2 is supported strictly: unknown fields/schema versions are rejected rather than discarded. This does not claim the full future V1 IR migration is implemented.
+The SQL schema now includes Batch/Review/Apply, Compile/Export/Audit and POC/Evidence tables. Their workflow APIs, UI integration, restore UX and restricted PostgREST ingestion functions/roles remain later slices. Creating their tables does not make those workflows available. Current IR v0.2 is supported strictly: unknown fields/schema versions are rejected rather than discarded. This does not claim the full future V1 IR migration is implemented.
 
 ## Prerequisites
 
-Node.js 24, npm 11 and Docker Desktop with Compose. The pinned local image follows the accepted PostgreSQL 18.6 baseline. The fixed example credential is local development only; PostgreSQL binds to loopback. Its named volume preserves data across stop/start.
+Node.js 24, npm 11, Goose v3.28.0 and Docker Desktop with Compose. Download the Goose binary for your platform from https://github.com/pressly/goose/releases/tag/v3.28.0 and add it to PATH, or set `$env:GOOSE_BIN` to its absolute executable path. Goose is a migration CLI; the application continues to use Kysely + pg. The pinned local image follows the accepted PostgreSQL 18.6 baseline. The fixed example credential is local development only; PostgreSQL binds to loopback. Its named volume preserves data across stop/start.
 
 From repository root in PowerShell:
 
@@ -28,7 +28,7 @@ From repository root in PowerShell:
 npm ci
 npm run db:up
 $env:DATABASE_URL = "postgresql://plc_local:plc_local_dev@127.0.0.1:54329/plc_ladder_local"
-npm run db:migrate
+npm run db:migrate:up
 $env:PLC_LADDER_WEB_USERNAME = "admin"
 $env:PLC_LADDER_WEB_PASSWORD = "local-development-only"
 $env:PLC_LADDER_WEB_SESSION_SECRET = "local-development-session-secret"
@@ -36,7 +36,7 @@ $env:PLC_LADDER_TOKEN = "local-machine-token"
 npm run server
 ```
 
-Migrations are explicit; server startup does not silently alter schemas. Running `db:migrate` again is safe. Use the local database owner for this development slice; separate restricted production roles are not configured here. Do not run it against a VPS database.
+Migrations are explicit; server startup does not silently alter schemas. Running `db:migrate:up` again is safe; Goose records applied versions in `public.goose_db_version`. Do not run the removed Kysely migrator against this database. Use the local database owner for this development slice; separate restricted production roles are not configured here. Do not run it against a VPS database.
 
 `npm run db:stop` stops PostgreSQL without deleting its volume. Avoid `docker compose down -v` unless intentionally deleting local data. The server closes its pool on server close; ordinary process exit also releases connections.
 
@@ -115,4 +115,63 @@ Remove-Item Env:TEST_DATABASE_URL
 
 Do not use production/staging data for TEST_DATABASE_URL. The native suite creates test projects and preserves them; create the test database once. Without this variable that suite is explicitly skipped, never reported as passed.
 
-Migration access uses Kysely's built-in migrator and PostgreSQL transaction support; the repository uses row locking before checking the latest head. References: https://kysely.dev/docs/getting-started and https://www.postgresql.org/docs/18/explicit-locking.html.
+Migration execution uses Goose and PostgreSQL transactions; the repository uses row locking before checking the latest head. References: https://kysely.dev/docs/getting-started and https://www.postgresql.org/docs/18/explicit-locking.html.
+
+## Goose commands and rollback
+
+Run from the repository root with DATABASE_URL set:
+
+```powershell
+npm run db:migrate:validate
+npm run db:migrate:status
+npm run db:migrate:up
+npm run db:migrate:down
+```
+
+`down` rolls back only the latest applied migration. To roll back every migration on a **disposable local/test database**, use `node scripts/goose.mjs down-to 0`. Down drops the relevant tables and their data; it is not project undo and cannot restore deleted data. Stop the application before migrating down. Ordinary project history remains immutable while the application runs. No Down is executed automatically.
+
+Direct Goose commands are also supported:
+
+```powershell
+$env:GOOSE_DRIVER = "postgres"
+$env:GOOSE_DBSTRING = $env:DATABASE_URL
+goose -dir db/migrations up
+goose -dir db/migrations status
+goose -dir db/migrations down
+```
+
+| Version | SQL file | Scope |
+| --- | --- | --- |
+| 1 | `00001_project_revisions.sql` | Existing project/revision/save-request foundation |
+| 2 | `00002_review_apply.sql` | Batch/proposal/review/validation/Apply and restore provenance |
+| 3 | `00003_compile_export_audit.sql` | Compile, export checkpoints/events/bytes, audit and general request deduplication |
+| 4 | `00004_poc_evidence.sql` | Fixtures/files/runs/expected-actual IR/compatibility and latest-results view |
+
+SQL owns table boundaries, ownership FKs, append-only history and selected sealing constraints. Application-level authorization, dependency validation, atomic Apply/head publication and metadata-equivalent Compile reuse still require the upcoming repositories/APIs. PostgREST has no evidence grants yet. `compile_diagnostics` is a view over validation diagnostics, not a duplicate table. The four migrations create 27 domain tables.
+
+Down uses explicit dependency order without CASCADE. Version 2 refuses rollback if Apply/restore/schema-migration origins would become invalid under version 1; the whole Down transaction rolls back. Reapplying empty-schema Up after Down is tested. Goose `validate` checks migration structure without connecting to a database.
+
+### Existing Kysely database
+
+If you already ran the previous `001-project-revisions` Kysely migration, do not run Goose Up immediately against it. Stop the application, back up your local database, then run:
+
+```powershell
+npm run db:migrate:adopt
+npm run db:migrate:status
+npm run db:migrate:up
+```
+
+Adoption compares the existing foundation's columns, constraints, indexes, triggers and functions to migration 1 inside a transaction. It preserves project/revision/save-request rows and only records Goose versions 0/1 after an exact match. Schema drift or existing Goose history causes refusal with no committed changes. Old Kysely bookkeeping remains as provenance; Goose becomes the only production migration runner. Fresh databases skip adoption.
+
+Embedded tests execute the SQL Up/Down sections transactionally, including adoption, rollback refusal, export checkpoint uniqueness and immutable/checksummed evidence bytes. Goose v3.28.0 CLI validation is also checked. Native Goose execution and PostgreSQL 18.6 multi-session behavior require the local database; embedded SQL tests do not claim that coverage.
+
+For the actual Goose CLI round trip, create a separate fresh disposable database (the test refuses existing app/evidence or migration history):
+
+```powershell
+docker compose -f compose.local.yaml exec postgres createdb -U plc_local plc_ladder_goose_test
+$env:TEST_GOOSE_DATABASE_URL = "postgresql://plc_local:plc_local_dev@127.0.0.1:54329/plc_ladder_goose_test?sslmode=disable"
+npm run db:test
+Remove-Item Env:TEST_GOOSE_DATABASE_URL
+```
+
+This opt-in test runs the real Goose binary through Up, repeated Up, Status, Down, Up, Down-to-0 and Up. It retains its final schema for inspection; use a fresh database for a later rerun. It is skipped unless TEST_GOOSE_DATABASE_URL is set. GOOSE_BIN/PATH must provide the CLI.

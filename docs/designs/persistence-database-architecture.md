@@ -1,6 +1,6 @@
 # V1 Persistence / Database Architecture
 
-**Status:** Design prepared for implementation review; six foundational decisions confirmed by the user. Not implemented.  
+**Status:** Design accepted; project/revision API and Web autosave implemented, domain SQL schema supplied as Goose migrations. Other workflow APIs remain pending.
 **Version:** 1.0  
 **Date:** 2026-10-01  
 **Canonical destination:** `docs/designs/persistence-database-architecture.md`  
@@ -14,7 +14,7 @@ PostgreSQL is authoritative durable storage for V1 projects, canonical Ladder IR
 
 One Fastify application owns domain operations and accesses PostgreSQL through Kysely + pg. PostgREST provides a restricted evidence and retained-artifact data path; it cannot mutate application project heads or approve/apply AI proposals. No additional domain microservices, heavy ORM, multi-user account system or SaaS tenancy model is introduced.
 
-This document defines logical tables, constraints, invariants and transaction boundaries. It does not create SQL migrations, modify application code, schedule backups, establish a roadmap or settle unproven IDE compatibility. Names are intended schema names; SQL types and constraints below are design specifications rather than executable DDL.
+This document defines logical tables, constraints, invariants and transaction boundaries. It does not create SQL migrations, modify application code, schedule backups, establish a roadmap or settle unproven IDE compatibility. Executable DDL now lives in `db/migrations/00001_*.sql` through `00004_*.sql`, managed exclusively by Goose. See the [local persistence guide](../guides/local-postgresql-persistence.md) for Up/Down and existing-database adoption. The schema does not by itself implement domain workflow APIs, authorization, Apply transactions or PostgREST ingestion.
 
 ## 2. Confirmed foundational decisions
 

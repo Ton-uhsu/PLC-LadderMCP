@@ -13,7 +13,7 @@
     "server": "tsx src/server.ts",
     "test:smoke": "tsx src/project.smoke-runner.ts",
     "test:e2e": "tsx src/http.e2e.ts",
-    "db:migrate": "tsx src/persistence/migrate.ts",
+    "db:migrate": "node ../../scripts/goose.mjs up",
     "test:persistence": "node --import tsx --test src/persistence/*.test.ts"
   },
   "dependencies": {

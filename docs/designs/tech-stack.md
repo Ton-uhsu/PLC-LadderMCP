@@ -36,6 +36,7 @@ This document defines the V1 technology baseline after the Requirements Freeze. 
 | MCP transport | Streamable HTTP | Primary remote MCP transport |
 | Database | PostgreSQL 18.6 | Durable projects, revisions, review state, compile/export history, POC evidence |
 | SQL access | Kysely + `pg` | Type-safe SQL/query layer without a heavy active-record ORM |
+| Database migrations | Goose SQL CLI (validated with v3.28.0) | Versioned Up/Down SQL; separate schema-owner operation |
 | Evidence API | PostgREST 16 | Requirement-driven PostgreSQL/PostgREST path for POC/evidence data |
 | Unit/integration tests | Vitest 5 | TypeScript/Node/Web package testing |
 | Browser E2E | Playwright | Human Review, Compile, Export, auth, and critical browser flows |
@@ -368,6 +369,8 @@ PostgreSQL should persist at least the durable data required by the frozen requi
 ### 10.2 SQL access
 
 Application business logic uses **Kysely + `pg`**.
+
+Schema migrations use **Goose** over the SQL files in `db/migrations/`. Goose is the sole production migration runner; Kysely remains the application query layer. Up/Down execute explicitly with schema-owner credentials, never during server startup. Down may delete historical data and is intended for disposable local/test rollback, not project undo. See the [local persistence guide](../guides/local-postgresql-persistence.md) for commands and adoption of the previous Kysely foundation.
 
 Reasons:
 

@@ -13,9 +13,14 @@
     "mcp:e2e": "npm --workspace services/mcp-server run test:e2e",
     "db:up": "docker compose -f compose.local.yaml up -d --wait",
     "db:stop": "docker compose -f compose.local.yaml stop",
-    "db:migrate": "npm --workspace services/mcp-server run db:migrate",
+    "db:migrate": "npm run db:migrate:up",
     "db:test": "npm --workspace services/mcp-server run test:persistence",
-    "web:test": "node --import tsx --test apps/web/tests/*.test.ts"
+    "web:test": "node --import tsx --test apps/web/tests/*.test.ts",
+    "db:migrate:up": "node scripts/goose.mjs up",
+    "db:migrate:down": "node scripts/goose.mjs down",
+    "db:migrate:status": "node scripts/goose.mjs status",
+    "db:migrate:adopt": "node scripts/adopt-kysely.mjs",
+    "db:migrate:validate": "node scripts/goose.mjs validate"
   },
   "workspaces": [
     "apps/*",

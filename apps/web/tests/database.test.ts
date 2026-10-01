@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { Kysely, PGliteDialect } from 'kysely';
 import { PGlite } from '@electric-sql/pglite';
 import { ProjectRepository } from '../../../services/mcp-server/src/persistence/projects.ts';
-import { migrateDatabase } from '../../../services/mcp-server/src/persistence/migrate.ts';
+import { migrateDatabase } from '../../../services/mcp-server/src/persistence/test-support/migrations.ts';
 import type { Database } from '../../../services/mcp-server/src/persistence/database.ts';
 import { DurableWorkspace, ApiError, type ProjectApi } from '../src/persistence/workspace.ts';
 test('Web workspace reopens saved PostgreSQL state and detects another client', async () => {

@@ -29,3 +29,7 @@ PLC-LadderMCP documentation is organized by canonical ownership.
 
 ## Local development guides
 - [`guides/local-postgresql-persistence.md`](./guides/local-postgresql-persistence.md) — local database setup, revision API and verification.
+
+## Local development guides
+
+- [Local PostgreSQL persistence](./guides/local-postgresql-persistence.md) — local database, Goose Up/Down, existing Kysely adoption and verification.
