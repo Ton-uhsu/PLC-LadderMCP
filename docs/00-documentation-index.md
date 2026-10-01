@@ -12,6 +12,8 @@ PLC-LadderMCP documentation is organized by canonical ownership.
 - `designs/deployment-architecture.md` — Jenkins/GHCR/kubeadm Kubernetes/Gateway API production topology.
 - `designs/authentication-access-control.md` — human versus machine authentication boundaries.
 
+- [`designs/persistence-database-architecture.md`](./designs/persistence-database-architecture.md) — V1 PostgreSQL model, immutable revisions, review lifecycle, compile/export traceability, and evidence storage.
+
 ## Contracts, research, and evidence
 - `contracts/fx3u-capability-catalog.md`
 - `research/plc-ide-import-export.md`

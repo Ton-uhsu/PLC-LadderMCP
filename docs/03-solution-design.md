@@ -171,6 +171,8 @@ Local filesystem JSON may remain temporarily for development/import compatibilit
 - [`designs/deployment-architecture.md`](./designs/deployment-architecture.md) — Kubernetes/Jenkins/GHCR/Gateway API production topology.
 - [`designs/authentication-access-control.md`](./designs/authentication-access-control.md) — human versus machine authentication boundaries.
 
+- [`designs/persistence-database-architecture.md`](./designs/persistence-database-architecture.md) — V1 PostgreSQL domain model, immutable revisions, Human Review, Apply transactions, compile/export lineage, and POC evidence.
+
 ## Contracts, research, and evidence
 
 - [`contracts/fx3u-capability-catalog.md`](./contracts/fx3u-capability-catalog.md)
