@@ -17,9 +17,11 @@ test('Web workspace reopens saved PostgreSQL state and detects another client', 
     };
     const first = new DurableWorkspace(api, 60_000); await first.create('Local project');
     const id = first.state.projectId!; const edited = structuredClone(first.state.project!);
-    edited.programs[0].networks[0].comment = 'Saved comment'; first.edit(edited); await first.flush();
+    edited.programs[0].networks[0].comment = 'Saved comment'; first.edit(edited); first.editDefaultTarget('gxworks2'); await first.flush();
     const reopened = new DurableWorkspace(api, 60_000); await reopened.refresh(); await reopened.select(id);
+    assert.equal(reopened.state.defaultExportTarget, 'gxworks2');
     assert.equal(reopened.state.project!.programs[0].networks[0].comment, 'Saved comment');
+    assert.equal((await repository.read(id, '1')).default_export_target, null);
     assert.equal((await repository.read(id, '1')).ir_snapshot.programs[0].networks[0].comment, undefined);
     const remote = structuredClone(reopened.state.project!); remote.name = 'Remote rename'; reopened.edit(remote); await reopened.flush();
     const stale = structuredClone(first.state.project!); stale.name = 'Stale rename'; first.edit(stale);

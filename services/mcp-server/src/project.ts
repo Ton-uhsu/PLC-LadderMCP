@@ -10,6 +10,8 @@ import { copyFileSync, existsSync, mkdirSync, readFileSync, readdirSync, writeFi
 import { basename, dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
+import { hash, snapshotSchema } from "./persistence/snapshot.js";
+
 const dev = (address: string) => ({ kind: "device" as const, address });
 
 const DEFAULT_DATA_DIR = fileURLToPath(new URL("../../../.plc-ladder/", import.meta.url));
@@ -1358,4 +1360,13 @@ function assertNonNegativeInteger(value: number, name: string) {
 
 function samDevice(device: string) {
   return device.replace(/^([A-Z]+)0+(\d+)$/, "$1$2");
+}
+
+// Human-only legacy development edit. The application server authenticates this route.
+// Preserve pending proposals so their existing stale check can reject an outdated base.
+export function saveManualProject(baseSnapshot: unknown, snapshot: unknown) {
+  const next = snapshotSchema.parse(snapshot);
+  if (hash(baseSnapshot) !== hash(project)) throw new Error("STALE_MANUAL_PROJECT");
+  if (hash(next) !== hash(project)) commitProject(next, "manual_project_edit", "Manual project/network edit", "direct");
+  return { project: getProject(), history: getHistory() };
 }

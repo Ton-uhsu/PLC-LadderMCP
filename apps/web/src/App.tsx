@@ -13,6 +13,8 @@ import {
   getPreviewNetwork,
   validateProject,
 } from "./ladder";
+import { ProjectSettings } from "./projects/ProjectSettings";
+import { NetworkControls } from "./projects/NetworkControls";
 import { ManualEditor } from "./persistence/ManualEditor";
 import { useProjectStore } from "./store";
 
@@ -306,6 +308,7 @@ function HistoryPanel() {
 
 export default function App() {
   const storageMode = useProjectStore(s => s.storageMode);
+  const defaultExportTarget = useProjectStore(s => s.defaultExportTarget);
   const projectId = useProjectStore(s => s.projectId);
   const revision = useProjectStore(s => s.revision);
   const saveStatus = useProjectStore(s => s.saveStatus);
@@ -337,6 +340,13 @@ export default function App() {
   const [saveName, setSaveName] = useState(project.name);
   const [savedSelection, setSavedSelection] = useState("");
   const importRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    setSavedSelection(projectId ?? "");
+  }, [projectId]);
+  useEffect(() => {
+    setVendor(defaultExportTarget === "gxworks2" ? "GX Works2" : "SamSoar2022");
+  }, [projectId, defaultExportTarget]);
 
   useEffect(() => {
     setSaveName(project.name);
@@ -380,7 +390,7 @@ export default function App() {
         })}
       </nav>
       <div className="sidebar-bottom">
-        <button><Settings2 size={17}/> Project settings</button>
+        <button className={active === "Project settings" ? "nav-active" : ""} onClick={() => setActive("Project settings")}><Settings2 size={17}/> Project settings</button>
         <div className="engine">
           <span className="status-dot"/>
           <div><b>Engine ready</b><small>IR schema v0.2 · shared FX3U compiler</small></div>
@@ -446,7 +456,7 @@ export default function App() {
             } catch (error) { alert("Server connection failed: " + String(error)); }
           }, 0);
         }}>Connect server</button>
-        <button className="ghost" onClick={() => syncProject().catch(error => alert(String(error)))}>Sync now</button>
+        <button className="ghost" disabled={switching} onClick={() => syncProject().catch(error => alert(String(error)))}>Sync now</button>
         <span className={connected ? "server-online" : "server-offline"}>{connected ? "SERVER CONNECTED" : "LOCAL / DEMO"}</span>
       </div>
 
@@ -455,24 +465,25 @@ export default function App() {
           <div className="panel-head">
             <div>
               <span className="kicker">{active === "IR / JSON" ? "CANONICAL SOURCE" : active === "AI Changes" ? "HUMAN REVIEW" : active === "History" ? "CHANGE LOG" : `NETWORK ${network?.id ?? "—"}`}</span>
-              <h2>{active === "IR / JSON" ? "Ladder IR v0.2 / JSON" : active === "AI Changes" ? "AI Changes" : active === "History" ? "History / Undo / Redo" : "Main Ladder"}</h2>
+              <h2>{active === "IR / JSON" ? "Ladder IR v0.2 / JSON" : active === "AI Changes" ? "AI Changes" : active === "History" ? "History / Undo / Redo" : active === "Project settings" ? "Project settings" : "Main Ladder"}</h2>
             </div>
             <div className="badge"><Activity size={14}/> LIVE IR PREVIEW</div>
           </div>
 
           {(active === "Ladder" || active === "IR / JSON" || active === "Validation") && <div className="network-tabs">
-            {program?.networks.map(item => {
+            {program?.networks.map((item, position) => {
               const networkValid = validateProject({
                 ...project,
                 programs: [{ ...program, networks: [item] }],
               }).valid;
               return <button
                 key={item.id}
+                disabled={switching}
                 className={item.id === network?.id ? "network-tab active" : "network-tab"}
                 onClick={() => selectNetwork(item.id)}
               >
                 <div className="network-tab-title">
-                  <b>Network {item.id}</b>
+                  <b>{position + 1}. Network {item.id}</b>
                   <i className={networkValid ? "network-state valid" : "network-state invalid"}>{networkValid ? "VALID" : "INVALID"}</i>
                 </div>
                 <span>{item.comment || "No comment"}</span>
@@ -480,7 +491,9 @@ export default function App() {
             })}
           </div>}
 
-          {active === "IR / JSON"
+          {active === "Project settings"
+            ? <ProjectSettings/>
+            : active === "IR / JSON"
             ? <pre className="json-view">{JSON.stringify(project, null, 2)}</pre>
             : active === "AI Changes"
               ? <>{storageMode === "database" ? <div className="changes-empty">AI review for this saved project will be available after batch persistence integration.</div> : <AIChangesPanel/>}</>
@@ -488,9 +501,11 @@ export default function App() {
                 ? <HistoryPanel/>
                 : <div className="canvas"><LadderPreview/></div>}
 
+          {active === "Ladder" && <NetworkControls/>}
+
           {storageMode === "database" && active === "Ladder" && <ManualEditor/>}
 
-          {active !== "AI Changes" && active !== "History" && <div className="network-note">
+          {active !== "AI Changes" && active !== "History" && active !== "Project settings" && <div className="network-note">
             <CircleDot size={14}/>
             <span><b>Network {network?.id ?? "—"}</b> — <code>{preview?.conditionText || contactSummary}</code> drives <code>{outputSummary}</code>.</span>
           </div>}
@@ -502,7 +517,7 @@ export default function App() {
               <div><span className="kicker">VENDOR OUTPUT</span><h2>Export</h2></div>
               <FileCode2 size={20}/>
             </div>
-            <label>Target IDE</label>
+            <label>Target IDE · export override</label>
             <div className="select-wrap">
               <select value={vendor} onChange={e => setVendor(e.target.value as Vendor)}>
                 <option>SamSoar2022</option>

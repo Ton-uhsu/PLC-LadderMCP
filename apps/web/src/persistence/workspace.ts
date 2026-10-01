@@ -1,7 +1,9 @@
 import type { LadderProjectV02 } from '@plc-ladder-mcp/ladder-ir';
+export type ExportTarget = 'gxworks2' | 'samsoar2022' | null;
+type Draft = { project: LadderProjectV02; defaultExportTarget: ExportTarget };
 export type ProjectSummary = { id: string; name: string; revision_no: string };
-export type Revision = { project_id: string; revision_no: string; ir_snapshot: LadderProjectV02 };
-export type SaveBody = { baseRevision: string; requestId: string; snapshot: LadderProjectV02 };
+export type Revision = { project_id: string; revision_no: string; ir_snapshot: LadderProjectV02; default_export_target?: ExportTarget };
+export type SaveBody = { baseRevision: string; requestId: string; snapshot: LadderProjectV02; defaultExportTarget?: ExportTarget };
 export interface ProjectApi {
   list(): Promise<ProjectSummary[]>;
   read(id: string): Promise<Revision>;
@@ -13,15 +15,15 @@ export class ApiError extends Error {
 }
 export type WorkspaceState = {
   projectId: string | null; revision: string | null; project: LadderProjectV02 | null;
-  projects: ProjectSummary[]; dirty: boolean; switching: boolean;
+  defaultExportTarget: ExportTarget; projects: ProjectSummary[]; dirty: boolean; switching: boolean;
   saveStatus: 'saved' | 'pending' | 'saving' | 'error' | 'conflict'; error: string;
-  undo: LadderProjectV02[]; redo: LadderProjectV02[];
+  undo: Draft[]; redo: Draft[];
 };
 
 // One serialized save stream. Each transport retry retains the exact key/body.
 export class DurableWorkspace {
   state: WorkspaceState = { projectId: null, revision: null, project: null, projects: [],
-    dirty: false, switching: false, saveStatus: 'saved', error: '', undo: [], redo: [] };
+    defaultExportTarget: null, dirty: false, switching: false, saveStatus: 'saved', error: '', undo: [], redo: [] };
   private listeners = new Set<(state: WorkspaceState) => void>();
   private timer: ReturnType<typeof setTimeout> | undefined;
   private job: { id: string; body: SaveBody } | undefined;
@@ -39,27 +41,44 @@ export class DurableWorkspace {
   reset() {
     this.suspend(); this.job = undefined;
     this.update({ projectId: null, revision: null, project: null, projects: [], dirty: false,
-      switching: false, saveStatus: 'saved', error: '', undo: [], redo: [] });
+      defaultExportTarget: null, switching: false, saveStatus: 'saved', error: '', undo: [], redo: [] });
   }
   async refresh() { const epoch = this.epoch; const projects = await this.api.list(); if (epoch === this.epoch) this.update({ projects }); }
   edit(project: LadderProjectV02, recordUndo = true) {
     if (!this.state.projectId || this.state.switching) throw new Error('Select a project before editing.');
     if (JSON.stringify(project) === JSON.stringify(this.state.project)) return;
     this.update({ project: structuredClone(project), dirty: true,
-      ...(recordUndo ? { undo: [...this.state.undo.slice(-49), structuredClone(this.state.project!)], redo: [] } : {}),
+      ...(recordUndo ? { undo: [...this.state.undo.slice(-49), this.frame()], redo: [] } : {}),
+      ...(this.state.saveStatus === 'conflict' ? {} : { saveStatus: 'pending' }) });
+    this.cancelTimer();
+    if (this.state.saveStatus !== 'conflict') this.timer = setTimeout(() => { void this.flush().catch(() => undefined); }, this.delay);
+  }
+  private frame(): Draft { return { project: structuredClone(this.state.project!), defaultExportTarget: this.state.defaultExportTarget }; }
+  editDefaultTarget(target: ExportTarget) {
+    if (!this.state.projectId || this.state.switching) throw new Error('Select a project before editing.');
+    if (target === this.state.defaultExportTarget) return;
+    this.update({ undo: [...this.state.undo.slice(-49), this.frame()], redo: [], defaultExportTarget: target, dirty: true,
       ...(this.state.saveStatus === 'conflict' ? {} : { saveStatus: 'pending' }) });
     this.cancelTimer();
     if (this.state.saveStatus !== 'conflict') this.timer = setTimeout(() => { void this.flush().catch(() => undefined); }, this.delay);
   }
   undo() {
     const previous = this.state.undo.at(-1); if (!previous || this.state.switching) return;
-    const current = this.state.project!; const undo = this.state.undo.slice(0, -1);
-    this.edit(previous, false); this.update({ undo, redo: [...this.state.redo, current] });
+    const current = this.frame(); const undo = this.state.undo.slice(0, -1);
+    this.restoreDraft(previous); this.update({ undo, redo: [...this.state.redo, current] });
   }
   redo() {
     const next = this.state.redo.at(-1); if (!next || this.state.switching) return;
-    const current = this.state.project!; const redo = this.state.redo.slice(0, -1);
-    this.edit(next, false); this.update({ redo, undo: [...this.state.undo, current] });
+    const current = this.frame(); const redo = this.state.redo.slice(0, -1);
+    this.restoreDraft(next); this.update({ redo, undo: [...this.state.undo, current] });
+  }
+  private restoreDraft(draft: Draft) {
+    this.update({ defaultExportTarget: draft.defaultExportTarget });
+    this.edit(draft.project, false);
+    // Settings-only undo also needs a save when the IR itself did not change.
+    this.update({ dirty: true, ...(this.state.saveStatus === 'conflict' ? {} : { saveStatus: 'pending' }) });
+    this.cancelTimer();
+    if (this.state.saveStatus !== 'conflict') this.timer = setTimeout(() => { void this.flush().catch(() => undefined); }, this.delay);
   }
   async flush(): Promise<void> {
     this.cancelTimer();
@@ -69,7 +88,7 @@ export class DurableWorkspace {
     const run = async () => {
       while (this.state.dirty && epoch === this.epoch) {
         if (!this.job) this.job = { id: this.state.projectId!, body: {
-          baseRevision: this.state.revision!, requestId: crypto.randomUUID(), snapshot: structuredClone(this.state.project!),
+          baseRevision: this.state.revision!, requestId: crypto.randomUUID(), snapshot: structuredClone(this.state.project!), defaultExportTarget: this.state.defaultExportTarget,
         } };
         const job = this.job;
         this.update({ saveStatus: 'saving', error: '' });
@@ -78,7 +97,7 @@ export class DurableWorkspace {
           if (epoch !== this.epoch) return;
           if (saved.project_id !== job.id) throw new Error('Unexpected project returned by save.');
           this.job = undefined;
-          const dirty = JSON.stringify(this.state.project) !== JSON.stringify(job.body.snapshot);
+          const dirty = JSON.stringify(this.state.project) !== JSON.stringify(job.body.snapshot) || this.state.defaultExportTarget !== job.body.defaultExportTarget;
           this.update({ revision: saved.revision_no, dirty, saveStatus: dirty ? 'pending' : 'saved', error: '',
             projects: this.state.projects.map(p => p.id === job.id ? { ...p, name: job.body.snapshot.name, revision_no: saved.revision_no } : p) });
         } catch (error) {
@@ -98,7 +117,7 @@ export class DurableWorkspace {
   }
   private adopt(revision: Revision) {
     this.job = undefined; this.epoch++;
-    this.update({ projectId: revision.project_id, revision: revision.revision_no, project: revision.ir_snapshot,
+    this.update({ projectId: revision.project_id, revision: revision.revision_no, project: revision.ir_snapshot, defaultExportTarget: revision.default_export_target ?? null,
       dirty: false, saveStatus: 'saved', error: '', undo: [], redo: [] });
   }
   async select(id: string) {

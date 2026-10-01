@@ -3,7 +3,7 @@
 **Status:** Partial
 **Assessment date:** 2026-10-01
 
-งาน UI ถัดไปตามที่ผู้ใช้ต้องการ; ยังไม่เริ่มแก้ UI ในรอบ roadmap
+Project settings/network controls ของ TASK-004 implement แล้ว; browser acceptance และ durable workflow context checks ยังรอ. งานถัดไปคือ structured editor/renderer ใน TASK-005.
 
 ## Dependency / exit gate
 

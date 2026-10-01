@@ -67,6 +67,15 @@ try {
   const authorized = await fetch(base + "/api/project", { headers: webAuth });
   assert.equal(authorized.status, 200);
 
+  const manualBase = await authorized.json() as any;
+  const manualNext = structuredClone(manualBase); manualNext.name = "Human network settings";
+  const manualRequest = { baseSnapshot: manualBase, snapshot: manualNext };
+  assert.equal((await fetch(base + "/api/manual/project", { method: "POST", headers: { ...machineAuth, "content-type": "application/json" }, body: JSON.stringify(manualRequest) })).status, 401);
+  const manual = await fetch(base + "/api/manual/project", { method: "POST", headers: { ...webAuth, "content-type": "application/json" }, body: JSON.stringify(manualRequest) });
+  assert.equal(manual.status, 200);
+  assert.equal((await manual.json() as any).project.name, "Human network settings");
+  assert.equal((await fetch(base + "/api/manual/project", { method: "POST", headers: { ...webAuth, "content-type": "application/json" }, body: JSON.stringify(manualRequest) })).status, 409);
+
   const client = new Client({ name: "plc-ladder-e2e", version: "1.0.0" });
   const transport = new StreamableHTTPClientTransport(new URL(base + "/mcp"), {
     requestInit: { headers: machineAuth },

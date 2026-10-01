@@ -2,7 +2,14 @@
 
 ## Active
 
+None.
+
 ## Done
+- [x] WORK-004 | feat: project settings and network management | 2026-10-01 | feature | → owner: docs/roadmap/phase-02-local-ui/task-004-project-network-ui.md
+  - Delivered: settings/name/default target, stable-ID network controls, human-only stale-safe local manual edits and busy guards. No VPS or broad stack migration.
+  - Verified: Web tests 9/9; persistence tests 7 pass/2 native skipped; Web/backend builds, semantic smoke and HTTP auth/MCP E2E.
+  - Handoff: owning TASK-004 remains Partial for browser acceptance (Chromium download blocked) and durable Review/Compile context integration. Next implementation owner: TASK-005.
+
 - [x] WORK-001 — Local PostgreSQL project/revision foundation → owner: docs/designs/persistence-database-architecture.md
   - Scope: Kysely + pg, immutable versioned IR snapshots, optimistic save/read API, local Docker Compose and guide. No VPS/deployment or broad stack migration.
   - Requirements: REQ-016, REQ-023, REQ-033, REQ-040, REQ-041, REQ-095, REQ-097, REQ-111, REQ-150, REQ-156.

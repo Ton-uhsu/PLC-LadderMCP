@@ -61,3 +61,14 @@ test('burst edits debounce to one save; local undo creates another save', async 
   assert.equal(calls.length, 1); assert.equal(calls[0].body.snapshot.name, 'two');
   w.undo(); await w.flush(); assert.equal(w.state.project!.name, 'one'); assert.equal(w.state.revision, '3');
 });
+test('default-target edits during save serialize, retain retries and undo independently of PLC model', async () => {
+  const { workspace: w, api, calls } = setup(); await w.select('a');
+  const hold = gate(); const save = api.save; let first = true;
+  api.save = async (id, body) => { if (first) { first = false; await hold.promise; } return save(id, body); };
+  w.editDefaultTarget('gxworks2'); const saving = w.flush(); w.editDefaultTarget('samsoar2022'); hold.release(); await saving;
+  assert.deepEqual(calls.map(c => c.body.defaultExportTarget), ['gxworks2','samsoar2022']);
+  assert.equal(w.state.project!.plc.model, 'FX3U');
+  w.undo(); await w.flush(); assert.equal(w.state.defaultExportTarget, 'gxworks2');
+  w.redo(); await w.flush(); assert.equal(w.state.defaultExportTarget, 'samsoar2022');
+  await w.select('b'); assert.equal(w.state.defaultExportTarget, null); assert.equal(w.state.undo.length, 0);
+});

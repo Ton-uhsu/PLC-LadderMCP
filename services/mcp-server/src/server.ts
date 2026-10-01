@@ -1,6 +1,8 @@
 import http from "node:http";
 import { randomBytes } from "node:crypto";
 import { pathToFileURL, URL } from "node:url";
+import { saveManualProject } from "./project.js";
+import { z } from "zod";
 import { createHttpServer } from "./http.js";
 import { createWebAuth, type WebAuth } from "./auth/web-auth.js";
 
@@ -16,7 +18,11 @@ function bearerToken(req: http.IncomingMessage) {
 
 async function readJson(req: http.IncomingMessage) {
   const chunks: Buffer[] = [];
-  for await (const chunk of req) chunks.push(Buffer.from(chunk));
+  let length = 0;
+  for await (const chunk of req) {
+    length += Buffer.byteLength(chunk); if (length > 4 * 1024 * 1024) throw new Error("Request too large.");
+    chunks.push(Buffer.from(chunk));
+  }
   if (!chunks.length) return {};
   return JSON.parse(Buffer.concat(chunks).toString("utf8"));
 }
@@ -84,6 +90,18 @@ export function createApplicationServer(options: { token?: string; webAuth?: Web
           expires_at: new Date(session.exp * 1000).toISOString(),
           user: { username: session.sub, role: session.role },
         });
+      }
+
+      if (url.pathname === "/api/manual/project") {
+        if (!webAuth.verifySession(bearerToken(req))) return send(res, 401, { error: "Human Web login required." });
+        if (req.method !== "POST") return send(res, 405, { error: "POST required." });
+        if (options.projectRepository) return send(res, 409, { error: "Use the selected PostgreSQL project save API." });
+        const body = z.object({ baseSnapshot: z.unknown(), snapshot: z.unknown() }).strict().parse(await readJson(req));
+        try { return send(res, 200, saveManualProject(body.baseSnapshot, body.snapshot)); }
+        catch (error) {
+          if (error instanceof Error && error.message === "STALE_MANUAL_PROJECT") return send(res, 409, { error: "Project changed. Sync now before retrying this edit." });
+          throw error;
+        }
       }
 
       if (url.pathname === "/api/persistence/status" || url.pathname === "/api/persistence/projects" || url.pathname.startsWith("/api/persistence/projects/")) {
