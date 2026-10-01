@@ -302,6 +302,9 @@ Local server:
 http://localhost:3001
 ```
 
+`npm run server` loads the repository-root `.env` automatically when it exists.
+Variables already set in the shell take precedence over values from that file.
+
 Remote MCP endpoint:
 
 ```text

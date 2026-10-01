@@ -10,7 +10,7 @@
     "dev": "tsx src/index.ts",
     "build": "tsc -p tsconfig.json",
     "start": "node dist/index.js",
-    "server": "tsx src/server.ts",
+    "server": "node --env-file-if-exists=../../.env --import tsx src/server.ts",
     "test:smoke": "tsx src/project.smoke-runner.ts",
     "test:e2e": "tsx src/http.e2e.ts",
     "db:migrate": "node ../../scripts/goose.mjs up",

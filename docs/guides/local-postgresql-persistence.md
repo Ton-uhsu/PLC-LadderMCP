@@ -38,6 +38,11 @@ $env:PLC_LADDER_TOKEN = "local-machine-token"
 npm run server
 ```
 
+`npm run server` automatically loads the repository-root `.env` when present, so
+the values above can be stored there instead of exported for every terminal
+session. Environment variables already set in PowerShell take precedence. Database
+migration commands still require `DATABASE_URL` in their process environment.
+
 Migrations are explicit; server startup does not silently alter schemas. Running `db:migrate:up` again is safe; Goose records applied versions in `public.goose_db_version`. Do not run the removed Kysely migrator against this database. Use the local database owner for this development slice; separate restricted production roles are not configured here. Do not run it against a VPS database.
 
 `npm run db:stop` stops PostgreSQL without deleting its volume. Avoid `docker compose down -v` unless intentionally deleting local data. The server closes its pool on server close; ordinary process exit also releases connections.
