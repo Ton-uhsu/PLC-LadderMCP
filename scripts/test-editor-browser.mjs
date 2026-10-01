@@ -24,6 +24,7 @@ for(let mode=0;mode<2;mode++){
  await context.addInitScript(api=>localStorage.setItem('plc-ladder-api',api),api); const page=await context.newPage(); const errors=[]; page.on('pageerror',e=>errors.push(e.message));
  await page.goto('http://127.0.0.1:5189/PLC-LadderMCP/'); await page.getByLabel('Username').fill('admin'); await page.getByLabel('Password').fill('test'); await page.getByRole('button',{name:'Enter workspace'}).click();
  await page.getByRole('button',{name:'New project',exact:true}).waitFor(); page.once('dialog',d=>d.accept('Conveyor control'));await page.getByRole('button',{name:'New project',exact:true}).click(); await page.getByRole('heading',{name:'Conveyor control',exact:true}).waitFor();
+ await page.getByRole('button',{name:'Toggle entry mode',exact:true}).click(); await page.getByRole('button',{name:'Toggle properties',exact:true}).click();
  const add=async(tool,value)=>{await page.getByRole('button',{name:'Insert '+tool,exact:true}).click();await page.getByLabel('Element address or instruction').fill(value);await page.getByLabel('Element address or instruction').press('Enter');await page.locator('.editor-command-entry').waitFor({state:'hidden'});};
  await add('NO contact','X0'); await add('Output coil','Y0'); await add('Output coil','Y1');
  assert.equal(await page.locator('.editor-rung [data-node-id]').count(),3);
@@ -44,7 +45,7 @@ for(let mode=0;mode<2;mode++){
  const cell00=firstRung.locator('[data-cell-row="0"][data-cell-column="0"]').first();
  const cell02=firstRung.locator('[data-cell-row="0"][data-cell-column="2"]').first();
  await cell00.click(); await cell02.click({modifiers:['Shift']});
- await page.getByRole('status').filter({hasText:'3 cells selected'}).waitFor();
+ await page.waitForFunction(()=>document.querySelector('.editor-statusbar').textContent.includes('3 cells selected'));
  assert.equal(await firstRung.locator('.cell-range-selection').count(),1);
  await stage.focus(); await stage.press('Escape');
  await firstRung.locator('.cell-range-selection').waitFor({state:'hidden'});
@@ -53,10 +54,10 @@ for(let mode=0;mode<2;mode++){
  await page.mouse.down();
  await page.mouse.move(endBox.x+endBox.width/2,endBox.y+endBox.height/2,{steps:5});
  await page.mouse.up();
- await page.getByRole('status').filter({hasText:'3 cells selected'}).waitFor();
+ await page.waitForFunction(()=>document.querySelector('.editor-statusbar').textContent.includes('3 cells selected'));
  const beforeRangeDelete=await firstRung.locator('[data-node-id]').count();
  await stage.focus(); await stage.press('Delete');
- await page.waitForFunction(count=>document.querySelectorAll('.editor-rung:first-of-type [data-node-id]').length<count,beforeRangeDelete);
+ await page.waitForFunction(()=>[...document.querySelectorAll('.editor-rung:first-of-type [data-node-id]')].some(n=>n.getAttribute('aria-label')?.startsWith('Disconnected wire')));
  await page.waitForFunction(()=>!document.querySelector('[aria-label="Undo edit"]').disabled); await stage.press('Control+z');
  await page.waitForFunction(count=>document.querySelectorAll('.editor-rung:first-of-type [data-node-id]').length===count,beforeRangeDelete);
  // Real editor commands: copy/paste, cut/move identity, dialog, context menu and whole-rung duplicate.
@@ -137,7 +138,75 @@ for(let mode=0;mode<2;mode++){
   await page.getByRole('alert').filter({hasText:'restart npm run server'}).waitFor(); assert.equal(await page.locator('.editor-rung').first().locator('[data-node-id]').count(),beforeFailedEdit); await page.unroute('**/api/manual/project'); await page.getByRole('button',{name:'Cancel',exact:true}).click(); await page.getByRole('button',{name:'Dismiss',exact:true}).click();
  }
  await page.getByRole('button',{name:'Zoom out',exact:true}).click(); await page.screenshot({path:`${shots}/editor-workspace-${mode}.png`,fullPage:true});
- if(mode){await page.getByRole('status').filter({hasText:/saved/}).waitFor();await page.reload();await page.getByRole('heading',{name:'Conveyor control',exact:true}).waitFor();assert.equal(await page.locator('.editor-rung').count(),2);assert.ok(await page.locator('.editor-rung').first().locator('[data-node-id]').count()>=4);assert.equal(await page.locator('.editor-rung').nth(1).locator('[data-node-id][aria-label^="Disconnected wire"]').count(),0);}
+ if(mode){await page.locator('.editor-save-state').filter({hasText:/saved/}).waitFor();await page.reload();await page.getByRole('heading',{name:'Conveyor control',exact:true}).waitFor();assert.equal(await page.locator('.editor-rung').count(),2);assert.ok(await page.locator('.editor-rung').first().locator('[data-node-id]').count()>=4);assert.equal(await page.locator('.editor-rung').nth(1).locator('[data-node-id][aria-label^="Disconnected wire"]').count(),0);}
+ if((await page.getByRole('button',{name:'Toggle entry mode',exact:true}).textContent())==='Overwrite')await page.getByRole('button',{name:'Toggle entry mode',exact:true}).click();
+ // New workflow: rectangular clipboard -> exact Compile -> stale/failure navigation -> retained export.
+ page.once('dialog',d=>d.accept('Clipboard compile acceptance'));await page.getByRole('button',{name:'New project',exact:true}).click();
+ await page.getByRole('heading',{name:'Clipboard compile acceptance',exact:true}).waitFor();
+ await add('NO contact','X0');await add('Output coil','Y0');
+ const source=page.locator('.editor-rung').first();
+ await source.locator('[data-cell-row="0"][data-cell-column="0"]').first().click();
+ await source.locator('[data-cell-row="0"][data-cell-column="9"]').first().click({modifiers:['Shift']});
+ await page.waitForFunction(()=>document.querySelector('.editor-statusbar').textContent.includes('10 cells selected'));
+ await page.getByRole('button',{name:'Copy selection',exact:true}).click();
+ await page.getByRole('button',{name:'Network',exact:true}).click();await page.waitForFunction(()=>document.querySelectorAll('.editor-rung').length===2);
+ const destination=page.locator('.editor-rung').nth(1);
+ await destination.locator('[data-cell-row="0"][data-cell-column="0"]').first().click();
+ await page.getByRole('button',{name:'Paste selection',exact:true}).click();
+ await destination.getByText('OUT Y0',{exact:true}).waitFor();
+ await page.getByRole('button',{name:'Undo edit',exact:true}).click();await destination.getByText('OUT Y0',{exact:true}).waitFor({state:'hidden'});
+ await page.getByRole('button',{name:'Redo edit',exact:true}).click();await destination.getByText('OUT Y0',{exact:true}).waitFor();
+ // One atomic Cut and one Undo restores the complete selected range.
+ await destination.locator('[data-cell-row="0"][data-cell-column="0"]').first().click();
+ await destination.locator('[data-cell-row="0"][data-cell-column="9"]').first().click({modifiers:['Shift']});
+ await page.getByRole('button',{name:'Cut selection',exact:true}).click();await destination.getByText('OUT Y0',{exact:true}).waitFor({state:'hidden'});
+ await page.getByRole('button',{name:'Undo edit',exact:true}).click();await destination.getByText('OUT Y0',{exact:true}).waitFor();
+ await destination.locator('[data-cell-row="0"][data-cell-column="0"]').first().click();
+ await page.getByRole('button',{name:'Paste selection',exact:true}).click();
+ await page.getByRole('alert').filter({hasText:'overwrite a symbol'}).waitFor();
+ if(mode)await page.locator('.editor-save-state').filter({hasText:/saved/}).waitFor();
+ await page.getByRole('button',{name:'Compile project',exact:true}).click();
+ await page.getByRole('region',{name:'Compile diagnostics'}).getByText('Compile PASS',{exact:true}).waitFor();
+ // Deleting one padding cell invalidates the old Compile, and the next run locates the gap.
+ await destination.locator('[data-cell-row="0"][data-cell-column="1"]').first().click();await stage.focus();await stage.press('Delete');
+ await page.getByRole('region',{name:'Compile diagnostics'}).getByText('Compile Required · previous results are stale',{exact:true}).waitFor();
+ if(mode)await page.locator('.editor-save-state').filter({hasText:/saved/}).waitFor();
+ await page.getByRole('button',{name:'Compile project',exact:true}).click();
+ const diagnostics=page.getByRole('region',{name:'Compile diagnostics'});
+ await diagnostics.getByText('Compile FAIL',{exact:true}).waitFor();
+ await diagnostics.getByRole('button').filter({hasText:'DISCONNECTED_WIRE'}).click();
+ await destination.locator('.diagnostic-error-node').waitFor();
+ await page.screenshot({path:`${shots}/compile-diagnostic-${mode}.png`,fullPage:true});
+ await page.getByRole('button',{name:'Undo edit',exact:true}).click();if(mode)await page.locator('.editor-save-state').filter({hasText:/saved/}).waitFor();
+ await page.getByRole('button',{name:'Compile project',exact:true}).click();await diagnostics.getByText('Compile PASS',{exact:true}).waitFor();
+ await page.getByRole('button',{name:'Project / Export',exact:true}).click();
+ await page.locator('.export-card select').selectOption({label:'GX Works2'});if(mode)await page.getByLabel('Target IDE version').fill('Acceptance-test-version');
+ const downloadPromise=page.waitForEvent('download');await page.getByRole('button',{name:'Generate GX Works2 file',exact:true}).click();
+ const download=await downloadPromise;assert.equal(download.suggestedFilename(),'plc-ladder-gxworks2.csv');
+ const stream=await download.createReadStream(),chunks=[];for await(const c of stream)chunks.push(c);const bytes=Buffer.concat(chunks);assert.equal(bytes[0],255);assert.equal(bytes[1],254);assert.ok(bytes.toString('utf16le').includes('OUT'));
+ await page.screenshot({path:`${shots}/compile-export-${mode}.png`,fullPage:true});
+ if(mode){await page.reload();await page.getByRole('heading',{name:'Clipboard compile acceptance',exact:true}).waitFor();await page.getByRole('region',{name:'Compile diagnostics'}).getByText('Compile PASS',{exact:true}).waitFor();}
+ console.log(`PASS browser ${mode?'database':'local'} rectangular copy/cut/paste/atomic undo/collision/compile-stale-gap-navigation/export-download${mode?'/compile-history-reload':''}`);
+ // Cursor-first classic editor, independent of earlier insert-mode regression.
+ await page.getByRole('button',{name:'Project / Export',exact:true}).click();
+ page.once('dialog',d=>d.accept('Classic cursor acceptance'));await page.getByRole('button',{name:'New project',exact:true}).click();await page.getByRole('heading',{name:'Classic cursor acceptance',exact:true}).waitFor();
+ const toggle=page.getByRole('button',{name:'Toggle entry mode',exact:true});if((await toggle.textContent())==='Insert')await toggle.click();
+ const properties=page.getByRole('button',{name:'Toggle properties',exact:true});if(await properties.getAttribute('aria-pressed')==='true')await properties.click();
+ const classic=page.locator('.editor-rung').first();
+ await classic.locator('[data-cell-row="0"][data-cell-column="0"]').first().click();
+ const keyEntry=async(key,value)=>{await stage.focus();await stage.press(key);await page.getByRole('dialog',{name:'Enter symbol',exact:true}).waitFor();await page.getByLabel('Element address or instruction').fill(value);await page.getByLabel('Element address or instruction').press('Enter');await page.getByRole('dialog',{name:'Enter symbol',exact:true}).waitFor({state:'hidden'});};
+ await keyEntry('F5','X0');assert.ok((await page.locator('.editor-statusbar').textContent()).includes('Column 1'));
+ await keyEntry('F6','X1');await classic.getByText('NC X1',{exact:true}).waitFor();
+ await keyEntry('F7','Y0');await classic.getByText('OUT Y0',{exact:true}).waitFor();
+ await classic.locator('[data-cell-row="0"][data-cell-column="0"]').first().click();const originalId=await classic.getByText('NO X0',{exact:true}).locator('..').getAttribute('data-node-id');
+ await keyEntry('F5','X2');await classic.getByText('NO X2',{exact:true}).waitFor();assert.equal(await classic.getByText('NO X0',{exact:true}).count(),0);
+ await classic.locator('[data-cell-row="0"][data-cell-column="0"]').first().click();await stage.focus();await stage.press('Enter');const edit=page.getByRole('dialog',{name:'Edit symbol'});await edit.waitFor();await edit.getByLabel('Device',{exact:true}).fill('X3');await edit.getByRole('button',{name:'Update element',exact:true}).click();await classic.getByText('NO X3',{exact:true}).waitFor();
+ await stage.focus();await stage.press('Shift+ArrowRight');await page.waitForFunction(()=>document.querySelector('.editor-statusbar').textContent.includes('2 cells selected'));await stage.press('Escape');
+ await classic.locator('[data-cell-row="0"][data-cell-column="2"]').first().dblclick();await page.getByRole('dialog',{name:'Enter symbol',exact:true}).waitFor();await page.getByLabel('Element address or instruction').press('Escape');
+ await stage.focus();await stage.press('Insert');assert.equal(await toggle.textContent(),'Insert');await stage.press('Insert');assert.equal(await toggle.textContent(),'Overwrite');
+ await keyEntry('F8','MOV K100 D0');await classic.getByText('MOV K100 D0',{exact:true}).waitFor();
+ if(mode)await page.locator('.editor-save-state').filter({hasText:/saved/}).waitFor();
+ await page.screenshot({path:`${shots}/classic-cursor-${mode}.png`,fullPage:true});console.log(`PASS classic cursor ${mode?'database':'local'} F5/F6/F7/F8/overwrite/continue/Enter/doubleclick/Escape/Shift-arrows/Insert`);
  await page.setViewportSize({width:520,height:800}); await page.screenshot({path:`${shots}/editor-workspace-${mode}-520.png`,fullPage:true});
  await page.setViewportSize({width:1100,height:800}); await page.screenshot({path:`${shots}/editor-workspace-${mode}-1100.png`,fullPage:true});
  assert.deepEqual(errors,[]); console.log(`PASS browser ${mode?'PostgreSQL':'local'} insert/properties/branch/networks/clipboard/cut-identity/dialog/context-menu/duplicate/find/navigation/undo/redo/keyboard/zoom/cell-grid/coil-wires/ctrl-arrow-wires${mode?'/reload':'/old-backend-error'}`); await context.close();

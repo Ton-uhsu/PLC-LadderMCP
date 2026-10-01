@@ -15,8 +15,10 @@ Project settings/network controls ของ TASK-004 implement แล้ว; set
 | --- | --- | --- |
 | [TASK-004: Project และ network navigation/settings](./task-004-project-network-ui.md) | Partial | TASK-001, TASK-003 |
 | [TASK-005: Structured manual editor และ Ladder renderer](./task-005-structured-editor-renderer.md) | Partial | TASK-003, TASK-004 |
-| [TASK-006: Compile และ diagnostic navigation UI](./task-006-compile-diagnostics-ui.md) | Planned | TASK-005; completion ต้อง TASK-007 |
+| [TASK-006: Compile และ diagnostic navigation UI](./task-006-compile-diagnostics-ui.md) | Partial | TASK-005; completion ต้อง TASK-007 |
 
 Task files own scope, checks and evidence; this index is a navigation/status summary. Phase order is sequencing, not a claim that every earlier task is complete.
 
 [Project roadmap](../../02-project-roadmap.md)
+
+WORK-013 adds rectangular clipboard, server-side explicit Compile with durable saved-revision history and current-result export gating; native database and real IDE gates remain open.

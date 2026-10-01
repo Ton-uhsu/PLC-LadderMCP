@@ -9,7 +9,7 @@
 
 ## 1. Current focus
 
-ทำ local UI ใน **Phase 02** ต่อ: TASK-004 มี Project settings/network controls และ automated domain/API tests แล้ว; ยังรอ browser acceptance และ durable workflow context checks. TASK-005 มี canvas-first editor/recursive renderer พร้อม domain/SQL/browser tests แล้ว แต่ยัง Partial ตาม acceptance ที่เหลือ. งานถัดไปคือ **TASK-006 + TASK-007: explicit Compile และ diagnostics** ตาม dependencies. ยังไม่เริ่ม VPS deployment.
+ทำ local UI ใน **Phase 02** ต่อ: TASK-004 มี Project settings/network controls และ automated domain/API tests แล้ว; ยังรอ browser acceptance และ durable workflow context checks. TASK-005 มี canvas-first editor/recursive renderer พร้อม domain/SQL/browser tests แล้ว แต่ยัง Partial ตาม acceptance ที่เหลือ. WORK-013 เพิ่ม explicit Compile, diagnostics และ retained export slice แล้ว; WORK-014 ให้ความสำคัญกับ cursor-first editor แบบ GX Works2. TASK-006/007 ยัง Partial ตาม acceptance ที่เหลือ. ยังไม่เริ่ม VPS deployment.
 
 ผู้ใช้ต้องการทำ local/UI ก่อนงาน VPS. สามารถเตรียม UI layout, Ladder rendering, structured interactions และ tests ด้วย local dev ได้ก่อน Docker. แต่ UI ที่ต้องพึ่ง workflow API ต้องแสดง unavailable เมื่อ API ยังไม่มี; ไม่ใช้ fake Compile/Apply/Export success และไม่ถือ in-memory draft เป็น PostgreSQL autosave. **TEST-001 เป็น gate ก่อนยืนยัน native database integration ของ Phase 03/04** และก่อน release; สามารถเริ่ม Docker local verification เมื่อผู้ใช้พร้อมโดยไม่ต้องใช้ VPS
 
@@ -23,7 +23,7 @@
 | Project persistence | Kysely + pg, immutable IR v0.2 revisions, human API, UUID picker และ debounced serialized Web autosave | ทำงานเมื่อ DATABASE_URL พร้อม; native PostgreSQL tests ยังไม่รัน |
 | Database migrations | Goose Up/Down 4 ชุด, 27 domain tables, adoption จาก Kysely, CLI validate/embedded SQL tests | workflow APIs และ PostgREST roles/functions ยังขาด |
 | Ladder engine | IR v0.2, FX3U compiler/validator/capability catalog และ fixtures | V1 modeling/diagnostics/package separation ยังไม่ครบ |
-| Web | Login, project/network views, basic database manual editor, legacy AI review/history/export | legacy และ database workflows ยังแยกกัน; typed V1 instruction completeness/rendered review/Compile history ยังขาด; canvas/editor slice ผ่าน browser QA แล้ว; settings/default-target และ workflow integration ยังรอ |
+| Web | Login, project/network views, basic database manual editor, legacy AI review/history/export | legacy และ database workflows ยังแยกกัน; typed V1 instruction completeness/rendered review ยังขาด; revision-pinned Compile history slice มีแล้ว; canvas/editor slice ผ่าน browser QA แล้ว; settings/default-target และ workflow integration ยังรอ |
 | IDE evidence | มีบันทึก real GX Works2 verification บาง topology/opcode/operand ใน canonical evidence | ไม่ใช่ blanket compatibility; import/SamSoar/round-trip scope ยัง Pending POC |
 | Production | GitHub Pages และ local backend เป็น development baseline | ยังไม่ใช่ V1 Jenkins/GHCR/Kubernetes production target |
 
@@ -37,7 +37,7 @@ Phase README เป็นเจ้าของ task index; task files เป็�
 | --- | --- | --- |
 | [01 — Foundation](./roadmap/phase-01-foundation/README.md) | Partial | IR/project/schema foundation + native PostgreSQL/Goose verification |
 | [02 — Local UI](./roadmap/phase-02-local-ui/README.md) | Partial; next focus | Project/network management, structured editor, topology-correct preview และ Compile diagnostic UX |
-| [03 — Durable workflows](./roadmap/phase-03-durable-workflows/README.md) | Planned; legacy prototypes exist | Exact-revision Compile, per-network Review, atomic Apply, restore และ audit |
+| [03 — Durable workflows](./roadmap/phase-03-durable-workflows/README.md) | Partial; Compile slice implemented | Exact-revision Compile, per-network Review, atomic Apply, restore และ audit |
 | [04 — IDE/evidence/export](./roadmap/phase-04-ide-evidence-export/README.md) | Partial | Fidelity-aware import, gated retained export และ PostgREST-backed POC evidence |
 | [05 — Stack/local containers](./roadmap/phase-05-stack-local-containers/README.md) | Planned | Accepted stack migration เป็น slices; local images/integration และ CI build assets |
 | [06 — VPS deployment](./roadmap/phase-06-vps-deployment/README.md) | Planned; not started | Jenkins/GHCR/kubeadm, staging/production, persistent storage, auth และ HTTPS |
@@ -94,3 +94,7 @@ Phase README เป็นเจ้าของ task index; task files เป็�
 - Update task evidence/status หลัง verification แล้ว update phase/project summary เท่าที่จำเป็น. Do not fabricate POC/native results or count procedure text as passed acceptance
 
 ใช้ [repo-docs-architect](https://github.com/Ton-uhsu/CODEX_SKILL/blob/main/repo-docs-architect/SKILL.md) สำหรับ document ownership และ [spec-architect](https://github.com/Ton-uhsu/CODEX_SKILL/blob/main/spec-architect/SKILL.md) สำหรับ implementation readiness/WORK handoff. Grilling ใช้เฉพาะ genuine unresolved requirement/design decisions; ไม่เริ่มเก็บ REQ ใหม่แทน frozen V1.0
+
+## 2026-10-01 — WORK-013 update
+
+Local/PGlite browser acceptance now covers range clipboard → explicit server Compile → diagnostics/navigation → GX download; database Compile runs/history and retained export events/artifacts are connected. TASK-005/006/007/011 remain Partial for their broader V1/native acceptance criteria. Next gates are native PostgreSQL/Goose and exact-version Windows IDE import/Convert/editability evidence; SamSoar's present intermediate CSV is not a native compatibility certificate. See the task owners and [editor design](./designs/ladder-wire-editing.md#work-013--rectangular-clipboard-and-explicit-compile-2026-10-01).

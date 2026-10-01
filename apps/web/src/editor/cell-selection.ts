@@ -1,5 +1,6 @@
 import {
   editStructured,
+  childNodes,
   listNodes,
   type LadderProjectV02,
 } from '@plc-ladder-mcp/ladder-ir';
@@ -67,6 +68,18 @@ export function clearCellRange(
   let next = project;
   let changed = false;
 
+  // Pin output padding before deleting its symbol, so losing containsAction does not
+  // pull its replacement gap left and collapse columns outside the selection.
+  for (const nodeId of removableNodes) {
+    const symbol = locations.find(candidate => candidate.node.id === nodeId)?.node;
+    if (symbol?.kind !== 'action') continue;
+    const occupied = layout.cells.filter(cell => cell.nodeId === nodeId);
+    for (const padding of layout.cells.filter(cell => !cell.nodeId && cell.slot?.connected && occupied.some(at => at.row === cell.row && cell.column < at.column))) {
+      const currentRoot = next.programs[0].networks.find(candidate => candidate.id === networkId)!.root;
+      const cell = layoutLadder(currentRoot).cells.find(candidate => candidate.row === padding.row && candidate.column === padding.column);
+      if (cell && !cell.nodeId && cell.slot) next = materializeCell(next,networkId,cell,id).project;
+    }
+  }
   // Materialize padding before removing symbols, while its original grid coordinates are stable.
   for (const point of projectedWires) {
     const currentNetwork = next.programs[0].networks.find((candidate) => candidate.id === networkId)!;
@@ -103,7 +116,15 @@ export function clearCellRange(
   for (const nodeId of removableNodes) {
     const currentRoot = next.programs[0].networks.find((candidate) => candidate.id === networkId)!.root;
     if (!listNodes(currentRoot).some((candidate) => candidate.node.id === nodeId && candidate.parent)) continue;
-    next = editStructured(next, networkId, { kind: 'remove', nodeId }).project;
+    // Keep the vacated cells in place so Cut/Paste cannot collapse the grid.
+    const span = layout.cells.filter(cell => cell.nodeId === nodeId).length;
+    next = structuredClone(next);
+    const nextRoot = next.programs[0].networks.find(candidate => candidate.id === networkId)!.root;
+    const target = listNodes(nextRoot).find(candidate => candidate.node.id === nodeId)!;
+    const gaps = Array.from({length: Math.max(1, span)}, () => ({kind: 'wire' as const, id: id(), connected: false}));
+    const siblings = childNodes(target.parent!)!;
+    if (target.parent!.kind === 'series') siblings.splice(target.index, 1, ...gaps);
+    else siblings[target.index] = gaps.length === 1 ? gaps[0] : {kind:'series',id:id(),children:gaps};
     changed = true;
   }
 

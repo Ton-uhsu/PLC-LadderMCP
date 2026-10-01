@@ -84,7 +84,9 @@ test("clears every symbol and wire in a rectangular range without touching anoth
         )
       : [],
     [
+      ["generated", "wire", false],
       ["wire-1", "wire", false],
+      ["generated", "wire", false],
       ["y0-node", "action"],
     ],
   );

@@ -19,14 +19,18 @@ Implementation anchors: `apps/web export; vendor adapters; app.export_*`. Reposi
 
 These checks operationalize the referenced frozen requirements; they do not add product scope. For Partial/Planned tasks, boxes remain unchecked until task-specific verification is recorded.
 
-- [ ] current successful Compile + exact-snapshot adapter gate
-- [ ] unsupported scope identified
-- [ ] same revision repeat export มี logical checkpoint เดียว
-- [ ] bytes/BOM/encoding/target/revision ตรง
-- [ ] failed export ไม่อ้าง success
+- [x] current successful Compile + exact-snapshot adapter gate
+- [x] unsupported scope identified
+- [x] same revision repeat export มี logical checkpoint เดียว
+- [x] bytes/BOM/encoding/target/revision ตรง
+- [x] failed export ไม่อ้าง success
 
 ## Verification / handoff
 
 Verify the relevant unit/domain/UI/HTTP behavior and race/error paths, then record dated evidence here or link the owning Test/evidence artifact. Real IDE compatibility requires real IDE evidence; generated output or schema existence alone is insufficient. Before source changes, use spec-architect readiness and open a WORK entry linking this task. Resolve contract details against canonical design before implementing; do not use illustrative UI fixture data as saved/compiled/applied state.
 
 [Phase index](./README.md) · [Project roadmap](../../02-project-roadmap.md)
+
+## WORK-013 evidence update — 2026-10-01
+
+Both local and database exports now call authenticated server-side gates. Database exports require the exact saved revision's passing Compile, run the adapter on that snapshot, retain immutable BOM/encoding/SHA-256 bytes, create one checkpoint per revision and idempotent event results, and download retained bytes to the browser. Adapter failures record FAILED with diagnostics and no artifact. PGlite SQL checks and browser GX download checks passed. SamSoar is labelled intermediate CSV with explicit scope rejection; no new real-IDE claim. Historical artifact browsing/retrieval, optional notes, native PostgreSQL/Goose and native IDE acceptance remain open.

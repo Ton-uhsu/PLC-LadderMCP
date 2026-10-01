@@ -1,6 +1,6 @@
 # TASK-006 — Compile และ diagnostic navigation UI
 
-**Status:** Planned
+**Status:** Partial
 **Requirements:** REQ-011–012, REQ-038, REQ-040, REQ-112–136, REQ-149
 **Dependencies:** TASK-005; completion ต้อง TASK-007
 **Assessment date:** 2026-10-01
@@ -19,15 +19,19 @@ Implementation anchors: `apps/web/src/App.tsx; shared validator`. Repository bas
 
 These checks operationalize the referenced frozen requirements; they do not add product scope. For Partial/Planned tasks, boxes remain unchecked until task-specific verification is recorded.
 
-- [ ] logic edit ทำผลเดิม stale
+- [x] logic edit ทำผลเดิม stale
 - [ ] ERROR/WARNING/INFO แยก
-- [ ] warning ไม่ block โดยอัตโนมัติ
-- [ ] diagnostic นำทางได้
-- [ ] unavailable API ไม่แสดง fake success
-- [ ] browser check ไม่แอบใช้เป็น export gate
+- [x] warning ไม่ block โดยอัตโนมัติ
+- [x] diagnostic นำทางได้
+- [x] unavailable API ไม่แสดง fake success
+- [x] browser check ไม่แอบใช้เป็น export gate
 
 ## Verification / handoff
 
 Verify the relevant unit/domain/UI/HTTP behavior and race/error paths, then record dated evidence here or link the owning Test/evidence artifact. Real IDE compatibility requires real IDE evidence; generated output or schema existence alone is insufficient. Before source changes, use spec-architect readiness and open a WORK entry linking this task. Resolve contract details against canonical design before implementing; do not use illustrative UI fixture data as saved/compiled/applied state.
 
 [Phase index](./README.md) · [Project roadmap](../../02-project-roadmap.md)
+
+## WORK-013 evidence update — 2026-10-01
+
+Shared explicit Compile API, saved-revision pinning, durable run/diagnostic/audit rows, history reload, canvas navigation/highlight and current/stale UI are implemented. Exact-revision export gates reject historical passes for newer heads. Unit/SQL and browser checks passed in local/PGlite modes; see [wire/editor design](../../designs/ladder-wire-editing.md#work-013--rectangular-clipboard-and-explicit-compile-2026-10-01) for evidence and limits. Native PostgreSQL/Goose, complete V1 typed semantics, metadata-equivalence reuse and crash/interruption recovery remain open, so this task stays Partial.

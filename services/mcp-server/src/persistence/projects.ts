@@ -1,3 +1,5 @@
+import { ExportRepository } from './export.js';
+import { CompileRepository } from './compile.js';
 import { randomUUID } from 'node:crypto';
 import { sql, type Kysely } from 'kysely';
 import type { Database } from './database.js';
@@ -8,6 +10,9 @@ export class ProjectStoreError extends Error {
 }
 export class ProjectRepository {
   constructor(private readonly db: Kysely<Database>) {}
+  compile(projectId:string,revision:string,actor:string,requestId:string){return new CompileRepository(this.db).run(projectId,revision,actor,requestId);}
+  export(projectId:string,input:Parameters<ExportRepository['run']>[1],actor:string){return new ExportRepository(this.db).run(projectId,input,actor);}
+  compileHistory(projectId:string){return new CompileRepository(this.db).history(projectId);}
   async create(snapshot: unknown, actor: string, target: unknown = null) {
     const ir = snapshotSchema.parse(snapshot); const defaultTarget = exportTargetSchema.parse(target);
     return this.db.transaction().execute(async trx => {

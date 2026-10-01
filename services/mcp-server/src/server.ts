@@ -1,7 +1,8 @@
 import http from "node:http";
 import { randomBytes } from "node:crypto";
 import { pathToFileURL, URL } from "node:url";
-import { saveManualProject } from "./project.js";
+import { compileWithDiagnostics, vendorArtifact } from "@plc-ladder-mcp/ladder-ir";
+import { getProject, saveManualProject } from "./project.js";
 import { z } from "zod";
 import { createHttpServer } from "./http.js";
 import { createWebAuth, type WebAuth } from "./auth/web-auth.js";
@@ -45,6 +46,7 @@ function generateMachineToken() {
 }
 
 export function createApplicationServer(options: { token?: string; webAuth?: WebAuth; projectRepository?: ProjectRepository } = {}) {
+  const localCompiles = new Map<string,{snapshot:string;status:string}>();
   const machineToken = options.token ?? process.env.PLC_LADDER_TOKEN?.trim() ?? "";
   const webAuth = options.webAuth ?? createWebAuth();
   const legacy = createHttpServer({ token: machineToken });
@@ -102,6 +104,28 @@ export function createApplicationServer(options: { token?: string; webAuth?: Web
           if (error instanceof Error && error.message === "STALE_MANUAL_PROJECT") return send(res, 409, { error: "Project changed. Sync now before retrying this edit." });
           throw error;
         }
+      }
+
+      if(url.pathname==='/api/manual/export'){
+        const session=webAuth.verifySession(bearerToken(req));if(!session)return send(res,401,{error:'Human Web login required.'});
+        if(req.method!=='POST')return send(res,405,{error:'POST required.'});
+        const body=z.object({compileId:z.string().min(1),target:z.enum(['gxworks2','samsoar2022'])}).strict().parse(await readJson(req));
+        const compile=localCompiles.get(`${session.sub}:${body.compileId}`),snapshot=getProject();
+        if(!compile || compile.status!=='PASS' || compile.snapshot!==JSON.stringify(snapshot))return send(res,409,{error:'COMPILE_REQUIRED'});
+        try{const artifact=vendorArtifact(snapshot,body.target);return send(res,200,{status:'SUCCESS',artifact:{filename:artifact.filename,mediaType:artifact.mediaType,encoding:artifact.encoding,base64:Buffer.from(artifact.bytes).toString('base64')}});}
+        catch(e){return send(res,422,{error:e instanceof Error?e.message:String(e)});}
+      }
+      if (url.pathname === '/api/manual/compile') {
+        const session = webAuth.verifySession(bearerToken(req));
+        if (!session) return send(res,401,{error:'Human Web login required.'});
+        if(req.method!=='POST')return send(res,405,{error:'POST required.'});
+        const body=z.object({snapshot:z.unknown()}).strict().parse(await readJson(req));
+        const snapshot=getProject();
+        if(JSON.stringify(body.snapshot)!==JSON.stringify(snapshot))return send(res,409,{error:'Project changed. Sync before Compile.'});
+        const report=compileWithDiagnostics(snapshot),id=randomBytes(16).toString('hex');
+        localCompiles.set(`${session.sub}:${id}`,{snapshot:JSON.stringify(snapshot),status:report.status});
+        if(localCompiles.size>100)localCompiles.delete(localCompiles.keys().next().value!);
+        return send(res,200,{...report,id,snapshot,startedAt:new Date().toISOString()});
       }
 
       if (url.pathname === "/api/persistence/status" || url.pathname === "/api/persistence/projects" || url.pathname.startsWith("/api/persistence/projects/")) {

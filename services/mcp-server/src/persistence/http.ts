@@ -23,6 +23,15 @@ export async function handleProjectPersistence(req: IncomingMessage, res: Server
       send(201, await store.create(body.snapshot, actor, body.defaultExportTarget)); return;
     }
     const projectId = uuid.parse(parts[0]);
+    if(parts.length===2 && parts[1]==='export' && req.method==='POST'){
+      const body=z.object({revision,compileId:uuid,target:z.enum(['gxworks2','samsoar2022']),ideVersion:z.string().min(1).max(100),requestId:z.string().min(1).max(200)}).strict().parse(await readBody(req));
+      send(200,await store.export(projectId,body,actor));return;
+    }
+    if(parts.length===2 && parts[1]==='compile' && req.method==='POST'){
+      const body=z.object({revision,requestId:z.string().min(1).max(200)}).strict().parse(await readBody(req));
+      send(200,await store.compile(projectId,body.revision,actor,body.requestId));return;
+    }
+    if(parts.length===2 && parts[1]==='compile' && req.method==='GET'){send(200,await store.compileHistory(projectId));return;}
     if (parts.length === 1 && req.method === 'GET') { send(200, await store.read(projectId)); return; }
     if (parts.length === 3 && parts[1] === 'revisions' && req.method === 'GET') {
       send(200, await store.read(projectId, revision.parse(parts[2]))); return;
@@ -34,6 +43,7 @@ export async function handleProjectPersistence(req: IncomingMessage, res: Server
     send(404, { error: 'NOT_FOUND' });
   } catch (error) {
     if (error instanceof ProjectStoreError) send(error.code === 'NOT_FOUND' ? 404 : 409, { error: error.code, currentRevision: error.currentRevision });
+    else if (error instanceof Error && error.message === 'COMPILE_REQUIRED') send(409,{error:'COMPILE_REQUIRED'});
     else if (error instanceof z.ZodError || error instanceof SyntaxError) send(400, { error: 'INVALID_REQUEST' });
     else if (error instanceof Error && error.message === 'PAYLOAD_TOO_LARGE') send(413, { error: 'PAYLOAD_TOO_LARGE' });
     else send(503, { error: 'PERSISTENCE_UNAVAILABLE' });

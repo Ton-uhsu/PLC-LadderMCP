@@ -1,3 +1,4 @@
+import { useCompileState, currentCompile } from './editor/compile-state';
 import { listNodes, parseGxWorks2ListText } from "@plc-ladder-mcp/ladder-ir";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
@@ -7,8 +8,6 @@ import {
 import {
   downloadBytes,
   downloadText,
-  generateGxWorks2,
-  generateSamSoar,
   validateProject,
 } from "./ladder";
 import { ProjectSettings } from "./projects/ProjectSettings";
@@ -212,6 +211,10 @@ function HistoryPanel() {
 
 
 export default function App() {
+  const workspace = useProjectStore();
+  const compileState = useCompileState();
+  const exportEligible = currentCompile(workspace,compileState.run) && compileState.run?.status === "PASS";
+  const [exportError,setExportError] = useState("");
   const storageMode = useProjectStore(s => s.storageMode);
   const defaultExportTarget = useProjectStore(s => s.defaultExportTarget);
   const projectId = useProjectStore(s => s.projectId);
@@ -275,9 +278,25 @@ export default function App() {
   const contactCount = elements.filter(l => l.node.kind === 'contact').length;
   const actionCount = elements.filter(l => l.node.kind === 'action').length;
 
-  const exportFile = () => {
-    if (vendor === "SamSoar2022") downloadText("plc-ladder-samsoar.csv", generateSamSoar(project));
-    else downloadBytes("plc-ladder-gxworks2.csv", generateGxWorks2(project));
+  const [exporting,setExporting] = useState(false);
+  const [ideVersion,setIdeVersion] = useState('');
+  const exportFile = async () => {
+    setExportError('');
+    if(!exportEligible || !compileState.run){setExportError('Compile the current saved draft successfully before exporting.');return;}
+    if(storageMode==='database' && !ideVersion.trim()){setExportError('Enter the target IDE version to record this export.');return;}
+    const context=workspace;
+    setExporting(true);
+    try {
+      const target=vendor==='GX Works2'?'gxworks2':'samsoar2022';
+      const path=storageMode==='database'?`/api/persistence/projects/${projectId}/export`:'/api/manual/export';
+      const body=storageMode==='database'?{revision,compileId:compileState.run.id,target,ideVersion:ideVersion.trim(),requestId:crypto.randomUUID()}:{compileId:compileState.run.id,target};
+      const response=await fetch(apiUrl+path,{method:'POST',headers:{authorization:`Bearer ${apiToken}`,'content-type':'application/json'},body:JSON.stringify(body)});
+      const data=await response.json();if(!response.ok || data.status!=='SUCCESS' || !data.artifact)throw new Error(data.error??`Export HTTP ${response.status}`);
+      const current=useProjectStore.getState();
+      if(current.apiUrl!==context.apiUrl||current.apiToken!==context.apiToken||current.projectId!==context.projectId||current.project!==context.project)throw new Error('Workspace changed during export. The retained artifact belongs to the earlier revision; export the current revision again.');
+      downloadBytes(data.artifact.filename,Uint8Array.from(atob(data.artifact.base64),c=>c.charCodeAt(0)),data.artifact.mediaType);
+    } catch(e){setExportError(e instanceof Error?e.message:String(e));}
+    finally{setExporting(false);}
   };
 
   return <div className={active === "Ladder" ? "app-shell editor-mode" : "app-shell"}>
@@ -290,6 +309,7 @@ export default function App() {
         const name = prompt("Project name", "Untitled PLC Project");
         if (name !== null) createProject(name).catch(error => alert(String(error)));
       }}><Plus size={17}/> New project</button>
+      {active === "Ladder" && <details className="project-tree" open><summary>Project · {project.plc.model}</summary><button className="tree-program" onClick={()=>setActive("Ladder")}>Program ▸ {program?.name ?? "MAIN"}</button></details>}
       <nav>
         {[["Ladder", Network], ["IR / JSON", Braces], ["Validation", ShieldCheck], ["AI Changes", Bot], ["History", HistoryIcon], ["Exports", Download]].map(([label, Icon]) => {
           const I = Icon as typeof Network;
@@ -341,8 +361,8 @@ export default function App() {
             }}
           />
           <button className="ghost" disabled={switching || (storageMode === "database" && !projectId)} onClick={() => importRef.current?.click()}><FolderOpen size={16}/> Import GX Works2</button>
-          <button className="primary" onClick={() => alert(result.valid ? "Project is valid." : result.issues.join("\n"))}>
-            <Play size={15}/> Validate
+          <button className="primary" onClick={() => void compileState.compile()} disabled={compileState.busy || dirty}>
+            <Play size={15}/> Compile
           </button>
         </div>
       </header>
@@ -351,7 +371,7 @@ export default function App() {
         <div><span>PLC FAMILY</span><b>{project.plc.family} {project.plc.model}</b></div>
         <div><span>PROGRAM</span><b>{program?.name ?? "—"}</b></div>
         <div><span>NETWORKS</span><b>{program?.networks.length ?? 0}</b></div>
-        <div className="valid"><span>STATUS</span><b><CheckCircle2 size={15}/>{result.valid ? "Valid" : "Invalid"}</b></div>
+        <div className="valid"><span>STATUS</span><b><CheckCircle2 size={15}/>{currentCompile(workspace,compileState.run) ? `Compile ${compileState.run!.status}` : "Compile Required"}</b></div>
       </section>
 
       <div className="server-bar" hidden={active === "Ladder" && !showConnection}>
@@ -437,10 +457,13 @@ export default function App() {
               <span>FORMAT</span>
               <b>{vendor === "GX Works2" ? "List CSV · UTF-16 LE BOM" : "CSV · UTF-8 BOM"}</b>
             </div>
-            <button className="export-button" onClick={exportFile} disabled={!result.valid || storageMode === "database"}>
+            {storageMode==='database' && <><label htmlFor="export-ide-version">Target IDE version</label><input id="export-ide-version" value={ideVersion} onChange={e=>setIdeVersion(e.target.value)} placeholder="Version installed on your PC"/></>}
+            {vendor==='SamSoar2022' && <p>Intermediate CSV only. Native SamSoar project import is not verified. Series contacts and coil outputs only.</p>}
+            <button className="export-button" onClick={() => void exportFile()} disabled={!exportEligible || exporting}>
               <Download size={16}/> Generate {vendor} file
             </button>
-            <p>{storageMode === "database" ? "Export awaits revision-linked Compile and artifact persistence." : "Generated from canonical Ladder IR v0.2."}</p>
+            <p>{storageMode === "database" ? "Export retains exact bytes and Compile evidence for the saved revision." : "Export requires a passing Compile of this exact snapshot."}</p>
+          {exportError && <p role="alert">{exportError}</p>}
           </section>
 
           <section className="panel project-files">
