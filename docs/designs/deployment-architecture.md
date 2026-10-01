@@ -1,249 +1,393 @@
 # PLC-LadderMCP Deployment Architecture
 
-**Document:** `docs/06-deployment-architecture.md`  
-**Status:** Deployment Decision  
-**Version:** 0.1  
-**Date:** 2026-09-29
+**Document:** `docs/designs/deployment-architecture.md`  
+**Status:** Accepted V1 Deployment Baseline  
+**Version:** 1.0  
+**Date:** 2026-10-01  
+**Requirement baseline:** `docs/01-requirements.md` Version 1.0
 
 ## 1. Goal
 
-Define how PLC-LadderMCP should be deployed for real use without requiring the developer's local computer to remain online.
+Define the V1 production deployment model for PLC-LadderMCP after the Requirements Freeze.
 
-The agreed direction is to keep the frontend on GitHub Pages and run only the backend/MCP service on an existing VPS.
+The previous design that kept the frontend on GitHub Pages and ran only the backend on a VPS is superseded for V1 production. REQ-026 through REQ-033 require Kubernetes, Jenkins, GHCR, PostgreSQL, real-domain HTTPS, and both frontend/backend on Kubernetes.
+
+The existing VPS remains the physical host, but it now runs the production platform rather than only a standalone Node.js process.
+
+---
 
 ## 2. Selected Deployment Model
 
 ```text
-Browser
-   │
-   ▼
-GitHub Pages
-React / Vite Frontend
-   │
-   │ HTTPS
-   ▼
-VPS
-Reverse Proxy / TLS
-   │
-   ▼
-Node.js MCP / HTTP Server
-   │
-   ├── Ladder IR project persistence
-   ├── AI proposals
-   ├── Human Review queue
-   └── validation / semantic operations
+                         GitHub
+                            │
+                            ▼
+                  Jenkins (outside K8s)
+                            │
+                build / test / Docker Buildx
+                            │
+                            ▼
+                           GHCR
+                            │
+                            ▼
+               Single VPS / kubeadm cluster
+                            │
+          ┌─────────────────┼─────────────────┐
+          │                 │                 │
+          ▼                 ▼                 ▼
+        Web Pod       Fastify/MCP Pod    PostgreSQL Pod
+                               │                │
+                               │                ├── durable app state
+                               │                └── artifacts/evidence
+                               │
+                               └──────> PostgREST Pod
+                            │
+                            ▼
+                 Cilium + Gateway API
+                            │
+                            ▼
+                cert-manager / Let's Encrypt
+                            │
+                            ▼
+                    Real-domain HTTPS
 ```
 
-The frontend does not need to move to the VPS.
+The developer's local computer is not required for normal V1 operation.
 
-## 3. Frontend
+---
 
-The web application remains deployed through GitHub Pages.
+## 3. Physical Host and Kubernetes
 
-Responsibilities:
+The initial cluster uses a **single-node kubeadm Kubernetes 1.36.x cluster** on the project VPS.
 
-- render Ladder Preview
-- show project/network structure
-- show validation results
-- show AI Changes / Human Review
-- approve or reject pending proposals
-- call the remote MCP/API backend over HTTPS
+This is intentionally not a managed Kubernetes service because the project also has a learning objective around standard Kubernetes components and operations.
 
-GitHub Pages continues to serve only static frontend assets.
+The single-node topology is a V1 constraint, not a claim of high availability.
 
-## 4. Backend / MCP Server
-
-The Node.js MCP/HTTP server runs on the existing VPS.
-
-Recommended runtime options:
-
-1. Docker container — preferred for isolation from other projects on the same VPS
-2. systemd/PM2-managed Node.js process — acceptable for a simple first deployment
-
-The service should listen on a private/internal port such as:
+Expected host responsibilities:
 
 ```text
-127.0.0.1:3001
+VPS host
+├── Jenkins container/process outside Kubernetes
+├── kubelet / kubeadm cluster components
+├── container runtime
+└── Kubernetes workloads
+    ├── Web
+    ├── Backend/MCP
+    ├── PostgreSQL
+    ├── PostgREST
+    ├── Cilium
+    └── cert-manager
 ```
 
-The application port should not be exposed directly to the public internet when a reverse proxy is available.
+The node must be configured so application workloads can be scheduled on the single control-plane node as appropriate for the lab/V1 environment.
 
-## 5. VPS Sharing
+---
 
-The VPS may continue running other projects.
+## 4. Application Workloads
 
-Each project should be isolated by container or, at minimum, separate process and port.
+### 4.1 Web
 
-Example:
+The React/Vite application is built into a production container image and runs inside Kubernetes.
+
+Responsibilities include:
+
+- project navigation;
+- structured Ladder editing;
+- Compile/diagnostic UI;
+- Human Review;
+- history/import/export UI;
+- authenticated calls to the backend.
+
+GitHub Pages may still be used for demos or temporary development experiments, but it is not the V1 production frontend target.
+
+### 4.2 Fastify / MCP backend
+
+The backend container runs Node.js 24 LTS with Fastify 5 and MCP TypeScript SDK v2.
+
+Public application surfaces include conceptually:
 
 ```text
-VPS
-├── Existing Project       : internal port 3000
-├── PLC-LadderMCP Server   : internal port 3001
-└── Reverse Proxy          : public HTTPS entry point
+/health
+/auth/*
+/api/*
+/mcp
 ```
 
-Resource limits should be applied if multiple Docker containers share the same VPS.
+`/mcp` uses authenticated MCP Streamable HTTP.
 
-## 6. HTTPS Requirement
+The backend should remain horizontally scalable in its application design where practical, but V1 only requires the single-node deployment.
 
-The GitHub Pages frontend is served over HTTPS. Therefore the browser-facing backend must also be reachable over HTTPS.
+### 4.3 PostgreSQL
 
-Do not use this architecture in production:
+PostgreSQL 18.6 is the V1 durable database.
+
+It stores the durable state required by the frozen requirements, including projects/revisions, Human Review lifecycle records, compile history, export history/artifacts, POC fixtures/evidence, and audit records.
+
+Because the V1 requirements intentionally defer automated PostgreSQL backup scheduling, backup automation is not a release gate. Persistent storage is still required so normal pod restart/redeploy does not erase database contents.
+
+### 4.4 PostgREST
+
+PostgREST 16 runs as a separate workload connected to PostgreSQL for the POC/evidence path required by REQ-091 through REQ-094.
+
+PostgREST is not the main application backend and must not bypass domain rules for Human Review, Compile, Apply, or Export.
+
+---
+
+## 5. Container Images and Registry
+
+Application images are built using Docker BuildKit / Buildx and published to GHCR.
+
+Expected images include at least:
 
 ```text
-https://github-pages.example
+ghcr.io/<owner>/plc-ladder-mcp-web:<tag>
+ghcr.io/<owner>/plc-ladder-mcp-server:<tag>
+```
+
+PostgreSQL, PostgREST, Cilium, and cert-manager should use official/upstream images or Helm charts rather than being rebuilt inside this repository unless a concrete customization is required.
+
+Recommended image tags for project-owned components should include immutable Git SHA metadata so a deployment can be traced back to source.
+
+---
+
+## 6. Jenkins CI/CD
+
+Jenkins remains outside the Kubernetes cluster on the same VPS as required by REQ-028.
+
+Conceptual pipeline:
+
+```text
+GitHub push / approved release
         │
-        └──> http://VPS-IP:3001
-```
-
-Browsers can block this as mixed content.
-
-Use this instead:
-
-```text
-https://GitHub-Pages
+        ▼
+      Jenkins
         │
-        └──> https://VPS-ENDPOINT
-                 │
-                 └──> http://127.0.0.1:3001
+        ├── npm ci
+        ├── typecheck / lint where configured
+        ├── Vitest
+        ├── Playwright / appropriate E2E stage
+        ├── build Web + backend
+        ├── Docker Buildx
+        ├── push GHCR
+        └── deploy/update Kubernetes manifests
 ```
 
-A reverse proxy such as Nginx or Caddy should terminate TLS and forward requests to the internal Node.js service.
+Production deployment credentials must live in Jenkins credentials and/or Kubernetes Secrets, not in repository plaintext.
 
-The project does not require moving the frontend to the VPS or purchasing a new domain solely for the frontend.
+The pipeline should deploy exact image references generated by the build rather than a mutable local image.
 
-## 7. CORS
+---
 
-The backend should explicitly allow only the GitHub Pages frontend origin used by PLC-LadderMCP.
+## 7. Kubernetes Networking
 
-Conceptually:
+### 7.1 CNI
+
+Use **Cilium 1.20.x** as the Kubernetes CNI/service-networking implementation.
+
+### 7.2 Gateway API
+
+Use **Kubernetes Gateway API 1.6.1 through Cilium** as the public north-south routing model.
+
+This supersedes the earlier design suggestion to place a standalone Nginx/Caddy reverse proxy in front of a direct Node.js process.
+
+Conceptual routing:
 
 ```text
-Allowed-Origin: https://<github-pages-origin>
+Internet
+   │
+   ▼
+Gateway
+   │
+   ├── /           -> Web Service
+   ├── /api/*      -> Backend Service
+   ├── /auth/*     -> Backend Service
+   └── /mcp        -> Backend Service
 ```
 
-Avoid wildcard CORS (`*`) once authentication or user-specific project data is involved.
+A same-origin public design is preferred where practical because it reduces browser CORS complexity and gives the application one public TLS boundary.
 
-Local development origins can be allowed separately when required.
+If separate subdomains are later used, explicit CORS and cookie/session rules must be configured accordingly.
 
-## 8. Authentication
+---
 
-The current backend supports Bearer token authentication.
+## 8. TLS and Domain
 
-For the initial VPS deployment:
+V1 uses a real domain and HTTPS.
 
-- keep authentication enabled for the public HTTPS endpoint
-- store secrets only on the VPS
-- do not commit production tokens into Git
-- do not expose a reusable server master token directly inside a public frontend bundle
+Use **cert-manager** with **Let's Encrypt** to request and renew certificates at the Kubernetes Gateway boundary.
 
-Longer term, replace a shared long-lived token with a user/session or short-lived token model if the application becomes multi-user.
-
-## 9. Current Persistence Limitation
-
-The canonical project already has filesystem persistence, but some runtime state is still process-local/in-memory.
-
-Important example:
-
-- pending AI proposals / Human Review state may be held in memory
-- undo/redo or transient runtime state may also be process-local
-
-This means a server restart, redeploy, or process crash can still lose pending review state even when the VPS itself is persistent.
-
-Therefore VPS hosting solves the "developer PC must stay online" problem, but it does not automatically make all application state durable.
-
-## 10. Persistence Roadmap
-
-### Phase 1 — Current VPS MVP
-
-Use a single MCP/API server instance on the VPS.
+Conceptual flow:
 
 ```text
-GitHub Pages
-     │
-     ▼
-VPS HTTPS Endpoint
-     │
-     ▼
-Single MCP/API Process
-     │
-     └── filesystem project JSON
+DNS
+ │
+ ▼
+public application domain
+ │
+ ▼
+Cilium Gateway / HTTPS listener
+ │
+ └── certificate managed by cert-manager
 ```
 
-This is acceptable for initial personal/team testing.
+Application containers should normally receive internal cluster HTTP after TLS termination at the Gateway unless a later security design requires re-encryption.
 
-### Phase 2 — Durable Human Review
+---
 
-Move pending review state out of process memory.
+## 9. Staging and Production
 
-Recommended durable records:
+REQ-031 requires separate staging and production environments.
 
-- projects
-- project revisions
-- AI proposals
-- proposal status: pending / approved / rejected / applied
-- proposal timestamps
-- validation results or references
-- actor/user metadata when authentication exists
-
-PostgreSQL is the preferred candidate when durable multi-user/project state becomes necessary.
-
-### Phase 3 — Stateless Backend
-
-After important state is moved to durable storage, the Node.js service can become largely stateless.
-
-That makes restart, deployment, recovery, and later horizontal scaling safer.
-
-## 11. Proposed Production Direction
+The initial single-cluster design should keep them logically isolated. The preferred V1 direction is separate Kubernetes namespaces, for example:
 
 ```text
-                     AI Client / OpenCode
-                             │
-                             │ MCP over HTTPS
-                             ▼
-Browser ──> GitHub Pages ──> VPS Reverse Proxy
-                             │
-                             ▼
-                        MCP/API Server
-                             │
-                    ┌────────┴────────┐
-                    ▼                 ▼
-              Ladder IR files    PostgreSQL
-              / artifacts        durable state
+plc-ladder-staging
+plc-ladder-prod
 ```
 
-PostgreSQL is not mandatory for the first VPS deployment. It becomes important when Human Review state, project history, users, or collaboration must survive all restarts reliably.
+This namespace choice remains a solution-design detail and may be refined before implementation, but staging and production must not share the same unqualified application state or database objects accidentally.
 
-## 12. Deployment Priorities
+Each environment should have distinct:
 
-Recommended implementation order:
+- application configuration;
+- secrets;
+- database/storage identity;
+- public hostname or route;
+- deployed image reference;
+- migration lifecycle.
 
-1. prepare MCP server for VPS runtime
-2. isolate it from other VPS projects using Docker or a dedicated service
-3. place it behind HTTPS reverse proxy
-4. configure CORS for the GitHub Pages origin
-5. configure production authentication/secrets
-6. point the GitHub Pages frontend to the VPS backend
-7. verify AI -> proposal -> Human Review -> Apply end to end remotely
-8. make pending Human Review state durable
-9. add PostgreSQL only when the durable-state requirement is implemented
+---
 
-## 13. Current Decision
+## 10. Persistence and Storage
 
-The selected deployment architecture is:
+Filesystem paths inside application pods must not be treated as durable production storage.
+
+PostgreSQL data requires Kubernetes-backed persistent storage appropriate to the single-node VPS.
+
+The application may still write temporary generated files to ephemeral storage while processing import/export, but an export artifact that must be retained under the requirements must be committed to the PostgreSQL-backed durable artifact path before the operation is considered complete.
+
+The old `.plc-ladder/*.json` persistence mechanism may remain during migration/local development but is not authoritative in V1 production.
+
+---
+
+## 11. Authentication and Secrets
+
+Two logical authentication boundaries remain:
 
 ```text
-Frontend  : GitHub Pages
-Backend   : Existing VPS
-Runtime   : Node.js MCP/HTTP server
-Isolation : Docker preferred
-Transport : HTTPS
-Proxy/TLS : Nginx or Caddy
-State     : filesystem + current in-memory state for MVP
-Future    : PostgreSQL for durable AI Review/project metadata
+Human browser -> Web session -> /api/*
+AI/MCP client -> machine credential -> /mcp
+```
+
+Remote write-capable MCP is never anonymous.
+
+Secrets should be injected through Kubernetes Secrets/Jenkins credentials and must not be baked into frontend bundles, container images, or Git history.
+
+The V1 single-admin machine token remains acceptable under REQ-159.
+
+---
+
+## 12. Health and Deployment Safety
+
+At minimum, workloads should expose health/readiness behavior sufficient for Kubernetes and Jenkins deployment verification.
+
+Recommended checks include:
+
+- Web HTTP response;
+- backend `/health`;
+- backend database connectivity/readiness where appropriate;
+- PostgREST readiness;
+- PostgreSQL pod readiness;
+- Gateway route availability after deploy.
+
+A deployment should fail visibly rather than being reported successful when the new backend cannot access its database or public route.
+
+---
+
+## 13. Environment Configuration
+
+Environment-specific values should be injected at deployment time rather than compiled into shared application source.
+
+Examples:
+
+```text
+APP_ENV
+PUBLIC_APP_URL
+DATABASE_URL
+POSTGREST_* configuration
+PLC_LADDER_TOKEN / machine credential
+WEB session secret / admin credential
+```
+
+Public non-secret frontend configuration may be supplied through the build/deployment strategy selected for the Web image. Secrets must never be exposed to browser JavaScript.
+
+---
+
+## 14. Migration From the Legacy Deployment Design
+
+The old architecture was:
+
+```text
+GitHub Pages -> VPS reverse proxy -> standalone Node.js server
+                               └── filesystem/in-memory state
+```
+
+The accepted V1 migration is:
+
+```text
+Jenkins -> GHCR -> kubeadm Kubernetes
+                   ├── Web
+                   ├── Fastify/MCP backend
+                   ├── PostgreSQL
+                   └── PostgREST
+                        │
+                        ▼
+              Cilium Gateway + TLS
+```
+
+Migration work should therefore remove production assumptions that:
+
+- GitHub Pages is the main frontend host;
+- the Node.js process is managed directly by systemd/PM2 for production;
+- filesystem JSON is sufficient durable production state;
+- PostgreSQL is optional;
+- a standalone Nginx/Caddy proxy is the target routing architecture.
+
+---
+
+## 15. Decisions Still to Finalize
+
+The following are not yet fully fixed by this document:
+
+- exact Kubernetes storage class / host-path implementation for the single node;
+- final staging-vs-production namespace and hostname naming;
+- exact manifest strategy (plain YAML, Kustomize, Helm, or combination);
+- exact database migration tool/workflow;
+- resource requests/limits after measurement;
+- optional observability stack.
+
+These are implementation/design decisions, not reasons to revert to the superseded GitHub Pages deployment architecture.
+
+---
+
+## 16. Current Decision
+
+```text
+Host       : Existing VPS
+Cluster    : kubeadm Kubernetes 1.36.x, single node
+Frontend   : React/Vite container on Kubernetes
+Backend    : Node.js 24 + Fastify 5 + MCP SDK v2 on Kubernetes
+Database   : PostgreSQL 18.6 with persistent storage
+Evidence   : PostgREST 16
+Registry   : GHCR
+CI/CD      : Jenkins outside Kubernetes on the same VPS
+CNI        : Cilium 1.20.x
+Routing    : Gateway API 1.6.1 via Cilium
+TLS        : cert-manager + Let's Encrypt
+Auth       : separate human session and authenticated machine MCP boundary
 ```
 
 The key deployment rule is:
 
-> **GitHub Pages remains the frontend. The VPS runs only the backend/MCP service. The developer's local machine must not be required for normal operation.**
+> **V1 production runs Web, backend, and PostgreSQL on the kubeadm cluster; Jenkins builds and deploys from outside the cluster; public access enters through a real-domain HTTPS Gateway.**
