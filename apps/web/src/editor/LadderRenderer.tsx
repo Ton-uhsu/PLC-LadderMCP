@@ -1,23 +1,50 @@
 import React from 'react';
 import { childNodes, type LogicNode } from '@plc-ladder-mcp/ladder-ir';
 import { COLUMN_WIDTH, ROW_HEIGHT, GRID_X, GRID_Y, layoutLadder, nodeLabel, type GridCell } from './layout';
-export function LadderRenderer({ root, selectedId, onSelect, onEdit, onContextMenu, onCellSelect, cursor, theme = 'light', minWidth = 0 }: { root: LogicNode; selectedId: string | null; onSelect: (id: string) => void; onEdit?: (id: string) => void; onContextMenu?: (id: string, x: number, y: number) => void; onCellSelect?: (cell: GridCell) => void; cursor?: { row: number; column: number } | null; theme?: 'light' | 'dark'; minWidth?: number }) {
+import { normalizeCellRange, type CellRange } from './cell-selection';
+
+type LadderRendererProps = {
+  root: LogicNode;
+  selectedId: string | null;
+  onSelect: (id: string) => void;
+  onEdit?: (id: string) => void;
+  onContextMenu?: (id: string, x: number, y: number) => void;
+  onCellSelect?: (cell: GridCell, extend: boolean) => void;
+  onCellPointerDown?: (cell: GridCell, extend: boolean) => void;
+  onCellPointerMove?: (cell: GridCell) => void;
+  onCellPointerUp?: () => void;
+  cursor?: { row: number; column: number } | null;
+  selectionRange?: CellRange | null;
+  theme?: 'light' | 'dark';
+  minWidth?: number;
+};
+
+export function LadderRenderer({ root, selectedId, onSelect, onEdit, onContextMenu, onCellSelect, onCellPointerDown, onCellPointerMove, onCellPointerUp, cursor, selectionRange, theme = 'light', minWidth = 0 }: LadderRendererProps) {
   const layout = layoutLadder(root, minWidth);
   const ink = theme === 'dark' ? '#d4dde9' : '#27272a';
   const paper = theme === 'dark' ? '#181c23' : '#f4f4f5';
-  return <div className="ladder-scroll"><svg className="topology-ladder" width={layout.width} height={layout.height} viewBox={`0 0 ${layout.width} ${layout.height}`} aria-label="Ladder topology" role="group">
+  const normalizedRange = selectionRange ? normalizeCellRange(selectionRange) : null;
+  function cellFromClient(clientX: number, clientY: number, svg: SVGSVGElement) {
+    const bounds = svg.getBoundingClientRect();
+    const x = (clientX - bounds.left) * layout.width / bounds.width;
+    const y = (clientY - bounds.top) * layout.height / bounds.height;
+    const column = Math.floor((x - GRID_X) / COLUMN_WIDTH);
+    const row = Math.floor((y - GRID_Y) / ROW_HEIGHT);
+    return layout.cells.find(cell => cell.row === row && cell.column === column);
+  }
+  return <div className="ladder-scroll"><svg className="topology-ladder" width={layout.width} height={layout.height} viewBox={`0 0 ${layout.width} ${layout.height}`} aria-label="Ladder topology" role="group" onPointerMove={e => { if (e.buttons !== 1) return; const cell = cellFromClient(e.clientX, e.clientY, e.currentTarget); if (cell) onCellPointerMove?.(cell); }} onPointerUp={onCellPointerUp} onPointerLeave={onCellPointerUp}>
     <title>Ladder topology from canonical IR; select an element to inspect it</title>
     <g stroke={ink} strokeWidth="2" fill="none">
       <line x1="24" y1="20" x2="24" y2={layout.height - 20}/><line x1={layout.width - 24} y1="20" x2={layout.width - 24} y2={layout.height - 20}/>
       {layout.wires.map((w, i) => <line key={i} {...w}/>)}
     </g>
-    {layout.cells.filter(cell => !cell.nodeId).map(cell => <g key={`cell-${cell.row}-${cell.column}`} role="button" tabIndex={onCellSelect ? 0 : undefined} aria-label={`${cell.kind === 'wire' ? 'Wire' : 'Empty cell'} row ${cell.row + 1} column ${cell.column}`} data-cell-row={cell.row} data-cell-column={cell.column} onClick={() => onCellSelect?.(cell)} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.stopPropagation(); onCellSelect?.(cell); } }}>
+    {layout.cells.filter(cell => !cell.nodeId).map(cell => <g key={`cell-${cell.row}-${cell.column}`} role="button" tabIndex={onCellSelect ? 0 : undefined} aria-label={`${cell.kind === 'wire' ? 'Wire' : 'Empty cell'} row ${cell.row + 1} column ${cell.column}`} data-cell-row={cell.row} data-cell-column={cell.column} onPointerDown={e => { if (e.button !== 0) return; e.preventDefault(); onCellPointerDown?.(cell, e.shiftKey); }} onClick={e => onCellSelect?.(cell, e.shiftKey)} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.stopPropagation(); onCellSelect?.(cell, e.shiftKey); } }}>
       <rect x={GRID_X + cell.column * COLUMN_WIDTH} y={GRID_Y + cell.row * ROW_HEIGHT} width={COLUMN_WIDTH} height={ROW_HEIGHT} fill={cursor?.row === cell.row && cursor.column === cell.column ? '#243e61' : 'transparent'} fillOpacity="0.65" stroke={cursor?.row === cell.row && cursor.column === cell.column ? '#60a5fa' : 'transparent'}/>
     </g>)}
     {layout.nodes.map(({ node, x, y, width, height }) => {
       const children = childNodes(node); const selected = cursor ? !children?.length && cursor.row === (y - GRID_Y) / ROW_HEIGHT && cursor.column >= (x - GRID_X) / COLUMN_WIDTH && cursor.column < (x + width - GRID_X) / COLUMN_WIDTH : node.id === selectedId; const center = x + width / 2, baseline = y + 44;
       if (children?.length) return selected ? <rect key={node.id} x={x + 2} y={y + 4} width={width - 4} height={height - 8} rx="5" fill="none" stroke="#2563eb" strokeWidth="2" strokeDasharray="6 4" pointerEvents="none"/> : null;
-      return <g key={node.id} data-node-id={node.id} data-cell-row={(y - GRID_Y) / ROW_HEIGHT} data-cell-column={(x - GRID_X) / COLUMN_WIDTH} data-cell-span={width / COLUMN_WIDTH} role="button" tabIndex={0} aria-label={`${nodeLabel(node)} · ${node.id}`} aria-pressed={selected} onClick={e => { if (onCellSelect) { const bounds = e.currentTarget.ownerSVGElement!.getBoundingClientRect(); const column = Math.floor(((e.clientX - bounds.left) * layout.width / bounds.width - GRID_X) / COLUMN_WIDTH); const cell = layout.cells.find(c => c.nodeId === node.id && c.column === column) ?? layout.cells.find(c => c.nodeId === node.id)!; onCellSelect(cell); } else onSelect(node.id); }} onDoubleClick={() => onEdit?.(node.id)} onContextMenu={e => { e.preventDefault(); onContextMenu?.(node.id, e.clientX, e.clientY); }} onKeyDown={e => {
+      return <g key={node.id} data-node-id={node.id} data-cell-row={(y - GRID_Y) / ROW_HEIGHT} data-cell-column={(x - GRID_X) / COLUMN_WIDTH} data-cell-span={width / COLUMN_WIDTH} role="button" tabIndex={0} aria-label={`${nodeLabel(node)} · ${node.id}`} aria-pressed={selected} onPointerDown={e => { if (e.button !== 0 || !onCellPointerDown) return; const cell = cellFromClient(e.clientX, e.clientY, e.currentTarget.ownerSVGElement!); if (cell) { e.preventDefault(); onCellPointerDown(cell, e.shiftKey); } }} onClick={e => { if (onCellSelect) { const cell = cellFromClient(e.clientX, e.clientY, e.currentTarget.ownerSVGElement!) ?? layout.cells.find(c => c.nodeId === node.id)!; onCellSelect(cell, e.shiftKey); } else onSelect(node.id); }} onDoubleClick={() => onEdit?.(node.id)} onContextMenu={e => { e.preventDefault(); onContextMenu?.(node.id, e.clientX, e.clientY); }} onKeyDown={e => {
         if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.stopPropagation(); onSelect(node.id); if (e.key === 'Enter') onEdit?.(node.id); }
       }} className="ladder-element">
         <rect x={x + 3} y={y + 3} width={width - 6} height="82" rx="5" fill={selected ? (theme === 'dark' ? '#243e61' : '#dbeafe') : 'transparent'} stroke={selected ? '#2563eb' : 'transparent'}/>
@@ -37,5 +64,18 @@ export function LadderRenderer({ root, selectedId, onSelect, onEdit, onContextMe
         {node.kind === 'contact' && node.edge && node.edge !== 'none' && <text x={center} y={baseline + 5} textAnchor="middle" fill={ink} fontSize="14">{node.edge === 'rising' ? '↑' : '↓'}</text>}
       </g>;
     })}
+    {normalizedRange && <rect
+      className="cell-range-selection"
+      x={GRID_X + normalizedRange.left * COLUMN_WIDTH + 2}
+      y={GRID_Y + normalizedRange.top * ROW_HEIGHT + 2}
+      width={(normalizedRange.right - normalizedRange.left + 1) * COLUMN_WIDTH - 4}
+      height={(normalizedRange.bottom - normalizedRange.top + 1) * ROW_HEIGHT - 4}
+      rx="4"
+      fill="#2563eb"
+      fillOpacity="0.16"
+      stroke="#60a5fa"
+      strokeWidth="2"
+      pointerEvents="none"
+    />}
   </svg></div>;
 }

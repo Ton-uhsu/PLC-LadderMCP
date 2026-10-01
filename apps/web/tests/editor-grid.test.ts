@@ -9,19 +9,19 @@ import { exportSamSoar } from '../../../services/mcp-server/src/project.ts';
 const fixture: LadderProjectV02 = {version:'0.2',name:'Cell editor',plc:{family:'Mitsubishi FX',model:'FX3U'},programs:[{name:'Main',networks:[{id:0,root:{kind:'series',id:'root',children:[{kind:'contact',id:'x',mode:'NO',device:{kind:'device',address:'X0'}},{kind:'action',id:'out',action:{kind:'coil',id:'y',device:{kind:'device',address:'Y0'}}}]}}]}]};
 let serial = 0; const id = () => `grid-${serial++}`;
 const layout = (p:LadderProjectV02) => layoutLadder(p.programs[0].networks[0].root);
-test('one wire/contact occupies one integer column regardless of viewport; padding wires are individually addressable', () => {
+test('one wire/contact occupies one integer column regardless of viewport; directional drawing connects padding wires', () => {
   const original = JSON.stringify(fixture);
   assert.deepEqual(layoutLadder(fixture.programs[0].networks[0].root,600),layoutLadder(fixture.programs[0].networks[0].root,1800));
   const grid=layout(fixture); assert.equal(grid.columns,10);
   assert.equal(grid.nodes.find(n=>n.node.id==='out')!.x,GRID_X+9*COLUMN_WIDTH);
   for(const wire of grid.wires) if(wire.y1===wire.y2) assert.equal(wire.x2-wire.x1,COLUMN_WIDTH);
-  const cut=editGridWire(fixture,0,{row:0,column:3},'right',id);
-  const target=layout(cut.project).nodes.find(n=>n.node.id===cut.selectedId)!;
+  const drawn=editGridWire(fixture,0,{row:0,column:3},'right',id);
+  const target=layout(drawn.project).nodes.find(n=>n.node.id===drawn.selectedId)!;
   assert.equal(target.width,COLUMN_WIDTH); assert.equal(target.x,GRID_X+4*COLUMN_WIDTH);
-  assert.equal(layout(cut.project).nodes.find(n=>n.node.id==='out')!.x,grid.nodes.find(n=>n.node.id==='out')!.x);
-  assert.throws(()=>compileProject(cut.project),/Disconnected wire/);
-  const joined=editGridWire(cut.project,0,{row:0,column:5},'left',id);
-  assert.deepEqual(compileProject(joined.project),compileProject(fixture));
+  assert.equal(layout(drawn.project).nodes.find(n=>n.node.id==='out')!.x,grid.nodes.find(n=>n.node.id==='out')!.x);
+  assert.deepEqual(compileProject(drawn.project),compileProject(fixture));
+  const continued=editGridWire(drawn.project,0,{row:0,column:5},'left',id);
+  assert.deepEqual(compileProject(continued.project),compileProject(fixture));
   assert.equal(JSON.stringify(fixture),original);
 });
 test('blank-row drawing adds a single cell per key, including after a coil, without stretching previous wires', () => {
@@ -44,6 +44,30 @@ test('blank-row drawing adds a single cell per key, including after a coil, with
   assert.deepEqual(compileProject(afterCoil.project),compileProject(fixture));
   assert.throws(()=>editGridWire(fixture,0,{row:0,column:8},'right',id),/contains a symbol/);
 });
+test('directional drawing connects segments and creates rows beyond the vertical edge', () => {
+  const right = editGridWire(fixture, 0, { row: 0, column: 0 }, 'right', id);
+  assert.deepEqual(right.cursor, { row: 0, column: 1 });
+  assert.ok(listNodes(right.project.programs[0].networks[0].root).filter(location => location.node.kind === 'wire').every(location => location.node.kind === 'wire' && location.node.connected));
+
+  const down = editGridWire(fixture, 0, { row: 0, column: 0 }, 'down', id);
+  assert.deepEqual(down.cursor, { row: 1, column: 0 });
+  assert.equal(layout(down.project).rows, 2);
+  assert.ok(listNodes(down.project.programs[0].networks[0].root).filter(location => location.node.kind === 'wire').every(location => location.node.kind === 'wire' && location.node.connected));
+
+  const across = editGridWire(down.project, 0, down.cursor, 'right', id);
+  assert.deepEqual(across.cursor, { row: 1, column: 1 });
+  const lower = editGridWire(across.project, 0, across.cursor, 'down', id);
+  assert.deepEqual(lower.cursor, { row: 2, column: 1 });
+  assert.equal(layout(lower.project).rows, 3);
+  const continued = editGridWire(lower.project, 0, lower.cursor, 'right', id);
+  assert.deepEqual(continued.cursor, { row: 2, column: 2 });
+  assert.ok(listNodes(continued.project.programs[0].networks[0].root).filter(location => location.node.kind === 'wire').every(location => location.node.kind === 'wire' && location.node.connected));
+
+  const up = editGridWire(fixture, 0, { row: 0, column: 0 }, 'up', id);
+  assert.deepEqual(up.cursor, { row: 0, column: 0 });
+  assert.equal(layout(up.project).rows, 2);
+  assert.equal(layout(up.project).cells.find(cell => cell.nodeId === 'x')!.row, 1);
+});
 test('coil branch can be wired, completed with an output, compiled/exported and cannot delete occupied neighbors', () => {
   const branch=editWire(fixture,0,'out','down',id);
   const gap=listNodes(branch.project.programs[0].networks[0].root).find(n=>n.node.kind==='wire')!.node;
@@ -59,9 +83,9 @@ test('coil branch can be wired, completed with an output, compiled/exported and 
   for(const placed of layout(extended.project).nodes.filter(n=>n.node.kind==='action')) assert.equal(placed.x,GRID_X+9*COLUMN_WIDTH);
   assert.deepEqual(compileProject(extended.project),compileProject(filled.project));
   assert.throws(()=>editWire(filled.project,0,'out','down',id),/contains symbols/);
-  const broken=editGridWire(filled.project,0,{row:0,column:9},'left',id);
-  assert.throws(()=>compileProject(broken.project),/Disconnected/);
-  const restored=editGridWire(broken.project,0,{row:0,column:7},'right',id);
+  const continued=editGridWire(filled.project,0,{row:0,column:9},'left',id);
+  assert.deepEqual(compileProject(continued.project),compileProject(filled.project));
+  const restored=editGridWire(continued.project,0,{row:0,column:7},'right',id);
   assert.deepEqual(compileProject(restored.project),compileProject(filled.project));
   assert.ok(listNodes(restored.project.programs[0].networks[0].root).some(n=>n.node.id==='out' && n.node.kind==='action' && n.node.action.id==='y'));
 });

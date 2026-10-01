@@ -1,6 +1,6 @@
 # Structured Ladder wire editing
 
-**Status:** Implemented editor slice, 2026-10-01 (WORK-008, WORK-009 / TASK-005).
+**Status:** Implemented editor slice, 2026-10-01 (WORK-008, WORK-009, WORK-011, WORK-012 / TASK-005).
 **Requirements:** REQ-037, REQ-039, REQ-040, REQ-095, REQ-097, REQ-100, REQ-111, REQ-126, REQ-127. Requirements V1.0 is unchanged.
 
 ## Canonical representation
@@ -18,12 +18,18 @@ A cell cursor selects canonical nodes, projected connection padding or blank cel
 | Shortcut | Operation at cell cursor |
 |---|---|
 | Arrow keys / Home / End | Move one column/row, including padding/blank cells; Home/End select the first/last column. Up/Down may cross adjacent networks. |
-| Ctrl+Right / Ctrl+Left | Move to the adjacent column and add/toggle exactly its wire segment. Existing wire IDs remain stable. Occupied contact/output cells are protected. |
-| Ctrl+Down / Ctrl+Up | Add an incomplete branch below/above the selected cell, or remove an adjacent wire-only/empty branch. Wrapping applies at that cell rather than widening an unrelated whole branch. |
+| Ctrl+Right / Ctrl+Left | Move to the adjacent column and ensure that wire segment is connected. Existing connected segments remain connected. Occupied contact/output cells are protected. |
+| Ctrl+Down / Ctrl+Up | Draw into the adjacent row and move the cursor there. Crossing the top or bottom edge creates a connected row automatically. Wrapping applies at that cell rather than widening an unrelated whole branch. |
 
-A vertical addition retains the original selection, so pressing the same shortcut again removes that empty branch. A two-branch wrapper is unwrapped when only its original branch remains. Original subtree IDs and unrelated networks remain unchanged. Filled branches are never removed by these shortcuts. To reconnect a gap, start one cell beside it and Ctrl+Left/Right toward it. Contact insertion replaces a selected condition wire; coil/instruction insertion replaces an output branch placeholder. Output branches require an output symbol; a bare wire cannot bypass or substitute for a coil. Horizontal wires before/after outputs and wire-only lead-in forks preserve the existing action IDs.
+Directional drawing is additive and does not create or toggle disconnected `Gap` nodes. Existing disconnected nodes remain readable for saved-draft compatibility and become connected when drawn into. Original subtree IDs and unrelated networks remain unchanged. Contact insertion replaces a selected condition wire; coil/instruction insertion replaces an output branch placeholder. Output branches require an output symbol; a bare wire cannot bypass or substitute for a coil. Horizontal wires before/after outputs and wire-only lead-in forks preserve the existing action IDs.
 
-All edits pass through the existing human edit/autosave API and session Undo/Redo. Key repeat is ignored to prevent accidental toggle loops. Shortcuts do not intercept text inputs, selects, contenteditable areas or symbol dialogs. Cell clipboard operations materialize the selected connection rather than copying its neighboring symbol. Compound subtree operations remain available through Rung structure.
+All edits pass through the existing human edit/autosave API and session Undo/Redo. Key repeat is ignored to prevent accidental repeated segments. Shortcuts do not intercept text inputs, selects, contenteditable areas or symbol dialogs. Cell clipboard operations materialize the selected connection rather than copying its neighboring symbol. Compound subtree operations remain available through Rung structure.
+
+## Rectangular cell selection
+
+Pointer drag selects a rectangular range of cells inside one network. Shift-click extends the range from its stable anchor; a normal click or keyboard navigation starts a new one-cell range. The canvas overlays one visible selection rectangle and the Properties/status areas show the covered cell count. Escape clears the range.
+
+Delete clears the entire range through one project edit, so one Undo restores it. Contacts and actions intersecting the range are removed once even when they span multiple columns. Explicit connected wires become disconnected gaps; projected connection padding is materialized only for the selected cells and then disconnected. Blank-only ranges do not create an edit. Multi-cell insert, branch, edit, copy, cut, paste and duplicate operations are disabled for this slice; multi-cell clipboard semantics remain future work.
 
 ## Compile and adapter behavior
 
@@ -38,5 +44,9 @@ GX List serialization reflects the simplified instruction semantics; importing i
 WORK-008 established wire snapshot/schema/hash validation, compile-only condition normalization and GX List semantic round-trip; SamSoar regressions cover neutral wires, unconditional paths, gaps and unsupported nested conditions. WORK-009 extends this to fixed-cell geometry and output connections. 24 Web tests passed, including viewport-independent layout, one-cell wire width, column-preserving materialization (including empty-root distant cells), exact adjacent-cell edits, occupied-symbol protection, output gap completion/fanout, stable IDs and coil suffix alignment. Web/backend production builds, semantic smoke, HTTP auth/MCP E2E and the original FX3U fixture passed. Persistence suite: 7 passed, 2 native suites skipped.
 
 The optional Chromium harness passed both local HTTP and PGlite-backed application modes: actual cell/ruler center alignment, one-column wire selection width, Ctrl-arrow edits, coil-side gaps, output branch filling, occupied branch protection, Undo/Redo and saved gap reload. Desktop and narrow workspace captures were inspected. Native PostgreSQL/Goose and real IDE acceptance remain separate evidence gates. The npm tsx CLI wrapper encountered an environment pipe permission error; the same smoke/E2E entrypoints passed using `node --import tsx`.
+
+WORK-011 changed directional grid input from gap toggling to additive connected drawing. Unit coverage proves left/right connectivity, vertical cursor movement, continuation across newly created rows and automatic top/bottom row creation. Isolated localhost browser QA exercised down/right/down/right/up/left across three rows with no disconnected wire nodes or UI errors. The repository Playwright scenario was updated for the new interaction; it was not executed in this environment because the optional Playwright package is absent.
+
+WORK-012 adds rectangular selection and atomic range clearing. Unit coverage proves reverse-drag normalization, symbol/wire clearing, projected-wire gap materialization, unrelated-network preservation and blank-range no-op behavior. Isolated localhost browser QA exercised Shift-click, pointer drag, visual range/count feedback and Escape. The optional Playwright scenario now covers Delete plus one-step Undo, but could not run here because the optional Playwright package is absent.
 
 TASK-005 remains Partial for the target typed IR, rendered Review and revision-bound Compile integration. The legacy AI proposal builders still have narrower topology support; this editor slice does not establish proposal generation for every wired output form.

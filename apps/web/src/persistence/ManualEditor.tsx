@@ -13,7 +13,7 @@ export function Inspector({ node, disabled, onUpdate }: { node: LogicNode; disab
     setDraft(structuredClone(node)); setError('');
     setOperands(node.kind === 'action' && node.action.kind === 'instruction' ? node.action.operands.map(operandInput) : []);
   }, [node]);
-  if (node.kind === "wire") return <p>{node.connected ? "Connected wire" : "Open wire gap"}. Ctrl+Left/Right moves one cell and toggles its wire. Use the toolbar to replace this segment with a symbol.</p>;
+  if (node.kind === "wire") return <p>{node.connected ? "Connected wire" : "Open wire gap"}. Ctrl+arrows draws a connected segment and moves one cell. Use the toolbar to replace this segment with a symbol.</p>;
   if (childNodes(node)) return <p>Select a contact or output on the rung to edit its properties. Use the toolbar to add elements.</p>;
   return <form className="element-inspector" onSubmit={async e => {
     e.preventDefault(); setError('');

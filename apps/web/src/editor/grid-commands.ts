@@ -35,23 +35,49 @@ export function editGridWire(project: LadderProjectV02, networkId: number, curso
   if (!root) throw new Error('Select a network.');
   const layout = layoutLadder(root);
   const horizontal = direction === 'left' || direction === 'right';
-  const destination = { row: cursor.row, column: cursor.column + (horizontal ? direction === 'right' ? 1 : -1 : 0) };
+  const destination = {
+    row: cursor.row + (!horizontal ? direction === 'down' ? 1 : -1 : 0),
+    column: cursor.column + (horizontal ? direction === 'right' ? 1 : -1 : 0),
+  };
   if (destination.column < 0) throw new Error('The cursor is at the left rail.');
+  if (!horizontal && (destination.row < 0 || destination.row >= layout.rows)) {
+    const source = layout.cells.find(cell => cell.row === cursor.row && cell.column === cursor.column);
+    if (!source) throw new Error('Select a cell inside the current rung.');
+    let materialized = materializeCell(project, networkId, source, id);
+    const sourceNode = listNodes(materialized.project.programs[0].networks.find(n => n.id === networkId)!.root).find(location => location.node.id === materialized.selectedId)!.node;
+    if (sourceNode.kind === 'wire' && !sourceNode.connected) {
+      materialized = editStructured(materialized.project, networkId, { kind: 'update', nodeId: sourceNode.id, node: { ...sourceNode, connected: true } });
+    }
+    const existingIds = new Set(listNodes(materialized.project.programs[0].networks.find(n => n.id === networkId)!.root).map(location => location.node.id));
+    let result = editWire(materialized.project, networkId, materialized.selectedId, direction, id);
+    const addedWire = listNodes(result.project.programs[0].networks.find(n => n.id === networkId)!.root).find(location => location.node.kind === 'wire' && !existingIds.has(location.node.id));
+    if (!addedWire || addedWire.node.kind !== 'wire') throw new Error('Unable to extend the rung in that direction.');
+    if (!addedWire.node.connected) result = editStructured(result.project, networkId, { kind: 'update', nodeId: addedWire.node.id, node: { ...addedWire.node, connected: true } });
+    const nextLayout = layoutLadder(result.project.programs[0].networks.find(n => n.id === networkId)!.root);
+    const targetRow = direction === 'up' ? 0 : nextLayout.rows - 1;
+    const target = nextLayout.cells.find(cell => cell.row === targetRow && cell.column === Math.min(cursor.column, nextLayout.columns - 1))!;
+    return { ...result, selectedId: target.nodeId ?? target.slot?.anchorId ?? target.slot?.parentId ?? addedWire.node.id, cursor: { row: target.row, column: target.column } };
+  }
   let cell = layout.cells.find(c => c.row === destination.row && c.column === destination.column);
   if (!cell && destination.column === layout.columns) {
     const source = layout.cells.find(c=>c.row===cursor.row && c.column===cursor.column);
     if(source?.nodeId) cell={...destination,kind:'blank',slot:{anchorId:source.nodeId,side:'after',count:1,offset:0,connected:false}};
     else if(root.kind==='series' && destination.row===0) cell={...destination,kind:'blank',slot:{parentId:root.id,index:root.children.length,count:1,offset:0,connected:false}};
   }
+  if (horizontal && cell && !cell.nodeId && !cell.slot) {
+    const source = layout.cells.find(candidate => candidate.row === cursor.row && candidate.column === cursor.column);
+    if (source?.slot) {
+      const materializedSource = materializeCell(project, networkId, source, id);
+      return editGridWire(materializedSource.project, networkId, cursor, direction, id);
+    }
+    if (source?.nodeId) cell = { ...cell, slot: { anchorId: source.nodeId, side: direction === 'right' ? 'after' : 'before', count: 1, offset: 0, connected: false } };
+  }
   if (!cell) throw new Error('Select a cell inside the current rung.');
   const materialized = materializeCell(project, networkId, cell, id);
   const node = listNodes(materialized.project.programs[0].networks.find(n => n.id === networkId)!.root).find(n => n.node.id === materialized.selectedId)!.node;
-  if (horizontal) {
-    if (node.kind !== 'wire') throw new Error('This cell contains a symbol. Wire editing does not overwrite contacts or outputs.');
-    const result = editStructured(materialized.project, networkId, { kind: 'update', nodeId: node.id, node: { ...node, connected: !node.connected } });
-    return { ...result, cursor: destination };
-  }
-  const result = editWire(materialized.project, networkId, materialized.selectedId, direction, id);
-  const placement = layoutLadder(result.project.programs[0].networks.find(n => n.id === networkId)!.root).cells.find(c => c.nodeId === result.selectedId);
-  return { ...result, cursor: placement ? { row: placement.row, column: placement.column } : cursor };
+  if (node.kind !== 'wire') throw new Error('This cell contains a symbol. Wire editing does not overwrite contacts or outputs.');
+  const result = node.connected
+    ? { project: materialized.project, selectedId: node.id }
+    : editStructured(materialized.project, networkId, { kind: 'update', nodeId: node.id, node: { ...node, connected: true } });
+  return { ...result, cursor: destination };
 }

@@ -6,6 +6,7 @@ import { Inspector } from '../persistence/ManualEditor';
 import { LadderRenderer } from './LadderRenderer';
 import { COLUMN_WIDTH, GRID_X, layoutLadder, nodeLabel, type GridCell } from './layout';
 import { captureSelection, pasteSelection, useEditorClipboard } from './clipboard';
+import { clearCellRange, rangeCellCount, type CellRange } from './cell-selection';
 import { editGridWire, materializeCell, type CellCursor } from './grid-commands';
 import { type WireDirection } from './wire-commands';
 import { insertElement, toolElement, type EditorTool } from './commands';
@@ -14,7 +15,8 @@ const tools: { tool: EditorTool; glyph: string; label: string; input: string }[]
   { tool: 'coil', glyph: '─( )─', label: 'Output coil', input: 'Y0' }, { tool: 'set', glyph: '(S)', label: 'SET', input: 'Y0' }, { tool: 'reset', glyph: '(R)', label: 'RST', input: 'Y0' },
   { tool: 'timer', glyph: 'T', label: 'Timer', input: 'T0 K10' }, { tool: 'counter', glyph: 'C', label: 'Counter', input: 'C0 K10' }, { tool: 'instruction', glyph: '[…]', label: 'Instruction', input: 'MOV K0 D0' },
 ];
-type Result = { project: LadderProjectV02; selectedId: string; networkId?: number };
+type Result = { project: LadderProjectV02; selectedId: string; networkId?: number; changed?: boolean };
+type NetworkCellRange = CellRange & { networkId: number };
 export function EditorWorkspace() {
   const state = useProjectStore();
   const clipboard = useEditorClipboard();
@@ -28,6 +30,8 @@ export function EditorWorkspace() {
   const network = networks.find(n => n.id === selectedNetworkId) ?? networks[0];
   const [cursor, setCursor] = useState<(CellCursor & { networkId: number }) | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [cellSelection, setCellSelection] = useState<NetworkCellRange | null>(null);
+  const selectingCells = useRef(false), selectionMoved = useRef(false), suppressSelectionClick = useRef(false);
   const [busy, setBusy] = useState(false), [error, setError] = useState('');
   const [entry, setEntry] = useState<EditorTool | null>(null), [input, setInput] = useState('');
   const [position, setPosition] = useState<'before' | 'after'>('after');
@@ -42,10 +46,48 @@ export function EditorWorkspace() {
   useEffect(() => { const element = cursor ? stage.current?.querySelector(`.selected-rung [data-cell-row="${cursor.row}"][data-cell-column="${cursor.column}"]`) : selectedId ? stage.current?.querySelector(`[data-node-id="${CSS.escape(selectedId)}"]`) : null; element?.scrollIntoView({ block: 'nearest', inline: 'nearest' }); }, [selectedId, selectedNetworkId, cursor]);
   const grid = network ? layoutLadder(network.root) : null;
   const cell = grid?.cells.find(c => cursor?.networkId === network?.id && c.row === cursor.row && c.column === cursor.column) ?? grid?.cells.find(c => c.nodeId === selection?.node.id);
-  function selectCell(rungId: number, cell: GridCell) { selectNetwork(rungId); setSelectedId(cell.nodeId ?? cell.slot?.anchorId ?? cell.slot?.parentId ?? null); setCursor({ networkId: rungId, row: cell.row, column: cell.column }); }
+  const selectedCellCount = cellSelection ? rangeCellCount(cellSelection) : 0;
+  const multipleCells = selectedCellCount > 1;
+  function updateCellFocus(rungId: number, cell: GridCell) {
+    selectNetwork(rungId);
+    setSelectedId(cell.nodeId ?? cell.slot?.anchorId ?? cell.slot?.parentId ?? null);
+    setCursor({ networkId: rungId, row: cell.row, column: cell.column });
+  }
+  function selectCell(rungId: number, cell: GridCell, extend = false) {
+    if (suppressSelectionClick.current) return;
+    const point = { row: cell.row, column: cell.column };
+    setCellSelection(current => ({
+      networkId: rungId,
+      anchor: extend && current?.networkId === rungId
+        ? current.anchor
+        : extend && cursor?.networkId === rungId ? cursor : point,
+      focus: point,
+    }));
+    updateCellFocus(rungId, cell);
+  }
+  function beginCellSelection(rungId: number, cell: GridCell, extend: boolean) {
+    selectingCells.current = true;
+    selectionMoved.current = false;
+    selectCell(rungId, cell, extend);
+  }
+  function extendCellSelection(rungId: number, cell: GridCell) {
+    if (!selectingCells.current) return;
+    setCellSelection(current => {
+      if (!current || current.networkId !== rungId) return current;
+      if (current.focus.row !== cell.row || current.focus.column !== cell.column) selectionMoved.current = true;
+      return { ...current, focus: { row: cell.row, column: cell.column } };
+    });
+    updateCellFocus(rungId, cell);
+  }
+  function finishCellSelection() {
+    selectingCells.current = false;
+    if (!selectionMoved.current) return;
+    suppressSelectionClick.current = true;
+    window.setTimeout(() => { suppressSelectionClick.current = false; }, 0);
+  }
   const disabled = busy || switching || !connected || !network || storageMode === 'database' && !projectId;
-  useEffect(() => { setSelectedId(null); setCursor(null); setEntry(null); setError(''); }, [projectId]);
-  useEffect(() => { setSelectedId(value => network && listNodes(network.root).some(n => n.node.id === value) ? value : null); setEntry(null); setError(''); }, [selectedNetworkId]);
+  useEffect(() => { setSelectedId(null); setCursor(null); setCellSelection(null); setEntry(null); setError(''); }, [projectId]);
+  useEffect(() => { setSelectedId(value => network && listNodes(network.root).some(n => n.node.id === value) ? value : null); setCellSelection(value => value?.networkId === selectedNetworkId ? value : null); setEntry(null); setError(''); }, [selectedNetworkId]);
   useEffect(() => { setComment(network?.comment ?? ''); }, [network?.id, network?.comment, projectId]);
   useEffect(() => { if (entry) { inputRef.current?.focus(); inputRef.current?.select(); } }, [entry]);
   async function perform(make: (project: LadderProjectV02, networkId: number) => Result, report = true) {
@@ -53,6 +95,7 @@ export function EditorWorkspace() {
     busyRef.current = true; setBusy(true); setError(''); const context = useProjectStore.getState();
     try {
       const result = make(context.project, context.selectedNetworkId);
+      if (result.changed === false) { setCursor(null); setSelectedId(result.selectedId); return result; }
       await editProject(result.project);
       const current = useProjectStore.getState();
       if (current.apiUrl !== context.apiUrl || current.apiToken !== context.apiToken || current.projectId !== context.projectId || current.selectedNetworkId !== context.selectedNetworkId) throw new Error("Workspace changed before this edit finished. Select the current project again.");
@@ -73,9 +116,14 @@ export function EditorWorkspace() {
       if (kind === 'delete' && !current.some(n => n.id === selectedNetworkId)) selectNetwork(current[0].id);
     }).catch(() => undefined);
   }
-  function openTool(tool: EditorTool) { if (disabled) return; setEntry(tool); setInput(tools.find(t => t.tool === tool)!.input); setError(''); }
+  function openTool(tool: EditorTool) { if (disabled || multipleCells) return; setEntry(tool); setInput(tools.find(t => t.tool === tool)!.input); setError(''); }
   function remove() {
     if (disabled) return;
+    if (cellSelection) {
+      const range = cellSelection;
+      void perform(p => clearCellRange(p, range.networkId, range, () => crypto.randomUUID())).then(() => setCellSelection(null)).catch(() => undefined);
+      return;
+    }
     if (cell && !cell.nodeId) {
       if (cell.kind === 'wire') void perform((p, n) => { const at = materializeCell(p, n, cell, () => crypto.randomUUID()); return editStructured(at.project, n, {kind:'update',nodeId:at.selectedId,node:{kind:'wire',id:at.selectedId,connected:false}}); }).catch(() => undefined);
       return;
@@ -85,7 +133,7 @@ export function EditorWorkspace() {
   function focusProperties() { requestAnimationFrame(() => properties.current?.querySelector<HTMLInputElement>('input')?.focus()); }
   const origin = `${state.apiUrl}:${storageMode}:${projectId ?? project.programs[0]?.networks[0]?.root.id}`;
   function copy(cut = false) {
-    if (!selection || !network || disabled) return;
+    if (!selection || !network || disabled || multipleCells) return;
     try {
       if (cell && !cell.nodeId) {
         if (cell.kind !== 'wire') return;
@@ -101,14 +149,14 @@ export function EditorWorkspace() {
     setMenu(null); stage.current?.focus();
   }
   function paste(duplicate = false) {
-    if (!selection || !network || disabled) return;
+    if (!selection || !network || disabled || multipleCells) return;
     const clip = duplicate ? cell && !cell.nodeId ? { node: {kind:'wire' as const,id:crypto.randomUUID(),connected:cell.connected ?? false},network:false,cut:false,origin } : captureSelection(project, network.id, selection.node.id, origin) : clipboard.clip;
     if (!clip) return;
     void perform((p, n) => { const at = cell && !cell.nodeId ? materializeCell(p, n, cell, () => crypto.randomUUID()) : {project:p,selectedId:selection.node.id}; return pasteSelection(at.project, n, at.selectedId, clip, origin, position, () => crypto.randomUUID()); }).then(() => { if (!duplicate) clipboard.set({ ...clip, cut: false }); stage.current?.focus(); }).catch(() => undefined);
     setMenu(null);
   }
   function editSymbol(networkId = network?.id, nodeId = selection?.node.id, explicit = false) {
-    if (disabled || networkId === undefined || !nodeId || cell && !cell.nodeId && !explicit) return;
+    if (disabled || multipleCells || networkId === undefined || !nodeId || cell && !cell.nodeId && !explicit) return;
     selectNetwork(networkId); setSelectedId(nodeId);
     const node = project.programs[0].networks.find(n => n.id === networkId)?.root;
     const selected = node && listNodes(node).find(n => n.node.id === nodeId);
@@ -136,7 +184,7 @@ export function EditorWorkspace() {
   }, [menu]);
   const currentIndex = networks.findIndex(n => n.id === network?.id);
   return <section className="ladder-editor-workspace" aria-label="Ladder editor" onKeyDown={e => {
-    if (e.key === 'Escape') { setEntry(null); setEditing(null); setMenu(null); setFinding(false); stage.current?.focus(); return; }
+    if (e.key === 'Escape') { setEntry(null); setEditing(null); setMenu(null); setFinding(false); setCellSelection(null); setCursor(null); setSelectedId(null); stage.current?.focus(); return; }
     const target = e.target as HTMLElement;
     if (target.closest('[role="dialog"]')) return;
     if (target.closest('input,select,textarea,[contenteditable="true"]')) return;
@@ -148,14 +196,13 @@ export function EditorWorkspace() {
     }
     if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'f') { e.preventDefault(); setFinding(true); return; }
     if (e.ctrlKey && !e.altKey && !e.metaKey && !e.shiftKey && ['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(e.key)) {
-      e.preventDefault(); if (selection && grid && !disabled && !e.repeat) {
+      e.preventDefault(); if (selection && grid && !disabled && !multipleCells && !e.repeat) {
         let destination: CellCursor = cell ?? { row: 0, column: 0 };
         void perform((p, n) => { const result = editGridWire(p, n, destination, e.key.slice(5).toLowerCase() as WireDirection, () => crypto.randomUUID()); destination = result.cursor; return result; }).then(() => { setCursor({ ...destination, networkId: network.id }); stage.current?.focus(); }).catch(() => undefined);
       } return;
     }
     if (e.ctrlKey || e.metaKey || e.altKey) return;
     if (e.key === 'Delete') { e.preventDefault(); remove(); }
-    if (e.key === 'Escape') { setEntry(null); setSelectedId(null); }
     if (e.key === 'Enter') { e.preventDefault(); editSymbol(); }
     if (e.key.toLowerCase() === 'c') { e.preventDefault(); openTool('contact'); }
     if (e.key.toLowerCase() === 'o') { e.preventDefault(); openTool('coil'); }
@@ -173,17 +220,17 @@ export function EditorWorkspace() {
       <div className="editor-toolbar" role="toolbar" aria-label="Ladder tools">
         <button title="Select (Esc)" aria-label="Select tool" onClick={() => setEntry(null)} className={!entry ? 'tool active' : 'tool'}><MousePointer2 size={16}/></button>
         <span className="tool-divider"/>
-        {tools.map(t => <button key={t.tool} className={entry === t.tool ? 'tool symbol-tool active' : 'tool symbol-tool'} disabled={disabled} aria-label={`Insert ${t.label}`} title={`${t.label}${t.tool === 'contact' ? ' (C)' : t.tool === 'coil' ? ' (O)' : ''}`} onClick={() => openTool(t.tool)}><b>{t.glyph}</b><small>{t.label}</small></button>)}
+        {tools.map(t => <button key={t.tool} className={entry === t.tool ? 'tool symbol-tool active' : 'tool symbol-tool'} disabled={disabled || multipleCells} aria-label={`Insert ${t.label}`} title={`${t.label}${t.tool === 'contact' ? ' (C)' : t.tool === 'coil' ? ' (O)' : ''}`} onClick={() => openTool(t.tool)}><b>{t.glyph}</b><small>{t.label}</small></button>)}
         <span className="tool-divider"/>
-        <button className="tool" disabled={disabled || !selection?.parent} title="Add parallel branch around selection" aria-label="Add parallel branch" onClick={() => { if (!selection) return; if (selection.node.kind === 'action' || selection.node.kind === 'parallel' && selection.node.branches.every(n => n.kind === 'action')) openTool('coil'); else mutate({ kind: 'wrap', nodeId: selection.node.id, group: 'parallel', containerId: crypto.randomUUID(), branchId: crypto.randomUUID() }); }}><GitBranch size={17}/><small>Branch</small></button>
-        <button className="tool" disabled={disabled || !selection?.parent} title="Delete selected element" aria-label="Delete element" onClick={remove}><Trash2 size={16}/></button>
+        <button className="tool" disabled={disabled || multipleCells || !selection?.parent} title="Add parallel branch around selection" aria-label="Add parallel branch" onClick={() => { if (!selection) return; if (selection.node.kind === 'action' || selection.node.kind === 'parallel' && selection.node.branches.every(n => n.kind === 'action')) openTool('coil'); else mutate({ kind: 'wrap', nodeId: selection.node.id, group: 'parallel', containerId: crypto.randomUUID(), branchId: crypto.randomUUID() }); }}><GitBranch size={17}/><small>Branch</small></button>
+        <button className="tool" disabled={disabled || !cellSelection && !selection?.parent} title={multipleCells ? `Delete ${selectedCellCount} selected cells` : "Delete selected element"} aria-label="Delete element" onClick={remove}><Trash2 size={16}/></button>
         <button className="tool" disabled={disabled || !history.can_undo} title="Undo (Ctrl+Z)" aria-label="Undo edit" onClick={() => void undoProject().catch(e => setError(String(e)))}><Undo2 size={17}/></button>
         <button className="tool" disabled={disabled || !history.can_redo} title="Redo (Ctrl+Shift+Z)" aria-label="Redo edit" onClick={() => void redoProject().catch(e => setError(String(e)))}><Redo2 size={17}/></button>
         <span className="tool-divider"/>
-        <button className="tool" disabled={disabled} aria-label="Copy selection" title="Copy (Ctrl+C) — editor clipboard" onClick={() => copy()}>Copy</button>
-        <button className="tool" disabled={disabled || !selection?.parent} aria-label="Cut selection" title="Cut (Ctrl+X)" onClick={() => copy(true)}>Cut</button>
-        <button className="tool" disabled={disabled || !clipboard.clip} aria-label="Paste selection" title="Paste (Ctrl+V)" onClick={() => paste()}>Paste</button>
-        <button className="tool" disabled={disabled} aria-label="Duplicate selection" title="Duplicate element or selected network (Ctrl+D)" onClick={() => paste(true)}>Duplicate</button>
+        <button className="tool" disabled={disabled || multipleCells} aria-label="Copy selection" title="Copy (Ctrl+C) — editor clipboard" onClick={() => copy()}>Copy</button>
+        <button className="tool" disabled={disabled || multipleCells || !selection?.parent} aria-label="Cut selection" title="Cut (Ctrl+X)" onClick={() => copy(true)}>Cut</button>
+        <button className="tool" disabled={disabled || multipleCells || !clipboard.clip} aria-label="Paste selection" title="Paste (Ctrl+V)" onClick={() => paste()}>Paste</button>
+        <button className="tool" disabled={disabled || multipleCells} aria-label="Duplicate selection" title="Duplicate element or selected network (Ctrl+D)" onClick={() => paste(true)}>Duplicate</button>
         <span className="tool-divider"/>
         <button className="tool" disabled={zoom <= 60} title="Zoom out" aria-label="Zoom out" onClick={() => setZoom(Math.max(60, zoom - 10))}><ZoomOut size={16}/></button>
         <button className="tool" title="Find device or instruction (Ctrl+F)" aria-label="Find in ladder" onClick={() => setFinding(value => !value)}><Search size={16}/></button>
@@ -204,9 +251,9 @@ export function EditorWorkspace() {
           <div className="editor-ruler" style={{ gridTemplateColumns: `56px ${GRID_X}px repeat(${Math.max(10, ...networks.map(n => layoutLadder(n.root).columns))}, ${COLUMN_WIDTH}px)` }}><span>Network</span><span/>{Array.from({ length: Math.max(10, ...networks.map(n => layoutLadder(n.root).columns)) }, (_, n) => <span key={n} data-ruler-column={n}>{n}</span>)}</div>
           {!networks.length && <div className="editor-empty">Create or load a project to begin editing.</div>}
           {networks.map((rung, index) => <article key={rung.id} className={rung.id === network?.id ? 'editor-rung selected-rung' : 'editor-rung'}>
-            <button className="rung-gutter" aria-label={`Select network ${index + 1}`} aria-pressed={rung.id === network?.id} onClick={() => { selectNetwork(rung.id); setCursor(null); setSelectedId(rung.root.id); }}><strong>{index + 1}</strong><small>N{rung.id}</small></button>
-            <div className="rung-body"><button className="rung-comment" onClick={() => { selectNetwork(rung.id); setCursor(null); setSelectedId(rung.root.id); }}>{rung.comment || `Network ${index + 1}`}</button>
-              <LadderRenderer root={rung.root} theme="dark" minWidth={sheetWidth - 56} selectedId={rung.id === network?.id ? selectedId : null} cursor={cursor?.networkId === rung.id ? cursor : null} onCellSelect={cell => selectCell(rung.id, cell)} onSelect={id => { setCursor(null); if (rung.id !== selectedNetworkId) { selectNetwork(rung.id); } setSelectedId(id); }} onEdit={id => editSymbol(rung.id, id, true)} onContextMenu={(id, x, y) => { setCursor(null); selectNetwork(rung.id); setSelectedId(id); setMenu({ x: Math.max(0, Math.min(x, window.innerWidth - 180)), y: Math.max(0, Math.min(y, window.innerHeight - 280)) }); }}/>
+            <button className="rung-gutter" aria-label={`Select network ${index + 1}`} aria-pressed={rung.id === network?.id} onClick={() => { selectNetwork(rung.id); setCellSelection(null); setCursor(null); setSelectedId(rung.root.id); }}><strong>{index + 1}</strong><small>N{rung.id}</small></button>
+            <div className="rung-body"><button className="rung-comment" onClick={() => { selectNetwork(rung.id); setCellSelection(null); setCursor(null); setSelectedId(rung.root.id); }}>{rung.comment || `Network ${index + 1}`}</button>
+              <LadderRenderer root={rung.root} theme="dark" minWidth={sheetWidth - 56} selectedId={rung.id === network?.id ? selectedId : null} cursor={cursor?.networkId === rung.id ? cursor : null} selectionRange={cellSelection?.networkId === rung.id ? cellSelection : null} onCellSelect={(cell, extend) => selectCell(rung.id, cell, extend)} onCellPointerDown={(cell, extend) => beginCellSelection(rung.id, cell, extend)} onCellPointerMove={cell => extendCellSelection(rung.id, cell)} onCellPointerUp={finishCellSelection} onSelect={id => { setCellSelection(null); setCursor(null); if (rung.id !== selectedNetworkId) { selectNetwork(rung.id); } setSelectedId(id); }} onEdit={id => editSymbol(rung.id, id, true)} onContextMenu={(id, x, y) => { setCellSelection(null); setCursor(null); selectNetwork(rung.id); setSelectedId(id); setMenu({ x: Math.max(0, Math.min(x, window.innerWidth - 180)), y: Math.max(0, Math.min(y, window.innerHeight - 280)) }); }}/>
             </div>
           </article>)}
           <div className="editor-end"><span>END</span></div>
@@ -214,20 +261,21 @@ export function EditorWorkspace() {
       </div>
       <aside className="editor-properties" ref={properties} aria-label="Element properties">
         <div className="properties-title">Properties<span>{network ? `Network ${currentIndex + 1}` : ''}</span></div>
-        {selection && <>
+        {multipleCells && <div role="status"><h3>{selectedCellCount} cells selected</h3><p>Press Delete to clear every symbol and wire in this range as one undoable edit. Press Esc to cancel the selection.</p></div>}
+        {selection && !multipleCells && <>
           <h3>{cell && !cell.nodeId ? `${cell.kind === "wire" ? "Wire" : "Empty cell"} · column ${cell.column}` : nodeLabel(selection.node)}</h3>
-          {cell && !cell.nodeId ? <p>Select a tool to place a symbol here. Ctrl+arrows edits one cell at a time.</p> : <Inspector key={`${network?.id}:${selection.node.id}`} node={selection.node} disabled={disabled} onUpdate={node => perform((p, n) => editStructured(p, n, { kind: 'update', nodeId: node.id, node }), false).then(() => undefined)}/>}
+          {cell && !cell.nodeId ? <p>Select a tool to place a symbol here. Ctrl+arrows draws a connected wire one cell at a time.</p> : <Inspector key={`${network?.id}:${selection.node.id}`} node={selection.node} disabled={disabled} onUpdate={node => perform((p, n) => editStructured(p, n, { kind: 'update', nodeId: node.id, node }), false).then(() => undefined)}/>}
           <div className="property-order"><button disabled={disabled || cell && !cell.nodeId || !selection.parent || selection.index === 0} title="Move element earlier" aria-label="Move element earlier" onClick={() => mutate({ kind: 'move', nodeId: selection.node.id, direction: -1 })}><ArrowLeft size={14}/></button><button disabled={disabled || cell && !cell.nodeId || !selection.parent || selection.index === childNodes(selection.parent)!.length - 1} title="Move element later" aria-label="Move element later" onClick={() => mutate({ kind: 'move', nodeId: selection.node.id, direction: 1 })}><ArrowRight size={14}/></button><span>Execution order</span></div>
           <label className="rung-label">Network label<input aria-label="Network label" value={comment} disabled={disabled} onChange={e => setComment(e.target.value)} onBlur={() => { if (comment !== (network?.comment ?? '')) void perform(p => { const result = editNetwork(p, { kind: 'comment', networkId: selectedNetworkId, comment }); return { project: result.project, selectedId: selection.node.id }; }).catch(() => undefined); }}/></label>
-          <details className="structure-details"><summary>Rung structure</summary>{nodes.map(l => <button key={l.node.id} onClick={() => { setCursor(null); setSelectedId(l.node.id); }} style={{ paddingLeft: 8 + l.depth * 12 }} className={l.node.id === selection.node.id ? 'chosen' : ''}>{nodeLabel(l.node)}</button>)}</details>
+          <details className="structure-details"><summary>Rung structure</summary>{nodes.map(l => <button key={l.node.id} onClick={() => { setCellSelection(null); setCursor(null); setSelectedId(l.node.id); }} style={{ paddingLeft: 8 + l.depth * 12 }} className={l.node.id === selection.node.id ? 'chosen' : ''}>{nodeLabel(l.node)}</button>)}</details>
         </>}
-        {!selection && <p>Select a rung or symbol.</p>}
+        {!selection && !multipleCells && <p>Select a rung or symbol.</p>}
       </aside>
     </div>
     {menu && <div className="editor-context-menu" role="menu" aria-label="Element actions" onKeyDown={e => { if (e.key === 'ArrowDown' || e.key === 'ArrowUp') { e.preventDefault(); e.stopPropagation(); const items = Array.from(e.currentTarget.querySelectorAll<HTMLButtonElement>('button:not(:disabled)')); const index = items.indexOf(document.activeElement as HTMLButtonElement); items[(index + (e.key === 'ArrowDown' ? 1 : -1) + items.length) % items.length]?.focus(); } }} style={{ left: menu.x, top: menu.y }} onBlur={e => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setMenu(null); }}>
       <button role="menuitem" onClick={() => editSymbol()}>Edit · Enter</button><button role="menuitem" onClick={() => copy()}>Copy · Ctrl+C</button><button role="menuitem" disabled={!selection?.parent} onClick={() => copy(true)}>Cut · Ctrl+X</button><button role="menuitem" disabled={!clipboard.clip} onClick={() => paste()}>Paste · Ctrl+V</button><button role="menuitem" onClick={() => paste(true)}>Duplicate · Ctrl+D</button><button role="menuitem" disabled={!selection?.parent} onClick={() => { remove(); setMenu(null); }}>Delete</button><button role="menuitem" onClick={() => setMenu(null)}>Close · Esc</button>
     </div>}
     {dialogNode && <div className="editor-dialog-backdrop" onClick={e => { if (e.target === e.currentTarget) setEditing(null); }}><section className="editor-symbol-dialog" role="dialog" aria-modal="true" aria-label="Edit symbol" onKeyDown={e => { if (e.key === 'Tab') { const controls = Array.from(e.currentTarget.querySelectorAll<HTMLElement>('input,select,button')).filter(el => !el.hasAttribute('disabled')); const first = controls[0], last = controls.at(-1); if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last?.focus(); } else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first?.focus(); } } }}><h3>Edit {nodeLabel(dialogNode)}</h3><Inspector node={dialogNode} disabled={disabled} onUpdate={async node => { await perform((p, n) => editStructured(p, n, { kind: 'update', nodeId: node.id, node }), false); setEditing(null); stage.current?.focus(); }}/><button onClick={() => { setEditing(null); stage.current?.focus(); }}>Cancel</button></section></div>}
-    <div className="editor-statusbar"><span>{network ? `Main / Network ${currentIndex + 1}` : 'Main'}</span><span>{cell ? `Row ${cell.row + 1} · Column ${cell.column}` : selection ? nodeLabel(selection.node) : 'Select a cell'}</span><span>Ctrl+arrows wire/branch · Arrows select · Enter edit · Ctrl+Z undo</span><span>Draft · not compiled</span></div>
+    <div className="editor-statusbar"><span>{network ? `Main / Network ${currentIndex + 1}` : 'Main'}</span><span>{multipleCells ? `${selectedCellCount} cells selected` : cell ? `Row ${cell.row + 1} · Column ${cell.column}` : selection ? nodeLabel(selection.node) : 'Select a cell'}</span><span>Drag / Shift+click select range · Delete clear · Esc cancel</span><span>Draft · not compiled</span></div>
   </section>;
 }
