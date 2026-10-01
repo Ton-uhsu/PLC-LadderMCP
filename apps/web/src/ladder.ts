@@ -73,6 +73,7 @@ function contactText(contact: ContactNode) {
 }
 
 export function logicText(node: LogicNode): string {
+  if (node.kind === "wire") return node.connected ? "Wire" : "Disconnected wire";
   if (node.kind === "contact") return contactText(node);
   if (node.kind === "action") return actionLabel(node.action);
   if (node.kind === "series") return node.children.map(logicText).join(" AND ");

@@ -72,16 +72,34 @@ for(let mode=0;mode<2;mode++){
  await page.getByRole('button',{name:'Close search',exact:true}).click();
  await stage.press('Home'); await stage.press('ArrowUp'); await page.waitForFunction(()=>document.querySelectorAll('.rung-gutter')[0].getAttribute('aria-pressed')==='true');
  await page.locator('.rung-gutter').first().click();
+ // Ctrl+arrow wires: all four directions, gaps, Undo/Redo and durable reload.
+ const m0 = page.locator('.editor-rung').nth(1).locator('[data-node-id]').filter({hasText:'NC M0'});
+ await m0.click(); await stage.focus(); await stage.press('Control+ArrowRight');
+ const wires = page.locator('.editor-rung').nth(1).locator('[data-node-id]');
+ const gap = wires.filter({hasText:'Disconnected wire'});
+ await page.waitForFunction(()=>document.querySelectorAll('.editor-rung')[1].querySelectorAll('[data-node-id]').length===3);
+ await page.waitForFunction(()=>!document.querySelector('[aria-label="Undo edit"]').disabled);
+ await stage.press('Control+ArrowLeft'); await gap.waitFor();
+ await page.waitForFunction(()=>!document.querySelector('[aria-label="Undo edit"]').disabled); await stage.press('Control+ArrowRight'); await gap.waitFor({state:'hidden'});
+ await page.waitForFunction(()=>!document.querySelector('[aria-label="Undo edit"]').disabled); await stage.press('Control+z'); await gap.waitFor();
+ await page.waitForFunction(()=>!document.querySelector('[aria-label="Redo edit"]').disabled); await stage.press('Control+y'); await gap.waitFor({state:'hidden'});
+ for(const direction of ['Up','Down']) {
+  await page.waitForFunction(()=>!document.querySelector('[aria-label="Undo edit"]').disabled); await stage.press('Control+Arrow'+direction); await gap.waitFor();
+  await page.waitForFunction(()=>!document.querySelector('[aria-label="Undo edit"]').disabled); await stage.press('Control+Arrow'+direction); await gap.waitFor({state:'hidden'});
+ }
+ await page.waitForFunction(()=>!document.querySelector('[aria-label="Undo edit"]').disabled); await stage.press('Control+ArrowLeft'); await gap.waitFor();
+ await page.screenshot({path:`${shots}/editor-wire-gap-${mode}.png`,fullPage:true});
+ await page.locator('.rung-gutter').first().click();
  if(!mode){
   await page.route('**/api/manual/project',r=>r.fulfill({status:404,contentType:'application/json',body:'{"error":"Not found"}'}));
   await page.getByRole('button',{name:'Insert NO contact',exact:true}).click(); await page.getByLabel('Element address or instruction').fill('X3'); await page.getByLabel('Element address or instruction').press('Enter');
   await page.getByRole('alert').filter({hasText:'restart npm run server'}).waitFor(); assert.equal(await page.locator('.editor-rung').first().locator('[data-node-id]').count(),4); await page.unroute('**/api/manual/project'); await page.getByRole('button',{name:'Cancel',exact:true}).click(); await page.getByRole('button',{name:'Dismiss',exact:true}).click();
  }
  await page.getByRole('button',{name:'Zoom out',exact:true}).click(); await page.screenshot({path:`${shots}/editor-workspace-${mode}.png`,fullPage:true});
- if(mode){await page.getByRole('status').filter({hasText:/saved/}).waitFor();await page.reload();await page.getByRole('heading',{name:'Conveyor control',exact:true}).waitFor();assert.equal(await page.locator('.editor-rung').count(),2);assert.equal(await page.locator('.editor-rung').first().locator('[data-node-id]').count(),4);}
+ if(mode){await page.getByRole('status').filter({hasText:/saved/}).waitFor();await page.reload();await page.getByRole('heading',{name:'Conveyor control',exact:true}).waitFor();assert.equal(await page.locator('.editor-rung').count(),2);assert.equal(await page.locator('.editor-rung').first().locator('[data-node-id]').count(),4);assert.equal(await page.locator('.editor-rung').nth(1).locator('[data-node-id]').filter({hasText:'Disconnected wire'}).count(),1);}
  await page.setViewportSize({width:520,height:800}); await page.screenshot({path:`${shots}/editor-workspace-${mode}-520.png`,fullPage:true});
  await page.setViewportSize({width:1100,height:800}); await page.screenshot({path:`${shots}/editor-workspace-${mode}-1100.png`,fullPage:true});
- assert.deepEqual(errors,[]); console.log(`PASS browser ${mode?'PostgreSQL':'local'} insert/properties/branch/networks/clipboard/cut-identity/dialog/context-menu/duplicate/find/navigation/undo/redo/keyboard/zoom${mode?'/reload':'/old-backend-error'}`); await context.close();
+ assert.deepEqual(errors,[]); console.log(`PASS browser ${mode?'PostgreSQL':'local'} insert/properties/branch/networks/clipboard/cut-identity/dialog/context-menu/duplicate/find/navigation/undo/redo/keyboard/zoom/ctrl-arrow-wires${mode?'/reload':'/old-backend-error'}`); await context.close();
 }
 console.log('Browser QA screenshots: '+shots);
 }finally{await browser?.close();await vite.close();for(const s of servers)await new Promise(r=>s.close(r));await db.destroy();await rm(temp,{recursive:true,force:true});}

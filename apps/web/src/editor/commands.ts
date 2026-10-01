@@ -20,6 +20,11 @@ export function insertElement(project: LadderProjectV02, networkId: number, sele
   const root = project.programs[0]?.networks.find(n => n.id === networkId)?.root;
   if (!root) throw new Error('Select a network.');
   const selected = listNodes(root).find(l => l.node.id === selectedId) ?? listNodes(root)[0];
+  if (selected.node.kind === 'wire' && node.kind !== 'wire' && node.kind !== 'action' && selected.parent) {
+    const inserted = editStructured(project, networkId, { kind: 'insert', parentId: selected.parent.id, index: selected.index, node });
+    const result = editStructured(inserted.project, networkId, { kind: 'remove', nodeId: selected.node.id });
+    return { ...result, selectedId: node.id };
+  }
   if (node.kind === 'action' && root.kind === 'series') {
     const tail = root.children.at(-1);
     if (tail?.kind === 'parallel' && tail.branches.every(n => n.kind === 'action')) return editStructured(project, networkId, { kind: 'insert', parentId: tail.id, index: tail.branches.length, node });

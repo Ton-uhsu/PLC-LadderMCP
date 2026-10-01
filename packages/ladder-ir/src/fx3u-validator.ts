@@ -1,4 +1,5 @@
 import type { LadderProjectV02, LogicNode } from "./v02.js";
+import { normalizeWires } from "./fx3u-compiler.js";
 import { inspectFx3uInstructionForm } from "./fx3u-capabilities.js";
 
 export type ValidationIssue={severity:"error"|"warning";code:string;message:string;path:string};
@@ -6,6 +7,7 @@ const bit=/^(X|Y|M|S)\d+$/i;
 const word=/^(D|T|C)\d+$/i;
 
 function walk(node:LogicNode,path:string,issues:ValidationIssue[]){
+ if(node.kind==="wire") { if(!node.connected) issues.push({severity:"error",code:"DISCONNECTED_WIRE",message:"Wire path is disconnected. Complete it before Apply/Export.",path}); return; }
  if(node.kind==="contact"){
    if(!bit.test(node.device.address)) issues.push({severity:"error",code:"FX3U_CONTACT_DEVICE",message:`Contact device ${node.device.address} is not in the currently validated bit-device subset X/Y/M/S.`,path});
    return;
@@ -30,5 +32,10 @@ export function validateFx3uV02(project:LadderProjectV02){
  const issues:ValidationIssue[]=[];
  if(project.plc.model!=="FX3U")issues.push({severity:"error",code:"TARGET_MODEL",message:"This profile currently targets FX3U.",path:"plc.model"});
  project.programs.forEach((p,pi)=>p.networks.forEach((n,ni)=>walk(n.root,`programs[${pi}].networks[${ni}].root`,issues)));
+ project.programs.forEach((p,pi)=>p.networks.forEach((n,ni)=>{
+   if(n.root.kind !== 'series') return;
+   const conditions=n.root.children.slice(0,-1);
+   try { if(conditions.length && conditions.every(c=>normalizeWires(c)===null)) issues.push({severity:"warning",code:"ALWAYS_ON_OUTPUT",message:"Wire path bypasses all conditions; outputs are driven while the PLC is in RUN mode.",path:`programs[${pi}].networks[${ni}].root`}); } catch { /* walk already reports gaps */ }
+ }));
  return {valid:!issues.some(i=>i.severity==="error"),issues};
 }

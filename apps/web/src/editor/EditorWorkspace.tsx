@@ -6,6 +6,7 @@ import { Inspector } from '../persistence/ManualEditor';
 import { LadderRenderer } from './LadderRenderer';
 import { layoutLadder, nodeLabel } from './layout';
 import { captureSelection, pasteSelection, useEditorClipboard } from './clipboard';
+import { editWire, type WireDirection } from './wire-commands';
 import { insertElement, toolElement, type EditorTool } from './commands';
 const tools: { tool: EditorTool; glyph: string; label: string; input: string }[] = [
   { tool: 'contact', glyph: '─| |─', label: 'NO contact', input: 'X0' }, { tool: 'nc', glyph: '─|/|─', label: 'NC contact', input: 'X0' },
@@ -91,7 +92,7 @@ export function EditorWorkspace() {
     selectNetwork(networkId); setSelectedId(nodeId);
     const node = project.programs[0].networks.find(n => n.id === networkId)?.root;
     const selected = node && listNodes(node).find(n => n.node.id === nodeId);
-    if (selected && !childNodes(selected.node)) setEditing({ networkId, nodeId }); else focusProperties();
+    if (selected && selected.node.kind !== 'wire' && !childNodes(selected.node)) setEditing({ networkId, nodeId }); else focusProperties();
     setMenu(null);
   }
   const editingNode = editing && project.programs[0].networks.find(n => n.id === editing.networkId);
@@ -126,6 +127,9 @@ export function EditorWorkspace() {
       e.preventDefault(); if (e.key.toLowerCase() === 'c') copy(); if (e.key.toLowerCase() === 'x') copy(true); if (e.key.toLowerCase() === 'v') paste(); if (e.key.toLowerCase() === 'd') paste(true); return;
     }
     if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'f') { e.preventDefault(); setFinding(true); return; }
+    if (e.ctrlKey && !e.altKey && !e.metaKey && !e.shiftKey && ['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(e.key)) {
+      e.preventDefault(); if (selection && !disabled && !e.repeat) void perform((p, n) => editWire(p, n, selection.node.id, e.key.slice(5).toLowerCase() as WireDirection, () => crypto.randomUUID())).then(() => stage.current?.focus()).catch(() => undefined); return;
+    }
     if (e.ctrlKey || e.metaKey || e.altKey) return;
     if (e.key === 'Delete') { e.preventDefault(); remove(); }
     if (e.key === 'Escape') { setEntry(null); setSelectedId(null); }
@@ -209,6 +213,6 @@ export function EditorWorkspace() {
       <button role="menuitem" onClick={() => editSymbol()}>Edit · Enter</button><button role="menuitem" onClick={() => copy()}>Copy · Ctrl+C</button><button role="menuitem" disabled={!selection?.parent} onClick={() => copy(true)}>Cut · Ctrl+X</button><button role="menuitem" disabled={!clipboard.clip} onClick={() => paste()}>Paste · Ctrl+V</button><button role="menuitem" onClick={() => paste(true)}>Duplicate · Ctrl+D</button><button role="menuitem" disabled={!selection?.parent} onClick={() => { remove(); setMenu(null); }}>Delete</button><button role="menuitem" onClick={() => setMenu(null)}>Close · Esc</button>
     </div>}
     {dialogNode && <div className="editor-dialog-backdrop" onClick={e => { if (e.target === e.currentTarget) setEditing(null); }}><section className="editor-symbol-dialog" role="dialog" aria-modal="true" aria-label="Edit symbol" onKeyDown={e => { if (e.key === 'Tab') { const controls = Array.from(e.currentTarget.querySelectorAll<HTMLElement>('input,select,button')).filter(el => !el.hasAttribute('disabled')); const first = controls[0], last = controls.at(-1); if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last?.focus(); } else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first?.focus(); } } }}><h3>Edit {nodeLabel(dialogNode)}</h3><Inspector node={dialogNode} disabled={disabled} onUpdate={async node => { await perform((p, n) => editStructured(p, n, { kind: 'update', nodeId: node.id, node }), false); setEditing(null); stage.current?.focus(); }}/><button onClick={() => { setEditing(null); stage.current?.focus(); }}>Cancel</button></section></div>}
-    <div className="editor-statusbar"><span>{network ? `Main / Network ${currentIndex + 1}` : 'Main'}</span><span>{selection ? nodeLabel(selection.node) : 'Select a symbol'}</span><span>Arrows select · Enter edit · Ctrl+C/X/V · Ctrl+D duplicate · Ctrl+Z undo</span><span>Draft · not compiled</span></div>
+    <div className="editor-statusbar"><span>{network ? `Main / Network ${currentIndex + 1}` : 'Main'}</span><span>{selection ? nodeLabel(selection.node) : 'Select a symbol'}</span><span>Ctrl+arrows wire/branch · Arrows select · Enter edit · Ctrl+Z undo</span><span>Draft · not compiled</span></div>
   </section>;
 }

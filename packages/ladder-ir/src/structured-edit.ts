@@ -13,6 +13,7 @@ export function listNodes(root: LogicNode): NodeLocation[] {
   walk(root, null, 0, 0); return result;
 }
 export type StructuredEdit =
+  | { kind: 'unwrap'; nodeId: string }
   | { kind: 'insert'; parentId: string; index: number; node: LogicNode }
   | { kind: 'remove'; nodeId: string }
   | { kind: 'move'; nodeId: string; direction: -1 | 1 }
@@ -31,7 +32,12 @@ export function editStructured(project: LadderProjectV02, networkId: number, edi
   if (!location) throw new Error('The selected element no longer exists.');
   const { node, parent, index } = location;
   let selectedId = node.id;
-  if (edit.kind === 'insert') {
+  if (edit.kind === 'unwrap') {
+    const children = childNodes(node);
+    if (children?.length !== 1) throw new Error('Only a single-child group can be unwrapped.');
+    if (parent) childNodes(parent)![index] = children[0]; else network.root = children[0];
+    selectedId = children[0].id;
+  } else if (edit.kind === 'insert') {
     const children = childNodes(node);
     if (!children) throw new Error('Select a series or parallel group to insert an element.');
     if (!Number.isInteger(edit.index) || edit.index < 0 || edit.index > children.length) throw new Error('Invalid insertion position.');

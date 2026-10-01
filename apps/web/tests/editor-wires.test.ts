@@ -1,0 +1,72 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { compileProject, generateGxWorks2ListText, parseGxWorks2ListText, listNodes, validateFx3uV02, type LadderProjectV02 } from '@plc-ladder-mcp/ladder-ir';
+import { editWire } from '../src/editor/wire-commands.ts';
+import { insertElement, toolElement } from '../src/editor/commands.ts';
+import { exportSamSoar } from '../../../services/mcp-server/src/project.ts';
+import { snapshotSchema, snapshotHashes } from '../../../services/mcp-server/src/persistence/snapshot.ts';
+const fixture: LadderProjectV02 = { version: '0.2', name: 'Wires', plc: { family: 'Mitsubishi FX', model: 'FX3U' }, programs: [{ name: 'Main', networks: [{ id: 0, root: { kind: 'series', id: 'root', children: [{ kind: 'contact', id: 'x', device: { kind: 'device', address: 'X0' }, mode: 'NO' }, { kind: 'action', id: 'out', action: { kind: 'coil', id: 'y', device: { kind: 'device', address: 'Y0' } } }] } }, {id: 1, root: {kind: 'series', id: 'other', children: []}}] }] };
+let serial = 0; const id = () => `wire-${serial++}`;
+const nodes = (p: LadderProjectV02) => listNodes(p.programs[0].networks[0].root);
+test('horizontal wire edits toggle real gaps, preserve unrelated state, and replace wire with a contact', () => {
+  const result = editWire(fixture, 0, 'x', 'right', id);
+  assert.deepEqual(compileProject({...result.project, programs: [{name:'Main', networks:[result.project.programs[0].networks[0]]}]}), [{instruction:'LD',device:'X0'},{instruction:'OUT',device:'Y0'}]);
+  const gap = editWire(result.project, 0, result.selectedId, 'left', id);
+  const snapshot = structuredClone(gap.project); snapshot.programs[0].networks.pop();
+  assert.throws(() => compileProject(snapshot), /Disconnected wire/);
+  assert.ok(validateFx3uV02(snapshot).issues.some(i => i.code === 'DISCONNECTED_WIRE' && i.severity === 'error'));
+  assert.doesNotThrow(() => snapshotSchema.parse(snapshot));
+  assert.notEqual(snapshotHashes(result.project, null).logicHash, snapshotHashes(gap.project, null).logicHash);
+  const connected = editWire(gap.project, 0, gap.selectedId, 'right', id);
+  assert.deepEqual(connected.project, result.project);
+  const replaced = insertElement(gap.project, 0, gap.selectedId, toolElement('nc', 'M0', id), 'after', id);
+  assert.equal(nodes(replaced.project).filter(n => n.node.kind === 'wire').length, 0);
+  assert.deepEqual(replaced.project.programs[0].networks[1], fixture.programs[0].networks[1]);
+  assert.equal(nodes(fixture).length, 3);
+  const left = editWire(fixture, 0, 'x', 'left', id);
+  assert.equal(left.project.programs[0].networks[0].root.kind, 'series');
+  if(left.project.programs[0].networks[0].root.kind==='series') assert.equal(left.project.programs[0].networks[0].root.children[0].kind,'wire');
+});
+test('vertical shortcut adds/removes only empty wire branches and preserves nested identities', () => {
+  for (const direction of ['up', 'down'] as const) {
+    const added = editWire(fixture, 0, 'x', direction, id);
+    assert.equal(added.selectedId, 'x');
+    assert.equal(nodes(added.project).filter(n => n.node.kind === 'wire').length, 1);
+    const removed = editWire(added.project, 0, 'x', direction, id);
+    assert.deepEqual(removed.project, fixture);
+    const wire = nodes(added.project).find(n => n.node.kind === 'wire')!.node;
+    const filled = insertElement(added.project, 0, wire.id, toolElement('contact', 'M0', id), 'after', id);
+    assert.throws(() => editWire(filled.project, 0, 'x', direction, id), /contains symbols/);
+    assert.ok(nodes(filled.project).some(n => n.node.id === 'x'));
+    assert.throws(() => editWire(filled.project, 0, 'out', 'down', id), /condition side/);
+  }
+  assert.throws(() => editWire(fixture, 0, 'x', 'right', () => 'x'), /unique/);
+});
+test('connected bypass is Boolean TRUE, warns on unconditional outputs, and never masks gaps or actions', () => {
+  const p = structuredClone(fixture); p.programs[0].networks.pop();
+  const branched = editWire(p, 0, 'x', 'down', id);
+  const wire = nodes(branched.project).find(n => n.node.kind === 'wire')!.node;
+  const joined = editWire(branched.project, 0, wire.id, 'right', id);
+  assert.deepEqual(compileProject(joined.project), [{instruction:'LD',device:'M8000'},{instruction:'OUT',device:'Y0'}]);
+  assert.deepEqual(compileProject(parseGxWorks2ListText(generateGxWorks2ListText(joined.project))), compileProject(joined.project));
+  assert.ok(exportSamSoar(joined.project).includes('LD,M8000'));
+  const seriesWire = editWire(p, 0, 'x', 'right', id);
+  assert.ok(exportSamSoar(seriesWire.project).includes('LD,X0'));
+  assert.throws(() => exportSamSoar(branched.project), /disconnected/i);
+  const nested = structuredClone(joined.project);
+  const nestedRoot = nested.programs[0].networks[0].root;
+  if(nestedRoot.kind !== 'series' || nestedRoot.children[0].kind !== 'parallel') throw Error();
+  nestedRoot.children[0].branches = [{kind:'contact',id:'a',device:{kind:'device',address:'X0'},mode:'NO'}, {kind:'contact',id:'b',device:{kind:'device',address:'M0'},mode:'NO'}];
+  assert.throws(() => exportSamSoar(nested), /nested conditions cannot be omitted/);
+  assert.ok(validateFx3uV02(joined.project).issues.some(i=>i.code==='ALWAYS_ON_OUTPUT'));
+  assert.ok(nodes(joined.project).some(n=>n.node.id==='x')); // normalization did not delete the bypassed contact
+  const invalid = structuredClone(joined.project);
+  const root = invalid.programs[0].networks[0].root;
+  if(root.kind!=='series' || root.children[0].kind!=='parallel') throw Error();
+  root.children[0].branches.push({kind:'wire',id:'gap',connected:false});
+  assert.throws(()=>compileProject(invalid), /Disconnected wire/);
+  root.children[0].branches.pop(); root.children[0].branches.push({kind:'series',id:'empty',children:[]});
+  assert.throws(()=>compileProject(invalid), /Empty condition/);
+  root.children[0].branches.pop(); root.children[0].branches.push({kind:'action',id:'extra-output',action:{kind:'coil',id:'extra-action',device:{kind:'device',address:'Y1'}}});
+  assert.throws(()=>compileProject(invalid), /cannot bypass an output/);
+});

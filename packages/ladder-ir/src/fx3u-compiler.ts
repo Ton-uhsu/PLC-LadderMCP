@@ -38,6 +38,7 @@ function contactMnemonic(node: ContactNode, mode: CombineMode) {
 }
 
 function compileCondition(node: LogicNode, mode: CombineMode): ListInstruction[] {
+  if (node.kind === "wire") throw new Error("Wire must be normalized before condition compilation.");
   if (node.kind === "action") throw new Error("Action node cannot be used as a condition.");
 
   if (node.kind === "contact") {
@@ -115,18 +116,40 @@ function isActionTail(node: LogicNode | undefined): boolean {
  * ANB is used only when a parallel condition must be AND-composed after an
  * existing accumulator; that topology remains evidence-tracked separately.
  */
+// Connected wires are Boolean TRUE in conditions; gaps always block compile.
+// Normalization is compile-only and never rewrites the authoritative snapshot.
+export function normalizeWires(node: LogicNode): LogicNode | null {
+  if (node.kind === 'wire') { if (!node.connected) throw new Error('Disconnected wire: complete the path before Compile/Export.'); return null; }
+  if (node.kind === 'contact' || node.kind === 'action') return node;
+  const children = (node.kind === 'series' ? node.children : node.branches).map(normalizeWires);
+  if (!children.length) throw new Error("Empty condition group: complete the path before Compile/Export.");
+  const hasAction = (item: LogicNode): boolean => item.kind === "action" || (item.kind === "series" ? item.children : item.kind === "parallel" ? item.branches : []).some(hasAction);
+  if (node.kind === "parallel" && children.some(child => child === null) && node.branches.some(hasAction)) throw new Error("A wire cannot bypass an output action.");
+  if (node.kind === 'parallel' && children.some(child => child === null)) return null;
+  const kept = children.filter((child): child is LogicNode => child !== null);
+  if (!kept.length) return null;
+  const originalChildren = node.kind === "series" ? node.children : node.branches;
+  if (kept.length === originalChildren.length && kept.every((child, index) => child === originalChildren[index])) return node;
+  if (kept.length === 1) return kept[0];
+  return node.kind === 'series' ? { ...node, children: kept } : { ...node, branches: kept };
+}
 export function compileNetwork(network: LadderNetworkV02): ListInstruction[] {
-  const root = network.root;
-  if (root.kind !== "series") throw new Error("v0.2 compiler currently requires a series root.");
+  const original = network.root;
+  if (original.kind !== 'series') throw new Error('v0.2 compiler currently requires a series root.');
+  if (!isActionTail(original.children.at(-1))) throw new Error('Network must end in an action or parallel output actions.');
+  const children = original.children.map(normalizeWires).filter((child): child is LogicNode => child !== null);
+  const root = { ...original, children };
 
   const tail = root.children.at(-1);
   if (!isActionTail(tail)) throw new Error("Network must end in an action or parallel output actions.");
 
   const conditions = root.children.slice(0, -1);
-  if (!conditions.length) throw new Error("Network requires at least one condition.");
+  const hasWire = (node: LogicNode): boolean => node.kind === 'wire' || (node.kind === 'series' ? node.children : node.kind === 'parallel' ? node.branches : []).some(hasWire);
+  if (!conditions.length && !hasWire(original)) throw new Error("Network requires at least one condition.");
 
   const out: ListInstruction[] = [];
-  out.push(...compileCondition(conditions[0], "load"));
+  if (conditions.length) out.push(...compileCondition(conditions[0], "load"));
+  else out.push({ instruction: "LD", device: "M8000" });
   for (const condition of conditions.slice(1)) {
     if (condition.kind === "contact" || condition.kind === "series") out.push(...compileCondition(condition, "and"));
     else {

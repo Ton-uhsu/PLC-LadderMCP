@@ -21,7 +21,7 @@ export function LadderRenderer({ root, selectedId, onSelect, onEdit, onContextMe
         <title>{`${nodeLabel(node)} · ${node.id}`}</title>
         <g stroke={ink} strokeWidth="2" fill="none">
           <line x1={x} y1={baseline} x2={center - 26} y2={baseline}/><line x1={center + 26} y1={baseline} x2={x + width} y2={baseline}/>
-          {node.kind === 'contact' ? <>
+          {node.kind === 'wire' ? node.connected ? <line x1={center - 26} y1={baseline} x2={center + 26} y2={baseline}/> : <><circle cx={center - 26} cy={baseline} r="3" stroke="#f59e0b"/><circle cx={center + 26} cy={baseline} r="3" stroke="#f59e0b"/></> : node.kind === 'contact' ? <>
             <line x1={center - 10} y1={baseline - 14} x2={center - 10} y2={baseline + 14}/><line x1={center + 10} y1={baseline - 14} x2={center + 10} y2={baseline + 14}/>
             <line x1={center - 26} y1={baseline} x2={center - 10} y2={baseline}/><line x1={center + 10} y1={baseline} x2={center + 26} y2={baseline}/>
             {node.mode === 'NC' && <line x1={center - 16} y1={baseline + 18} x2={center + 16} y2={baseline - 18}/>}
@@ -30,7 +30,7 @@ export function LadderRenderer({ root, selectedId, onSelect, onEdit, onContextMe
             <line x1={center - 26} y1={baseline} x2={center - 16} y2={baseline}/><line x1={center + 16} y1={baseline} x2={center + 26} y2={baseline}/>
           </> : <rect x={node.kind === 'action' ? center - Math.max(48, nodeLabel(node).length * 4 + 12) : x + 16} y={baseline - 15} width={node.kind === 'action' ? Math.max(96, nodeLabel(node).length * 8 + 24) : width - 32} height="30" fill={paper} strokeDasharray={children ? '4 3' : undefined}/>}
         </g>
-        <text x={center} y={node.kind === 'action' && node.action.kind === 'instruction' || children ? baseline + 5 : y + 20} textAnchor="middle" fill={ink} fontFamily="monospace" fontSize="13">{children ? `Empty ${node.kind} · draft` : nodeLabel(node)}</text>
+        <text x={center} y={node.kind === 'action' && node.action.kind === 'instruction' || children ? baseline + 5 : y + 20} textAnchor="middle" fill={node.kind === "wire" && !node.connected ? "#f59e0b" : ink} fontFamily="monospace" fontSize="13">{children ? `Empty ${node.kind} · draft` : nodeLabel(node)}</text>
         {node.kind === 'contact' && node.edge && node.edge !== 'none' && <text x={center} y={baseline + 5} textAnchor="middle" fill={ink} fontSize="14">{node.edge === 'rising' ? '↑' : '↓'}</text>}
       </g>;
     })}

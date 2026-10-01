@@ -14,6 +14,8 @@ PLC-LadderMCP documentation is organized by canonical ownership.
 
 - [`designs/persistence-database-architecture.md`](./designs/persistence-database-architecture.md) — V1 PostgreSQL model, immutable revisions, review lifecycle, compile/export traceability, and evidence storage.
 
+- [`designs/ladder-wire-editing.md`](./designs/ladder-wire-editing.md) — structured Ctrl-arrow wires, incomplete paths, persistence and compiler semantics.
+
 ## Contracts, research, and evidence
 - `contracts/fx3u-capability-catalog.md`
 - `research/plc-ide-import-export.md`

@@ -5,7 +5,7 @@ import type {
   LogicNode,
   Operand,
 } from "@plc-ladder-mcp/ladder-ir";
-import { generateGxWorks2ListText, parseGxWorks2ListText, validateFx3uV02 } from "@plc-ladder-mcp/ladder-ir";
+import { generateGxWorks2ListText, parseGxWorks2ListText, validateFx3uV02, normalizeWires } from "@plc-ladder-mcp/ladder-ir";
 import { copyFileSync, existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
 import { basename, dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -372,11 +372,11 @@ function validateProjectState(target: LadderProjectV02) {
         });
         continue;
       }
-      if (!root.children.slice(0, -1).some(hasContactCondition)) {
+      if (!root.children.slice(0, -1).some(hasConditionPath)) {
         issues.push({
           severity: "error" as const,
           code: "MISSING_CONDITION",
-          message: `Network ${network.id} requires at least one contact condition.`,
+          message: `Network ${network.id} requires a contact condition or a connected wire path.`,
           path: `network[${network.id}].root`,
         });
       }
@@ -685,23 +685,24 @@ export function exportGxWorks2Text() {
   return generateGxWorks2ListText(project);
 }
 
-export function exportSamSoar() {
-  const validation = validateProject();
+export function exportSamSoar(target: LadderProjectV02 = project) {
+  const validation = validateProjectState(target);
   if (!validation.valid) {
     throw new Error(validation.issues.filter(i => i.severity === "error").map(i => i.message).join("; "));
   }
 
   const lines: string[] = [];
-  for (const program of project.programs) {
+  for (const program of target.programs) {
     lines.push(`Program,${program.name}`);
     for (const network of program.networks) {
       lines.push(`Network,${network.id}`);
       const root = network.root;
       if (root.kind !== "series") throw new Error("SamSoar adapter currently requires a series root.");
 
-      const contacts = root.children.filter(
-        (n): n is Extract<LogicNode, { kind: "contact" }> => n.kind === "contact",
-      );
+      const conditions = root.children.slice(0, -1).map(normalizeWires).filter((node): node is LogicNode => node !== null);
+      if (conditions.some(node => node.kind !== 'contact')) throw new Error('SamSoar adapter currently supports direct series contact conditions only; nested conditions cannot be omitted.');
+      const contacts = conditions as Extract<LogicNode, { kind: 'contact' }>[];
+      if (!contacts.length) lines.push(`LD,${samDevice('M8000')}`);
       contacts.forEach((contact, index) => {
         const mnemonic = index === 0
           ? (contact.mode === "NC" ? "LDI" : "LD")
@@ -1287,6 +1288,7 @@ function replaceDeviceInNode(
     return;
   }
 
+  if (node.kind === "wire") return;
   const action = node.action;
   if (action.kind === "instruction") {
     action.operands.forEach((operand, index) => {
@@ -1316,10 +1318,11 @@ function requireSeriesRoot(id: number): Extract<LogicNode, { kind: "series" }> {
   return root;
 }
 
-function hasContactCondition(node: LogicNode): boolean {
+function hasConditionPath(node: LogicNode): boolean {
   if (node.kind === "contact") return true;
+  if (node.kind === "wire") return node.connected;
   if (node.kind === "action") return false;
-  return (node.kind === "series" ? node.children : node.branches).some(hasContactCondition);
+  return (node.kind === "series" ? node.children : node.branches).some(hasConditionPath);
 }
 
 function isOutputNode(node: LogicNode) {

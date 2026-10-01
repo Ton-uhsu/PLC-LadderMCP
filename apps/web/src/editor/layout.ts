@@ -3,6 +3,7 @@ export function operandLabel(operand: Operand) {
   return operandToFxText(operand);
 }
 export function nodeLabel(node: LogicNode): string {
+  if (node.kind === "wire") return node.connected ? "Wire" : "Disconnected wire";
   if (node.kind === 'contact') return `${node.mode} ${node.device.address}${node.edge && node.edge !== 'none' ? ` · ${node.edge}` : ''}`;
   if (node.kind === 'action') {
     const a = node.action;

@@ -206,3 +206,12 @@ Click a symbol, or use arrow keys to select across the rung/branches and adjacen
 - `Ctrl+F`: substring search for device/instruction labels across all networks; Next/Previous selects and scrolls to each match.
 
 Right-click a symbol for Edit/Copy/Cut/Paste/Duplicate/Delete. Directional keys navigate the menu; Esc closes it. Select compound groups through Rung structure for subtree operations. Copies receive new node/action IDs. A cut moved within the same project keeps its IDs unless Undo has restored them; collisions and cross-project paste allocate fresh IDs. Output paste uses the toolbar's explicit output fanout rules. Clipboard supports one element, subtree, or copied network at a time and is cleared by a page reload; it does not use the OS clipboard. Clipboard operations edit the draft IR and do not imply successful Compile or full IDE instruction support.
+
+### Ctrl-arrow wire editing
+
+Update/rebuild/restart the backend along with the Web app for wire support. Select a contact, condition group or wire on the canvas, then use:
+
+- **Ctrl+Left / Ctrl+Right:** add a wire on that side; on an existing wire, toggle connection/gap. A gap is shown with orange open endpoints.
+- **Ctrl+Up / Ctrl+Down:** add an incomplete branch above/below, or remove an adjacent empty/wire-only branch. Repeating the shortcut removes the newly added empty branch. Occupied branches remain intact and show an error explaining the block.
+
+Select a new branch gap and Ctrl+Left/Right to connect it, or insert a contact on it to replace the gap. Use Ctrl+Z / Ctrl+Y to undo/redo. Gaps autosave and reload as drafts; they block Compile/Apply/Export. A connected bypass changes logic and may produce an Always-ON warning. See the [wire design](../designs/ladder-wire-editing.md) for compiler and adapter limitations.

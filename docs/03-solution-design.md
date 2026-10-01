@@ -173,6 +173,8 @@ Local filesystem JSON may remain temporarily for development/import compatibilit
 
 - [`designs/persistence-database-architecture.md`](./designs/persistence-database-architecture.md) — V1 PostgreSQL domain model, immutable revisions, Human Review, Apply transactions, compile/export lineage, and POC evidence.
 
+- [`designs/ladder-wire-editing.md`](./designs/ladder-wire-editing.md) — canonical wire/gap representation and structured directional editing.
+
 ## Contracts, research, and evidence
 
 - [`contracts/fx3u-capability-catalog.md`](./contracts/fx3u-capability-catalog.md)

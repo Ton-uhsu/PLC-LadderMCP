@@ -5,6 +5,11 @@
 None.
 
 ## Done
+- [x] WORK-008 | feat: Ctrl-arrow Ladder wire editing | 2026-10-01 | feature | → owner: docs/roadmap/phase-02-local-ui/task-005-structured-editor-renderer.md
+  - Delivered: horizontal connected/gap toggles, vertical empty branch add/remove, canonical wire snapshots and Undo/Redo. Occupied branches/output symbols are protected. Compile rejects gaps; connected bypass semantics are explicit. SamSoar rejects unsupported nested conditions instead of dropping them.
+  - Verified: 21 Web tests, Web/backend builds, persistence 7 pass/2 native skipped, original IR fixture, semantic smoke and HTTP E2E (node --import tsx workaround for CLI pipe permissions). Browser local/PGlite modes passed all Ctrl directions, undo/redo and saved gap reload; screenshots inspected.
+  - Handoff: upgrade Web/backend together; design in docs/designs/ladder-wire-editing.md. TASK-005 stays Partial for full typed IR/Review/revision-bound Compile; no VPS or real IDE/native database claim.
+
 - [x] WORK-007 | feat: practical Ladder editing commands | 2026-10-01 | feature | → owner: docs/roadmap/phase-02-local-ui/task-005-structured-editor-renderer.md
   - Delivered: structured clipboard and duplicate, whole-network copy, right-click actions, buffered symbol dialog, keyboard branch/network navigation, scrolling and device/instruction search. Human canonical IR save path; no VPS.
   - Verified: 18 Web tests, Web build; optional Chromium QA passed local and PGlite modes including cut identity, copy/duplicate undo, dialog cancel/validation/operand update, branch navigation, search, saved reload and retained backend errors. Visual QA desktop/narrow workspace and dialog.
@@ -24,11 +29,5 @@ None.
   - Delivered: settings/name/default target, stable-ID network controls, human-only stale-safe local manual edits and busy guards. No VPS or broad stack migration.
   - Verified: Web tests 9/9; persistence tests 7 pass/2 native skipped; Web/backend builds, semantic smoke and HTTP auth/MCP E2E.
   - Handoff: owning TASK-004 remains Partial for browser acceptance (Chromium download blocked) and durable Review/Compile context integration. Next implementation owner: TASK-005.
-
-- [x] WORK-003 — Goose SQL migrations for the reviewed V1 database model
-  - Scope: versioned up/down SQL, existing foundation adoption, migration CLI, SQL round-trip tests and local guide; no VPS or new workflow APIs.
-  - Verify: up/down/up, preservation of existing project state, constraints/immutable history and current application regressions.
-
-  - Verified: Goose v3.28.0 CLI validate; SQL up/down/up, exact legacy adoption with preserved snapshots, atomic rollback refusal, checkpoint uniqueness and evidence byte/immutability tests; Web tests/backend build. Native pg and real Goose database round-trip tests are opt-in and not run here.
 
 Older records: [October work archive](docs/task-archive/2026-10.md).
