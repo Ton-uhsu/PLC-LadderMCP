@@ -14,7 +14,7 @@ export type Placement = { node: LogicNode; x: number; y: number; width: number; 
 export type Wire = { x1: number; y1: number; x2: number; y2: number };
 export type Layout = { width: number; height: number; nodes: Placement[]; wires: Wire[] };
 const lane = 88, gutter = 24;
-export function layoutLadder(root: LogicNode): Layout {
+export function layoutLadder(root: LogicNode, minWidth = 0): Layout {
   const sizes = new Map<string, { width: number; height: number }>();
   function measure(node: LogicNode): { width: number; height: number } {
     const children = childNodes(node);
@@ -28,7 +28,16 @@ export function layoutLadder(root: LogicNode): Layout {
     }
     sizes.set(node.id, size); return size;
   }
-  const size = measure(root); const nodes: Placement[] = [], wires: Wire[] = [];
+  const size = measure(root);
+  function grow(node: LogicNode, extra: number) {
+    sizes.get(node.id)!.width += extra;
+    const children = childNodes(node);
+    if (!children?.length) return;
+    if (node.kind === 'series') grow(children.at(-1)!, extra);
+    else children.forEach(child => grow(child, extra));
+  }
+  if (size.width + 100 < minWidth) grow(root, minWidth - size.width - 100);
+  const nodes: Placement[] = [], wires: Wire[] = [];
   const wire = (x1: number, y1: number, x2: number, y2: number) => { if (x1 !== x2 || y1 !== y2) wires.push({ x1, y1, x2, y2 }); };
   function place(node: LogicNode, x: number, y: number) {
     const { width, height } = sizes.get(node.id)!;

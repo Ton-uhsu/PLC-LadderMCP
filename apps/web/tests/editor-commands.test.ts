@@ -1,0 +1,33 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { compileProject, listNodes, type LadderProjectV02 } from '@plc-ladder-mcp/ladder-ir';
+import { insertElement, toolElement } from '../src/editor/commands.ts';
+const fixture: LadderProjectV02 = { version: '0.2', name: 'Editor command test', plc: { family: 'Mitsubishi FX', model: 'FX3U' }, programs: [{ name: 'Main', networks: [{ id: 0, root: { kind: 'series', id: 'root', children: [] } }] }] };
+let counter = 0; const id = () => `command-${counter++}`;
+test('toolbar contact/output entry builds a compilable rung and extends output fanout without losing IDs', () => {
+  let result = insertElement(fixture, 0, 'root', toolElement('contact', 'X0', id), 'after', id);
+  const firstContact = result.selectedId;
+  result = insertElement(result.project, 0, firstContact, toolElement('coil', 'Y0', id), 'after', id);
+  const firstOutput = result.selectedId;
+  result = insertElement(result.project, 0, firstOutput, toolElement('contact', 'M0', id), 'before', id);
+  result = insertElement(result.project, 0, firstContact, toolElement('coil', 'Y1', id), 'after', id);
+  const secondOutput = result.selectedId;
+  result = insertElement(result.project, 0, secondOutput, toolElement('coil', 'Y2', id), 'after', id);
+  const nodes = listNodes(result.project.programs[0].networks[0].root);
+  assert.ok(nodes.some(n => n.node.id === firstContact)); assert.ok(nodes.some(n => n.node.id === firstOutput));
+  const list = JSON.stringify(compileProject(result.project));
+  for (const expected of ['X0', 'M0', 'Y0', 'Y1', 'Y2', 'MPS', 'MPP']) assert.ok(list.includes(expected));
+  assert.equal(fixture.programs[0].networks[0].root.kind, 'series');
+  assert.deepEqual(fixture.programs[0].networks[0].root, { kind: 'series', id: 'root', children: [] });
+});
+test('toolbar instruction entry keeps typed hex/decimal/device operands; malformed entry cannot mutate IR', () => {
+  const node = toolElement('instruction', 'MOV HFF D0', id);
+  assert.equal(node.kind, 'action'); if (node.kind !== 'action' || node.action.kind !== 'instruction') throw Error();
+  assert.deepEqual(node.action.operands, [{ kind: 'constant', radix: 'hex', value: 255 }, { kind: 'device', address: 'D0' }]);
+  const timer = toolElement('timer', 'T0 K10', id);
+  assert.ok(JSON.stringify(timer).includes('"opcode":"OUT"')); assert.ok(JSON.stringify(timer).includes('"value":10'));
+  const contact = toolElement('nc', 'x1', id); assert.equal(contact.kind, 'contact'); if (contact.kind === 'contact') assert.equal(contact.mode, 'NC');
+  assert.throws(() => toolElement('contact', 'X0 X1', id), /one device/);
+  assert.throws(() => toolElement('instruction', 'MOV HGG D0', id));
+  assert.throws(() => toolElement('coil', '', id));
+});

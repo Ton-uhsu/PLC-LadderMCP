@@ -4,7 +4,7 @@ import { useProjectStore } from '../store';
 import { nodeLabel } from '../editor/layout';
 import { newElement, operandInput, readOperand, type NewElement, type OperandInput } from '../editor/inspector';
 
-function Inspector({ node, disabled, onUpdate }: { node: LogicNode; disabled: boolean; onUpdate: (node: LogicNode) => Promise<void> }) {
+export function Inspector({ node, disabled, onUpdate }: { node: LogicNode; disabled: boolean; onUpdate: (node: LogicNode) => Promise<void> }) {
   const [draft, setDraft] = useState(() => structuredClone(node));
   const [operands, setOperands] = useState<OperandInput[]>(node.kind === 'action' && node.action.kind === 'instruction' ? node.action.operands.map(operandInput) : []);
   const [error, setError] = useState('');
@@ -12,7 +12,7 @@ function Inspector({ node, disabled, onUpdate }: { node: LogicNode; disabled: bo
     setDraft(structuredClone(node)); setError('');
     setOperands(node.kind === 'action' && node.action.kind === 'instruction' ? node.action.operands.map(operandInput) : []);
   }, [node]);
-  if (childNodes(node)) return <p>Select a child to edit its properties, or insert an element into this group. Series children execute in array order; parallel entries are branches.</p>;
+  if (childNodes(node)) return <p>Select a contact or output on the rung to edit its properties. Use the toolbar to add elements.</p>;
   return <form className="element-inspector" onSubmit={async e => {
     e.preventDefault(); setError('');
     try {

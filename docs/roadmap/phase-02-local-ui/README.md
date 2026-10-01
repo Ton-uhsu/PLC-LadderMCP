@@ -3,7 +3,7 @@
 **Status:** Partial
 **Assessment date:** 2026-10-01
 
-Project settings/network controls ของ TASK-004 implement แล้ว; browser acceptance และ durable workflow context checks ยังรอ. TASK-005 มี structured inspector/edit operations และ recursive renderer แล้วพร้อม automated tests/static SVG QA; ยัง Partial สำหรับ browser acceptance และ V1 schema/diff/Compile integration. งาน UI ถัดไปคือ TASK-006 ควบคู่ backend TASK-007 ตาม dependencies.
+Project settings/network controls ของ TASK-004 implement แล้ว; settings/default-target acceptance และ durable workflow context checks ยังรอ. TASK-005 มี structured inspector/edit operations และ recursive renderer แล้วพร้อม automated tests/static SVG QA; WORK-006 เปลี่ยนเป็น canvas-first editor พร้อม browser QA ใน local/embedded-database modes; ยัง Partial สำหรับ V1 schema/diff/Compile integration. งาน UI ถัดไปคือ TASK-006 ควบคู่ backend TASK-007 ตาม dependencies.
 
 ## Dependency / exit gate
 

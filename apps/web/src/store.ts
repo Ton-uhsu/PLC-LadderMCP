@@ -124,6 +124,7 @@ export const useProjectStore = create<State>((set, get) => ({
     try {
       const res = await fetch(`${apiUrl}/api/manual/project`, { method: "POST", headers: authHeaders(apiToken, true),
         body: JSON.stringify({ baseSnapshot, snapshot: project }) });
+      if (res.status === 404) throw new Error("This backend does not support editor saves. Run git pull and restart npm run server on the backend, then Sync now.");
       if (!res.ok) throw new Error(await readError(res));
       const saved = await res.json() as { project: LadderProjectV02; history: HistoryState };
       if (get().apiUrl !== apiUrl || get().apiToken !== apiToken) return;

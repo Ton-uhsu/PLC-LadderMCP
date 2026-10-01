@@ -12,9 +12,8 @@ import {
   validateProject,
 } from "./ladder";
 import { ProjectSettings } from "./projects/ProjectSettings";
-import { NetworkControls } from "./projects/NetworkControls";
 import { LadderRenderer } from "./editor/LadderRenderer";
-import { ManualEditor } from "./persistence/ManualEditor";
+import { EditorWorkspace } from "./editor/EditorWorkspace";
 import { useProjectStore } from "./store";
 
 type Vendor = "GX Works2" | "SamSoar2022";
@@ -243,6 +242,8 @@ export default function App() {
   const [tokenInput, setTokenInput] = useState(apiToken);
   const [vendor, setVendor] = useState<Vendor>("SamSoar2022");
   const [active, setActive] = useState("Ladder");
+  const [showTools, setShowTools] = useState(false);
+  const [showConnection, setShowConnection] = useState(false);
   const [selectedElementId, setSelectedElementId] = useState<string | null>(null);
   useEffect(() => { setSelectedElementId(null); }, [projectId, selectedNetworkId]);
   const [saveName, setSaveName] = useState(project.name);
@@ -279,7 +280,7 @@ export default function App() {
     else downloadBytes("plc-ladder-gxworks2.csv", generateGxWorks2(project));
   };
 
-  return <div className="app-shell">
+  return <div className={active === "Ladder" ? "app-shell editor-mode" : "app-shell"}>
     <aside className="sidebar">
       <div className="brand">
         <div className="brand-mark"><Workflow size={19}/></div>
@@ -313,6 +314,8 @@ export default function App() {
           <h1>{project.name}</h1>
         </div>
         <div className="header-actions">
+          <button className="ghost" onClick={() => setShowConnection(!showConnection)}>Connection</button>
+          <button className="ghost" onClick={() => setShowTools(!showTools)}>Project / Export</button>
           <input
             ref={importRef}
             type="file"
@@ -351,7 +354,7 @@ export default function App() {
         <div className="valid"><span>STATUS</span><b><CheckCircle2 size={15}/>{result.valid ? "Valid" : "Invalid"}</b></div>
       </section>
 
-      <div className="server-bar">
+      <div className="server-bar" hidden={active === "Ladder" && !showConnection}>
         <input value={serverInput} onChange={e => setServerInput(e.target.value)} placeholder="http://localhost:3001 or Cloudflare URL"/>
         <input className="token-input" type="password" value={tokenInput} onChange={e => setTokenInput(e.target.value)} placeholder="Bearer token (optional locally)"/>
         <button disabled={dirty || switching} onClick={() => {
@@ -368,9 +371,9 @@ export default function App() {
         <span className={connected ? "server-online" : "server-offline"}>{connected ? "SERVER CONNECTED" : "LOCAL / DEMO"}</span>
       </div>
 
-      <div className="workspace">
+      <div className={active === "Ladder" ? `workspace editor-container ${showTools ? "with-tools" : ""}` : "workspace"}>
         <section className="panel ladder-panel">
-          <div className="panel-head">
+          <div className="panel-head" hidden={active === "Ladder"}>
             <div>
               <span className="kicker">{active === "IR / JSON" ? "CANONICAL SOURCE" : active === "AI Changes" ? "HUMAN REVIEW" : active === "History" ? "CHANGE LOG" : `NETWORK ${network?.id ?? "—"}`}</span>
               <h2>{active === "IR / JSON" ? "Ladder IR v0.2 / JSON" : active === "AI Changes" ? "AI Changes" : active === "History" ? "History / Undo / Redo" : active === "Project settings" ? "Project settings" : "Main Ladder"}</h2>
@@ -378,7 +381,7 @@ export default function App() {
             <div className="badge"><Activity size={14}/> LIVE IR PREVIEW</div>
           </div>
 
-          {(active === "Ladder" || active === "IR / JSON" || active === "Validation") && <div className="network-tabs">
+          {(active === "IR / JSON" || active === "Validation") && <div className="network-tabs">
             {program?.networks.map((item, position) => {
               const networkValid = validateProject({
                 ...project,
@@ -399,7 +402,7 @@ export default function App() {
             })}
           </div>}
 
-          {active === "Project settings"
+          {active === "Ladder" ? <EditorWorkspace/> : active === "Project settings"
             ? <ProjectSettings/>
             : active === "IR / JSON"
             ? <pre className="json-view">{JSON.stringify(project, null, 2)}</pre>
@@ -409,17 +412,14 @@ export default function App() {
                 ? <HistoryPanel/>
                 : <div className="canvas"><LadderPreview selectedId={selectedElementId} onSelect={setSelectedElementId}/></div>}
 
-          {active === "Ladder" && <NetworkControls/>}
 
-          {active === "Ladder" && <ManualEditor selectedId={selectedElementId} onSelect={setSelectedElementId}/>}
-
-          {active !== "AI Changes" && active !== "History" && active !== "Project settings" && <div className="network-note">
+          {active !== "Ladder" && active !== "AI Changes" && active !== "History" && active !== "Project settings" && <div className="network-note">
             <CircleDot size={14}/>
             <span><b>Network {network?.id ?? "—"}</b> · {contactCount} contacts · {actionCount} actions. Select a Ladder element to inspect or edit it.</span>
           </div>}
         </section>
 
-        <aside className="right-column">
+        <aside className="right-column" hidden={active === "Ladder" && !showTools}>
           <section className="panel export-card">
             <div className="panel-head compact">
               <div><span className="kicker">VENDOR OUTPUT</span><h2>Export</h2></div>
