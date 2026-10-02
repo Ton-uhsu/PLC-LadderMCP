@@ -97,3 +97,11 @@ test('Left on an open row with output suffix alignment draws only one left cell 
  assert.equal(after.nodes.find(n=>n.node.id==='image-out')!.x,before.nodes.find(n=>n.node.id==='image-out')!.x);
  assert.deepEqual(snapshotSchema.parse(r.project),r.project);
 });
+test('Right from the original junction after a left extension draws to its right without moving the junction',()=>{
+ const p=structuredClone(demoProject);p.programs[0].networks[0].root={kind:'series',id:'direction-root',children:[{kind:'contact',id:'direction-x',mode:'NO',device:{kind:'device',address:'X0'}},{kind:'wire',id:'direction-prefix',connected:true},{kind:'parallel',id:'direction-group',branches:[{kind:'series',id:'direction-top',children:[{kind:'action',id:'direction-y',action:{kind:'coil',id:'direction-coil',device:{kind:'device',address:'Y0'}}},...Array.from({length:6},(_,i)=>({kind:'wire',id:`direction-tail-${i}`,connected:true}))]},{kind:'series',id:'direction-open',children:[],openEnd:true}]}]};
+ const id=ids(),left=editGridWire(p,0,{row:1,column:2},'left',id),before=layoutLadder(left.project.programs[0].networks[0].root);
+ const right=editGridWire(left.project,0,{row:1,column:2},'right',id),after=layoutLadder(right.project.programs[0].networks[0].root);
+ assert.deepEqual(right.cursor,{row:1,column:3});
+ assert.deepEqual(after.cells.filter(c=>c.row===1&&c.connected).map(c=>c.column),[1,2]);
+ assert.deepEqual(after.wires.filter(w=>w.x1===w.x2),before.wires.filter(w=>w.x1===w.x2));
+});

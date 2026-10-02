@@ -101,3 +101,27 @@ test('Right on a blank normal row draws the crossed cell; reversing deletes it i
  assert.equal(horizontals(deleted.project).size,0);
  assert.deepEqual(deleted.cursor,{row:0,column:3});
 });
+test('Right from a closed branch return draws beyond it without shifting the return leg or output',()=>{
+ const p=structuredClone(demoProject);
+ p.programs[0].networks[0].root={kind:'series',id:'return-root',children:[{kind:'contact',id:'return-x',mode:'NO',device:{kind:'device',address:'X0'}},{kind:'parallel',id:'return-group',branches:[{kind:'action',id:'return-y',action:{kind:'coil',id:'return-coil',device:{kind:'device',address:'Y0'}}},{kind:'series',id:'return-row',children:Array.from({length:9},(_,i)=>({kind:'wire',id:`return-${i}`,connected:i===8,erased:i!==8}))}]}]};
+ const id=ids(),before=grid(p),r=editGridWire(p,0,{row:1,column:10},'right',id),after=grid(r.project);
+ assert.deepEqual(r.cursor,{row:1,column:11});
+ assert.deepEqual(delta(horizontals(p),horizontals(r.project)),['1:10']);
+ assert.deepEqual(verticals(r.project),verticals(p));
+ assert.equal(after.nodes.find(n=>n.node.id==='return-y')!.x,before.nodes.find(n=>n.node.id==='return-y')!.x);
+ assert.deepEqual(snapshotSchema.parse(r.project),r.project);
+ assert.ok(compileWithDiagnostics(r.project).diagnostics.some(d=>d.code==='OPEN_BRANCH'));
+ const again=editGridWire(r.project,0,r.cursor,'right',id);
+ assert.deepEqual(delta(horizontals(r.project),horizontals(again.project)),['1:11']);
+ assert.deepEqual(verticals(again.project),verticals(p));
+ const reverse=editGridWire(again.project,0,again.cursor,'left',id);
+ assert.deepEqual(horizontals(reverse.project),horizontals(r.project));
+ assert.deepEqual(verticals(reverse.project),verticals(p));
+});
+test('Right at an empty closed return inside the sheet creates only an external right cell',()=>{
+ const p=structuredClone(demoProject);p.programs[0].networks[0].root={kind:'series',id:'empty-return-root',children:[{kind:'parallel',id:'empty-return-group',branches:[{kind:'series',id:'empty-return-top',children:[0,1,2].map(i=>({kind:'wire',id:`empty-return-${i}`,connected:true}))},{kind:'series',id:'empty-return-row',children:[]}]}]};
+ const r=editGridWire(p,0,{row:1,column:3},'right',ids());
+ assert.deepEqual(delta(horizontals(p),horizontals(r.project)),['1:3']);
+ assert.deepEqual(verticals(r.project),verticals(p));
+ assert.deepEqual(snapshotSchema.parse(r.project),r.project);
+});

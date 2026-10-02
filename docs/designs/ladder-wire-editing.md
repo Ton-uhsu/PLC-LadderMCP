@@ -151,3 +151,14 @@ The user reports residual old highlights and Ctrl+Left/Right failing to erase wh
 Cursor mode renders one dedicated fixed-cell rectangle, independent of node selection, inferred padding or empty branch containers. Logical node selection remains available to accessibility and editor commands, but does not add a second visual rectangle. The legacy focus outline applies only outside cursor mode. A cursor just beyond the sheet edge remains visible and actionable, rather than falling back to the previous selected node. Range highlighting remains for actual multi-cell selections.
 
 Verified: 63 Web tests and production build; Chromium local/PGlite regressions exercise immediate Right→Left and Left→Right deletion, a single rendered/computed highlight, plain-arrow movement away from the old focused leaf, atomic Undo/Redo and saved reload/reconnect. Existing vertical edits, clipboard, Compile/export, range selection and deletion regressions pass. This is a Web-only update; no schema migration.
+
+
+## WORK-024 — draw Right beyond the return leg without moving the branch (2026-10-02)
+
+The image pair exposes another case: Ctrl+Right at a closed branch's return boundary appended a wire inside that branch. Its larger measured width stretched the parallel group, moved the existing return leg and output, and introduced an inferred upper-row wire. The regression reproduces the original one-cell left-facing lower stroke and verifies this extra change before the fix.
+
+Right now creates an external horizontal draft cell after the fixed return boundary. Optional series rightExtension counts trailing draft children, excluded from the original branch's width and output suffix allocation. Layout places these children beyond the existing boundary and grows only the sheet. Empty closed bodies retain their original blank allocation before the new stroke is appended. Subsequent Right presses append one cell; reversing Left clears the same cell and retains the original left stroke, return leg and output coordinates. Open-row drawing and one-cursor behavior remain intact.
+
+Draft children retain real node identities, strict snapshot validation and logic hashes. rightExtension must leave the original branch body present. Shared validation/compilation rejects unresolved extensions as OPEN_BRANCH, consistent with other open wire drafts; arbitrary topology reconnection remains outside the structured editor. Compiler version is fx3u-v02-6. Update both Web and backend; no SQL migration.
+
+Verified: 66 Web tests, Web/backend builds, semantic smoke and embedded persistence (8 pass/2 native skipped). Chromium local/PGlite acceptance checks drawing on the right of the original return, unchanged vertical/coil coordinates, one-cell continuation/reverse-delete, Undo/Redo and saved reload, alongside all earlier cursor/clipboard/drawing/Compile/export/erase checks. The before/after right-return screenshots were inspected.

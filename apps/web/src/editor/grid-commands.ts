@@ -156,6 +156,33 @@ export function editGridWire(project: LadderProjectV02, networkId: number, curso
     if(direction==='up')parallel.branches.reverse();
     return {project:next,selectedId:branchId,cursor:{row:direction==='up'?cursor.row:cursor.row+1,column:cursor.column}};
   }
+  // A wire leaving a closed branch's return leg is an external draft. Appending
+  // inside its body would stretch the parallel group and move its coil/return.
+  if (direction === 'right') {
+    const target = layout.cells.find(c => c.row === cursor.row && c.column === cursor.column);
+    if (!target?.nodeId && !target?.connected) {
+      for (const group of layout.nodes.filter(p => p.node.kind === 'parallel').sort((a,b)=>a.width-b.width)) {
+        if (group.node.kind !== 'parallel') continue;
+        const end = (group.x+group.width-GRID_X)/COLUMN_WIDTH;
+        const branch = group.node.branches.find(n => {
+          const placed=layout.nodes.find(p=>p.node.id===n.id);
+          return placed && (placed.y-GRID_Y)/ROW_HEIGHT===cursor.row;
+        });
+        if (!branch || branch.kind==='series' && branch.openEnd) continue;
+        const length=branch.kind==='series' ? branch.rightExtension??0 : 0;
+        if (cursor.column!==end+length) continue;
+        const next=structuredClone(project);
+        const parallel=listNodes(next.programs[0].networks.find(n=>n.id===networkId)!.root).find(l=>l.node.id===group.node.id)!.node;
+        if (parallel.kind!=='parallel') throw new Error('Select a branch return.');
+        const index=group.node.branches.findIndex(n=>n.id===branch.id);
+        let row=parallel.branches[index];
+        if(row.kind!=='series'){row={kind:'series',id:id(),children:[row]};parallel.branches[index]=row;}
+        if(!row.children.length) row.children=Array.from({length:group.width/COLUMN_WIDTH},()=>({kind:'wire',id:id(),connected:false,erased:true}));
+        const nodeId=id();row.children.push({kind:'wire',id:nodeId,connected:true});row.rightExtension=length+1;
+        return {project:next,selectedId:nodeId,cursor:destination};
+      }
+    }
+  }
   // On an open row, Right draws the segment starting at the cursor, not the next cell.
   const openRow = layout.nodes.filter(p => p.node.kind === 'series' && p.node.openEnd && (p.y-GRID_Y)/ROW_HEIGHT === cursor.row).at(-1);
   if (openRow && openRow.node.kind === 'series') {

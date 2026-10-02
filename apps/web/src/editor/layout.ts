@@ -22,7 +22,8 @@ export function layoutLadder(root: LogicNode, _minWidth = 0): Layout {
   function measure(node: LogicNode): { columns: number; rows: number } {
     if (node.kind === 'series' && node.openEnd) hasOpenDraft = true;
     const children = childNodes(node);
-    const items = children?.map(measure) ?? [];
+    const allItems = children?.map(measure) ?? [];
+    const items = node.kind === 'series' && node.rightExtension ? allItems.slice(0, -node.rightExtension) : allItems;
     const size = !items.length ? { columns: node.kind === 'series' && node.openEnd ? 0 : node.kind === 'action' && node.action.kind === 'instruction' ? Math.max(1, Math.ceil((nodeLabel(node).length * 8 + 40) / COLUMN_WIDTH)) : 1, rows: 1 }
       : node.kind === 'series' ? { columns: items.reduce((sum, item) => sum + item.columns, 0), rows: Math.max(...items.map(item => item.rows)) }
       : { columns: Math.max(...items.map(item => item.columns)), rows: items.reduce((sum, item) => sum + item.rows, 0) };
@@ -38,7 +39,7 @@ export function layoutLadder(root: LogicNode, _minWidth = 0): Layout {
     if (node.kind === 'parallel') return Math.max(0, ...node.branches.map(suffix));
     if (node.kind !== 'series') return 0;
     let count = 0;
-    for (const child of [...node.children].reverse()) { if (containsAction(child)) return count + suffix(child); count += sizes.get(child.id)!.columns; }
+    for (const child of [...(node.rightExtension ? node.children.slice(0,-node.rightExtension) : node.children)].reverse()) { if (containsAction(child)) return count + suffix(child); count += sizes.get(child.id)!.columns; }
     return 0;
   }
   const columns = Math.max(MIN_COLUMNS + suffix(root), size.columns + (hasOpenDraft ? 1 : 0)), rows = size.rows;
@@ -52,7 +53,8 @@ export function layoutLadder(root: LogicNode, _minWidth = 0): Layout {
     }
   }
   function place(node: LogicNode, column: number, row: number, allocated: number, output = false, top = false) {
-    const natural = sizes.get(node.id)!, children = childNodes(node);
+    const natural = sizes.get(node.id)!, allChildren = childNodes(node);
+    const children = node.kind === 'series' && node.rightExtension ? allChildren!.slice(0,-node.rightExtension) : allChildren;
     const extra = allocated - natural.columns;
     if(node.kind==='series' && node.openEnd) {
       nodes.push({node,x:x(column),y:y(row),width:Math.max(1,natural.columns)*COLUMN_WIDTH,height:natural.rows*ROW_HEIGHT});
@@ -84,6 +86,12 @@ export function layoutLadder(root: LogicNode, _minWidth = 0): Layout {
         place(child, cursor, row, count, output || containsAction(child)); cursor += count;
       }
       if (extra > 0 && expansion < 0) padding(cursor, row, extra, { parentId: node.id, index: children.length, connected: !top && !hasOpenRow(node) });
+      if (node.rightExtension) {
+        let end=column+allocated;
+        for (const child of node.children.slice(-node.rightExtension)) {
+          const count=sizes.get(child.id)!.columns;place(child,end,row,count);end+=count;
+        }
+      }
     } else {
       let cursor = row;
       const trailing = Math.max(0, ...children.map(suffix));
@@ -106,7 +114,9 @@ export function layoutLadder(root: LogicNode, _minWidth = 0): Layout {
     }
   }
   place(root, 0, 0, columns, false, true);
+  // Draft extensions grow the sheet, while the original branch allocation stays fixed.
+  const sheetColumns=Math.max(columns, ...cells.map(c=>c.column+1)) + (nodes.some(p=>p.node.kind==='series' && p.node.rightExtension) ? 1 : 0);
   // Blank cells underneath nested groups have no inferred electrical connection.
-  for (let row = 0; row < rows; row++) for (let column = 0; column < columns; column++) if (!cells.some(cell => cell.row === row && cell.column === column)) cells.push({ row, column, kind: 'blank' });
-  return { width: columns * COLUMN_WIDTH + GRID_X * 2, height: rows * ROW_HEIGHT + GRID_Y * 2, nodes, wires, cells, columns, rows };
+  for (let row = 0; row < rows; row++) for (let column = 0; column < sheetColumns; column++) if (!cells.some(cell => cell.row === row && cell.column === column)) cells.push({ row, column, kind: 'blank' });
+  return { width: sheetColumns * COLUMN_WIDTH + GRID_X * 2, height: rows * ROW_HEIGHT + GRID_Y * 2, nodes, wires, cells, columns:sheetColumns, rows };
 }

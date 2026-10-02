@@ -4,6 +4,11 @@
 
 
 ## Done
+- [x] WORK-024 | fix: extend Right past the branch return without shifting its leg or coil | 2026-10-02 | fix | → owner: docs/designs/ladder-wire-editing.md
+  - Delivered: Ctrl+Right at a closed return creates one external draft cell; branch width, existing left stroke, vertical return and output coordinates stay fixed. Continuation and reverse deletion remain one cell each.
+  - Verified: 66 Web tests, Web/backend builds, semantic smoke, embedded persistence 8 pass/2 native skipped, and Chromium local/PGlite fixed-return/fixed-coil/right-stroke/Undo/Redo/saved-reload acceptance plus prior regressions. Screenshots inspected.
+  - Handoff: update both Web and backend for the optional rightExtension draft count; compiler version fx3u-v02-6, no SQL migration. Unresolved extensions block Compile/Export.
+
 - [x] WORK-023 | fix: symmetric Ctrl-left/right erasure and one cursor highlight | 2026-10-02 | fix | → owner: docs/designs/ladder-wire-editing.md
   - Delivered: normal/open rows edit the same traversed horizontal interval in both directions. One cursor overlay replaces old node/empty-container/focus highlights; the real cursor position remains authoritative at the sheet edge.
   - Verified: 63 Web tests and production build; Chromium local/PGlite immediate horizontal reverse deletion, one computed highlight, ordinary arrows, Undo/Redo and saved reload, plus prior editor regressions. Cursor screenshot inspected.

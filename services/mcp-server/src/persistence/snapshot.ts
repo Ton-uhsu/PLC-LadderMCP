@@ -13,7 +13,7 @@ const action = z.union([
 const node: z.ZodType<LogicNode> = z.lazy(() => z.union([
   z.object({ kind: z.literal('wire'), id, connected: z.boolean(), erased: z.boolean().optional() }).strict(),
   z.object({ kind: z.literal('contact'), id, device, mode: z.enum(['NO', 'NC']), edge: z.enum(['none', 'rising', 'falling']).optional() }).strict(),
-  z.object({ kind: z.literal('series'), id, children: z.array(node), openEnd: z.boolean().optional(), wireOffset: z.number().int().safe().nonpositive().optional(), leftBreak: z.boolean().optional(), rightBreak: z.boolean().optional(), leftBreakCells: z.array(z.number().int().safe().nonnegative()).optional(), rightBreakCells: z.array(z.number().int().safe().nonnegative()).optional() }).strict(),
+  z.object({ kind: z.literal('series'), id, children: z.array(node), openEnd: z.boolean().optional(), wireOffset: z.number().int().safe().nonpositive().optional(), leftBreak: z.boolean().optional(), rightBreak: z.boolean().optional(), leftBreakCells: z.array(z.number().int().safe().nonnegative()).optional(), rightBreakCells: z.array(z.number().int().safe().nonnegative()).optional(), rightExtension: z.number().int().safe().positive().optional() }).strict(),
   z.object({ kind: z.literal('parallel'), id, branches: z.array(node) }).strict(),
   z.object({ kind: z.literal('action'), id, action }).strict(),
 ]));
@@ -28,7 +28,10 @@ export const snapshotSchema = z.object({
   function visit(n: LogicNode) {
     const ids = n.kind === 'action' ? [n.id, n.action.id] : [n.id];
     for (const key of ids) { if (nodes.has(key)) ctx.addIssue({ code: 'custom', message: 'Duplicate node identity' }); nodes.add(key); }
-    if (n.kind === 'series') n.children.forEach(visit);
+    if (n.kind === 'series') {
+      if (n.rightExtension && n.rightExtension >= n.children.length) ctx.addIssue({code:'custom',message:'A right extension must retain the original branch body'});
+      n.children.forEach(visit);
+    }
     if (n.kind === 'parallel') n.branches.forEach(visit);
   }
   for (const n of snapshot.programs[0].networks) {

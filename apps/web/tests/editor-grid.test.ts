@@ -81,7 +81,7 @@ test('coil branch can be wired, completed with an output, compiled/exported and 
   assert.ok(exportSamSoar(filled.project).includes('OUT,Y1'));
   const extended=editGridWire(filled.project,0,{row:1,column:10},'right',id);
   for(const placed of layout(extended.project).nodes.filter(n=>n.node.kind==='action')) assert.equal(placed.x,GRID_X+9*COLUMN_WIDTH);
-  assert.deepEqual(compileProject(extended.project),compileProject(filled.project));
+  assert.throws(()=>compileProject(extended.project),/Open wire branch/);
   assert.throws(()=>editWire(filled.project,0,'out','down',id),/contains symbols/);
   const continued=editGridWire(filled.project,0,{row:0,column:9},'left',id);
   assert.throws(()=>compileProject(continued.project),/Disconnected/);

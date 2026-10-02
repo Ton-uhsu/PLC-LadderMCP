@@ -134,7 +134,7 @@ export function outputActions(node: LogicNode): ActionNode[] {
 // Connected wires are Boolean TRUE in conditions; gaps always block compile.
 // Normalization is compile-only and never rewrites the authoritative snapshot.
 export function normalizeWires(node: LogicNode): LogicNode | null {
-  if(node.kind==='series' && (node.openEnd || node.wireOffset || node.leftBreak || node.rightBreak || node.leftBreakCells?.length || node.rightBreakCells?.length))throw new Error('Open wire branch: connect its end before Compile/Export.');
+  if(node.kind==='series' && (node.openEnd || node.wireOffset || node.rightExtension || node.leftBreak || node.rightBreak || node.leftBreakCells?.length || node.rightBreakCells?.length))throw new Error('Open wire branch: connect its end before Compile/Export.');
   if (node.kind === 'wire') { if (!node.connected) throw new Error('Disconnected wire: complete the path before Compile/Export.'); return null; }
   if (node.kind === 'contact' || node.kind === 'action') return node;
   const children = (node.kind === 'series' ? node.children : node.branches).map(normalizeWires);
@@ -151,7 +151,7 @@ export function normalizeWires(node: LogicNode): LogicNode | null {
 }
 export function compileNetwork(network: LadderNetworkV02): ListInstruction[] {
   function checkOpen(node: LogicNode) {
-    if(node.kind === 'series' && (node.openEnd || node.wireOffset || node.leftBreak || node.rightBreak || node.leftBreakCells?.length || node.rightBreakCells?.length)) throw new Error('Open wire branch: connect its end before Compile/Export.');
+    if(node.kind === 'series' && (node.openEnd || node.wireOffset || node.rightExtension || node.leftBreak || node.rightBreak || node.leftBreakCells?.length || node.rightBreakCells?.length)) throw new Error('Open wire branch: connect its end before Compile/Export.');
     if(node.kind === 'series') node.children.forEach(checkOpen);
     if(node.kind === 'parallel') node.branches.forEach(checkOpen);
   }
