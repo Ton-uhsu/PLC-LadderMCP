@@ -222,69 +222,30 @@ body:has(.editor-mode) .auth-session-chip { bottom:34px; }
 .compile-diagnostics>.diagnostic-error{border-left:3px solid #f87171}.compile-diagnostics>.diagnostic-warning{border-left:3px solid #fbbf24}
 .compile-diagnostics button:disabled{opacity:.5}.diagnostic-error-node{filter:drop-shadow(0 0 3px #ef4444)}
 
-/* Classic desktop editing: neutral chrome around a white Ladder sheet. */
-.editor-mode { background:#e8e8e8; color:#222; }
-.editor-mode .sidebar { background:#f4f4f4; border-color:#aaa; padding:10px 8px; }
-.editor-mode .brand strong,.editor-mode header h1 { color:#222; }
-.editor-mode .brand span,.editor-mode .eyebrow { color:#555; }
-.editor-mode header { background:#ececec; border-bottom:1px solid #aaa; }
-.editor-mode nav button,.editor-mode .sidebar-bottom button { color:#333; border-radius:0; font-size:11px; }
-.editor-mode nav button:hover,.editor-mode .nav-active { background:#dce8f8!important; color:#174a86!important; }
-.project-tree { margin:10px 0; font-size:11px; border:1px solid #bbb; background:#fff; }
-.project-tree summary { padding:7px; background:#e5e5e5; cursor:pointer; }
-.project-tree .tree-program { display:block; width:100%; text-align:left; border:0; padding:7px 18px; color:#174a86; background:#edf4ff; font:11px Consolas,monospace; }
-.classic-editor { background:#fff; color:#222; }
-.classic-editor .editor-toolbars { background:#eee; border-color:#aaa; }
-.ide-menubar { display:flex; align-items:center; gap:4px; height:27px; padding:0 6px; border-bottom:1px solid #bbb; font-size:11px; }
+/* Compact IDE layout with the original dark workspace palette. */
+.project-tree { margin:10px 0; font-size:11px; border:1px solid #434c5a; background:#181c23; }
+.project-tree summary { padding:7px; background:#252b35; cursor:pointer; color:#c6d0df; }
+.project-tree .tree-program { display:block; width:100%; text-align:left; border:0; padding:7px 18px; color:#e6f3ff; background:#29496b; font:11px Consolas,monospace; }
+.ide-menubar { display:flex; align-items:center; gap:4px; height:27px; padding:0 6px; border-bottom:1px solid #434c5a; font-size:11px; color:#c6d0df; }
 .ide-menubar details { position:relative; }
 .ide-menubar summary { list-style:none; padding:4px 10px; cursor:pointer; }
-.ide-menubar details[open] summary,.ide-menubar summary:hover { background:#dce8f8; }
-.ide-menubar details>div { position:absolute; z-index:40; top:100%; left:0; width:190px; padding:4px; background:#f7f7f7; border:1px solid #999; box-shadow:2px 3px 8px #0003; }
-.ide-menubar button { display:block; border:0; background:transparent; color:#222; font-size:11px; padding:5px 9px; text-align:left; }
+.ide-menubar details[open] summary,.ide-menubar summary:hover { background:#363e4b; }
+.ide-menubar details>div { position:absolute; z-index:40; top:100%; left:0; width:190px; padding:4px; background:#202734; border:1px solid #526079; box-shadow:2px 3px 8px #0008; }
+.ide-menubar button { display:block; border:0; background:transparent; color:#d4dde9; font-size:11px; padding:5px 9px; text-align:left; }
 .ide-menubar details button { width:100%; }
-.ide-menubar button:hover { background:#dce8f8; }
-.ide-menu-context { margin-left:auto; color:#666; }
+.ide-menubar button:hover { background:#30476a; }
+.ide-menu-context { margin-left:auto; color:#a8b4c4; }
 .classic-editor .editor-toolbar { min-height:43px; padding:3px 6px; }
-.classic-editor .editor-toolbar .tool { height:36px; padding:4px 7px; color:#222; }
-.classic-editor .editor-toolbar .tool:hover,.classic-editor .editor-toolbar .tool.active { background:#dce8f8; border-color:#8aa9cc; color:#16457e; }
-.classic-editor .tool-divider { border-color:#aaa; }
-.classic-editor .zoom-label,.classic-editor .editor-save-state { color:#555; }
-.classic-editor .editor-program-strip { background:#ddd; border-color:#bbb; color:#333; }
-.classic-editor .program-tab { background:#fff; color:#222; border-top-color:#407fc1; }
-.classic-editor .editor-program-strip button { color:#333; }
+.classic-editor .editor-toolbar .tool { height:36px; padding:4px 7px; }
 .classic-editor .properties-collapsed { grid-template-columns:minmax(0,1fr); grid-template-rows:minmax(0,1fr); }
-.classic-editor .editor-stage,.classic-editor .selected-rung { background:#fff; }
-.classic-editor .editor-rung { border-color:#ccc; }
-.classic-editor .editor-ruler { background:#e9e9e9; color:#333; border-color:#bbb; }
-.classic-editor .editor-ruler span { border-color:#ccc; }
-.classic-editor .rung-gutter { background:#eee; color:#222; border-color:#bbb; }
-.classic-editor .rung-gutter small { color:#666; }
-.classic-editor .selected-rung .rung-gutter { background:#dce8f8; box-shadow:inset 3px 0 #407fc1; }
-.classic-editor .rung-comment,.classic-editor .selected-rung .rung-comment { background:#f6f6f6; color:#365d8b; border-color:#ddd; }
-.classic-editor .editor-stage .topology-ladder { background-image:linear-gradient(to right,transparent 119px,#e8e8e8 120px),linear-gradient(to bottom,transparent 87px,#e8e8e8 88px); }
-.classic-editor .editor-end { color:#222; border-color:#ccc; }
-.classic-editor .editor-statusbar { background:#eee; border-color:#aaa; color:#333; }
-.classic-editor .editor-statusbar span:last-child { color:#555; }
-.classic-editor .editor-dialog-backdrop { background:#0003; }
-.classic-editor .ide-entry-dialog { display:block; width:min(410px,calc(100vw - 32px)); padding:0; background:#f3f3f3; color:#222; border:1px solid #888; box-shadow:0 12px 35px #0004; }
-.ide-dialog-title { display:flex; align-items:center; justify-content:space-between; padding:8px 12px; background:#e0e8f3; border-bottom:1px solid #a3b4ca; }
-.classic-editor .ide-dialog-title button { border:0; background:transparent; color:#222; padding:0 4px; font-size:18px; }
+.classic-editor .ide-entry-dialog { display:block; width:min(410px,calc(100vw - 32px)); padding:0; background:#202734; color:#d4dde9; border:1px solid #526079; box-shadow:0 12px 35px #0008; }
+.ide-dialog-title { display:flex; align-items:center; justify-content:space-between; padding:8px 12px; background:#2b333f; border-bottom:1px solid #444f60; }
+.classic-editor .ide-dialog-title button { border:0; background:transparent; color:#d4dde9; padding:0 4px; font-size:18px; }
 .ide-entry-body { padding:14px; }
-.classic-editor .ide-entry-body label { display:grid; gap:5px; color:#222; margin-bottom:12px; }
-.classic-editor .ide-entry-body input,.classic-editor .ide-entry-body select { width:100%; background:#fff; color:#111; border:1px solid #999; border-radius:0; font-size:13px; }
-.ide-entry-body p { font-size:11px; color:#555; }
+.classic-editor .ide-entry-body label { display:grid; gap:5px; color:#abbacf; margin-bottom:12px; }
+.classic-editor .ide-entry-body input,.classic-editor .ide-entry-body select { width:100%; background:#141a24; color:#e6edf6; border:1px solid #526079; border-radius:3px; font-size:13px; }
+.ide-entry-body p { font-size:11px; color:#97a8bd; }
+.ide-entry-body p[role=alert] { color:#ffd1d1; }
 .ide-entry-actions { display:flex; justify-content:flex-end; gap:8px; margin-top:16px; }
-.classic-editor .ide-entry-actions button { min-width:75px; background:#eee; color:#222; border:1px solid #999; }
-.classic-editor .ide-entry-actions button[type=submit] { border-color:#407fc1; }
-.classic-editor .editor-symbol-dialog,.classic-editor .editor-properties { background:#f3f3f3; color:#222; border-color:#aaa; }
-.classic-editor .editor-symbol-dialog label,.classic-editor .editor-properties label,.classic-editor .editor-properties p,.classic-editor .editor-properties h3 { color:#333; }
-.classic-editor .editor-symbol-dialog input,.classic-editor .editor-symbol-dialog select,.classic-editor .editor-properties input,.classic-editor .editor-properties select { background:#fff; color:#111; border-color:#999; }
-.classic-editor .editor-symbol-dialog button,.classic-editor .editor-properties button { background:#eee; color:#222; border:1px solid #999; }
-.classic-editor .properties-title { background:#e5e5e5; border-color:#bbb; }
-.classic-editor .editor-context-menu { background:#f7f7f7; border-color:#999; border-radius:0; }
-.classic-editor .editor-context-menu button { color:#222; }
-.classic-editor .editor-context-menu button:hover { background:#dce8f8; }
-.editor-mode .right-column { background:#f1f1f1; border-color:#bbb; }
-.editor-mode .right-column .card { background:#fafafa; color:#222; border:1px solid #bbb; box-shadow:none; }
-.editor-mode .right-column h2,.editor-mode .right-column h3,.editor-mode .right-column label,.editor-mode .right-column p,.editor-mode .right-column small { color:#444; }
-.editor-mode .right-column input,.editor-mode .right-column select { background:#fff; color:#222; border-color:#999; }
+.classic-editor .ide-entry-actions button { min-width:75px; background:#263e5b; color:#e6edf7; border:1px solid #557497; }
+.classic-editor .ide-entry-actions button[type=submit] { border-color:#74a3d4; }

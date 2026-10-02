@@ -5,6 +5,10 @@
 None.
 
 ## Done
+- [x] WORK-015 | fix: restore original dark editor theme | 2026-10-02 | fix | → owner: docs/designs/ladder-wire-editing.md
+  - Delivered: original dark canvas/chrome/symbol palette restored; new menu, program tree and input modal match it. Cursor/input/clipboard/Compile behavior unchanged.
+  - Verified: Web production build and full Chromium editor workflow passed in local/PGlite modes; dark desktop, dialog and narrow captures inspected. No schema or requirement changes.
+
 - [x] WORK-014 | feat: classic IDE layout and cursor-first Ladder input | 2026-10-01 | feature | → owner: docs/designs/ladder-wire-editing.md
   - Delivered: white fixed-cell Ladder sheet, compact menus/toolbar and program navigation; optional properties. F5/F6/F7/F8 input, Enter/double-click editing, Overwrite/Insert, continued cursor and Shift-arrow ranges. Existing wire, clipboard and Compile behavior retained.
   - Verified: 40 Web tests and production build; Chromium local/PGlite cursor scenarios and full earlier editor/clipboard/Compile/export regression passed; desktop/narrow screenshots inspected. Working prototype; full vendor keyboard/branch/monitor parity and real Windows IDE acceptance remain outside this slice.
@@ -20,9 +24,5 @@ None.
 - [x] WORK-011 | fix: draw directional ladder wires without gap branches | 2026-10-01 | bug | → owner: docs/designs/ladder-wire-editing.md
   - Delivered: Ctrl-arrow drawing only connects segments; vertical drawing moves to the destination row and creates a connected row past the top/bottom edge. New rows can continue horizontally without Gap placeholders.
   - Verified: 25 Web tests and Web production build passed. Isolated localhost browser QA passed down/right/down/right/up/left drawing with three rows, zero disconnected gaps and zero UI errors; the optional Playwright harness was updated but not executed because Playwright is not installed locally.
-
-- [x] WORK-010 | fix: load root .env when starting the local server | 2026-10-01 | bug | → owner: docs/guides/local-postgresql-persistence.md
-  - Delivered: `npm run server` loads the repository-root `.env` when present, without overriding variables already set in the shell; no runtime dependency added.
-  - Verified: before change invalid login returned 503 with Web auth disabled; after change the same launch loaded `.env` and returned 401. Explicit shell credential overrides logged in with HTTP 200. Backend build, semantic smoke and HTTP/MCP E2E passed.
 
 Older records: [October work archive](docs/task-archive/2026-10.md).
