@@ -18,7 +18,7 @@ export type ActionNode =
 
 export type LogicNode =
   | ContactNode
-  | { kind: "wire"; id: string; connected: boolean }
+  | { kind: "wire"; id: string; connected: boolean; erased?: boolean }
   | { kind: "series"; id: string; children: LogicNode[]; openEnd?: boolean; leftBreak?: boolean; rightBreak?: boolean }
   | { kind: "parallel"; id: string; branches: LogicNode[] }
   | { kind: "action"; id: string; action: ActionNode };

@@ -5,7 +5,7 @@ import {
   type LadderProjectV02,
 } from '@plc-ladder-mcp/ladder-ir';
 import { materializeCell } from './grid-commands';
-import { layoutLadder } from './layout';
+import { layoutLadder, GRID_X, GRID_Y, COLUMN_WIDTH, ROW_HEIGHT } from './layout';
 
 export type CellPoint = { row: number; column: number };
 export type CellRange = { anchor: CellPoint; focus: CellPoint };
@@ -92,11 +92,11 @@ export function clearCellRange(
     next = materialized.project;
     const currentRoot = next.programs[0].networks.find((candidate) => candidate.id === networkId)!.root;
     const wire = listNodes(currentRoot).find((candidate) => candidate.node.id === materialized.selectedId)?.node;
-    if (wire?.kind !== 'wire' || !wire.connected) continue;
+    if (wire?.kind !== 'wire' || !wire.connected && wire.erased) continue;
     next = editStructured(next, networkId, {
       kind: 'update',
       nodeId: wire.id,
-      node: { ...wire, connected: false },
+      node: { ...wire, connected: false, erased: true },
     }).project;
     changed = true;
   }
@@ -104,11 +104,11 @@ export function clearCellRange(
   for (const wireId of explicitWires) {
     const currentRoot = next.programs[0].networks.find((candidate) => candidate.id === networkId)!.root;
     const wire = listNodes(currentRoot).find((candidate) => candidate.node.id === wireId)?.node;
-    if (wire?.kind !== 'wire' || !wire.connected) continue;
+    if (wire?.kind !== 'wire' || !wire.connected && wire.erased) continue;
     next = editStructured(next, networkId, {
       kind: 'update',
       nodeId: wire.id,
-      node: { ...wire, connected: false },
+      node: { ...wire, connected: false, erased: true },
     }).project;
     changed = true;
   }
@@ -121,13 +121,31 @@ export function clearCellRange(
     next = structuredClone(next);
     const nextRoot = next.programs[0].networks.find(candidate => candidate.id === networkId)!.root;
     const target = listNodes(nextRoot).find(candidate => candidate.node.id === nodeId)!;
-    const gaps = Array.from({length: Math.max(1, span)}, () => ({kind: 'wire' as const, id: id(), connected: false}));
+    const gaps = Array.from({length: Math.max(1, span)}, () => ({kind: 'wire' as const, id: id(), connected: false, erased: true}));
     const siblings = childNodes(target.parent!)!;
     if (target.parent!.kind === 'series') siblings.splice(target.index, 1, ...gaps);
     else siblings[target.index] = gaps.length === 1 ? gaps[0] : {kind:'series',id:id(),children:gaps};
     changed = true;
   }
 
+  // A fully erased block has no remaining vertical junctions either.
+  const bounds=normalizeCellRange(range);
+  for(const placed of layout.nodes.filter(p=>p.node.kind==='parallel')){
+    const left=(placed.x-GRID_X)/COLUMN_WIDTH,top=(placed.y-GRID_Y)/ROW_HEIGHT;
+    if(left<bounds.left || left+placed.width/COLUMN_WIDTH-1>bounds.right || top<bounds.top || top+placed.height/ROW_HEIGHT-1>bounds.bottom)continue;
+    const currentRoot=next.programs[0].networks.find(n=>n.id===networkId)!.root;
+    const group=listNodes(currentRoot).find(l=>l.node.id===placed.node.id)?.node;
+    if(group?.kind!=='parallel')continue;
+    const leaves=listNodes(group).filter(l=>!childNodes(l.node));
+    if(!leaves.every(l=>l.node.kind==='wire' && !l.node.connected && l.node.erased))continue;
+    if(group.branches.slice(1).every(n=>n.kind==='series' && n.leftBreak && n.rightBreak))continue;
+    next=structuredClone(next);
+    const target=listNodes(next.programs[0].networks.find(n=>n.id===networkId)!.root).find(l=>l.node.id===group.id)!.node;
+    if(target.kind==='parallel')for(let i=1;i<target.branches.length;i++){
+      const branch=target.branches[i];target.branches[i]=branch.kind==='series'?{...branch,leftBreak:true,rightBreak:true}:{kind:'series',id:id(),children:[branch],leftBreak:true,rightBreak:true};
+    }
+    changed=true;
+  }
   if (!changed) return { project, selectedId: network.root.id, changed: false };
   const selectedId = next.programs[0].networks.find((candidate) => candidate.id === networkId)!.root.id;
   return { project: next, selectedId, changed: true };

@@ -57,7 +57,7 @@ for(let mode=0;mode<2;mode++){
  await page.waitForFunction(()=>document.querySelector('.editor-statusbar').textContent.includes('3 cells selected'));
  const beforeRangeDelete=await firstRung.locator('[data-node-id]').count();
  await stage.focus(); await stage.press('Delete');
- await page.waitForFunction(()=>[...document.querySelectorAll('.editor-rung:first-of-type [data-node-id]')].some(n=>n.getAttribute('aria-label')?.startsWith('Disconnected wire')));
+ await page.waitForFunction(()=>[...document.querySelectorAll('.editor-rung:first-of-type [data-node-id]')].some(n=>n.getAttribute('aria-label')?.startsWith('Empty cell')));
  await page.waitForFunction(()=>!document.querySelector('[aria-label="Undo edit"]').disabled); await stage.press('Control+z');
  await page.waitForFunction(count=>document.querySelectorAll('.editor-rung:first-of-type [data-node-id]').length===count,beforeRangeDelete);
  // Real editor commands: copy/paste, cut/move identity, dialog, context menu and whole-rung duplicate.
@@ -98,8 +98,8 @@ for(let mode=0;mode<2;mode++){
  // Deleting a projected wire must disconnect that cell, never its neighboring coil.
  const projected=page.locator('.editor-rung').first().locator('[data-cell-row="1"][data-cell-column="1"]');
  await projected.click(); await stage.focus(); await stage.press('Delete');
- const deletedPadding=page.locator('.editor-rung').first().locator('[data-node-id][aria-label^="Disconnected wire"]');
- await deletedPadding.waitFor(); assert.equal(await deletedPadding.getAttribute('data-cell-column'),'1');
+ const deletedPadding=page.locator('.editor-rung').first().locator('[data-node-id][aria-label^="Empty cell"]');
+ await deletedPadding.waitFor();assert.equal(await deletedPadding.locator('line,circle,path').count(),0);assert.equal(await deletedPadding.getByText('Gap',{exact:true}).count(),0); assert.equal(await deletedPadding.getAttribute('data-cell-column'),'1');
  assert.equal(await page.locator('.editor-rung').first().getByText('OUT Y1',{exact:true}).count(),1);
  await page.waitForFunction(()=>!document.querySelector('[aria-label="Undo edit"]').disabled); await stage.press('Control+z'); await deletedPadding.waitFor({state:'hidden'});
  // Open-branch drawing is exercised separately below; completed toolbar branches remain covered above.
@@ -111,7 +111,7 @@ for(let mode=0;mode<2;mode++){
   await page.getByRole('alert').filter({hasText:'restart npm run server'}).waitFor(); assert.equal(await page.locator('.editor-rung').first().locator('[data-node-id]').count(),beforeFailedEdit); await page.unroute('**/api/manual/project'); await page.getByRole('button',{name:'Cancel',exact:true}).click(); await page.getByRole('button',{name:'Dismiss',exact:true}).click();
  }
  await page.getByRole('button',{name:'Zoom out',exact:true}).click(); await page.screenshot({path:`${shots}/editor-workspace-${mode}.png`,fullPage:true});
- if(mode){await page.locator('.editor-save-state').filter({hasText:/saved/}).waitFor();await page.reload();await page.getByRole('heading',{name:'Conveyor control',exact:true}).waitFor();assert.equal(await page.locator('.editor-rung').count(),2);assert.ok(await page.locator('.editor-rung').first().locator('[data-node-id]').count()>=4);assert.equal(await page.locator('.editor-rung').nth(1).locator('[data-node-id][aria-label^="Disconnected wire"]').count(),0);}
+ if(mode){await page.locator('.editor-save-state').filter({hasText:/saved/}).waitFor();await page.reload();await page.getByRole('heading',{name:'Conveyor control',exact:true}).waitFor();assert.equal(await page.locator('.editor-rung').count(),2);assert.ok(await page.locator('.editor-rung').first().locator('[data-node-id]').count()>=4);assert.equal(await page.locator('.editor-rung').nth(1).locator('[data-node-id][aria-label^="Empty cell"]').count(),0);}
  if((await page.getByRole('button',{name:'Toggle entry mode',exact:true}).textContent())==='Overwrite')await page.getByRole('button',{name:'Toggle entry mode',exact:true}).click();
  // New workflow: rectangular clipboard -> exact Compile -> stale/failure navigation -> retained export.
  page.once('dialog',d=>d.accept('Clipboard compile acceptance'));await page.getByRole('button',{name:'New project',exact:true}).click();
@@ -206,6 +206,16 @@ await openRung.locator('[data-cell-row="0"][data-cell-column="1"]').first().clic
  await page.getByRole('button',{name:'Compile project',exact:true}).click();await page.getByRole('region',{name:'Compile diagnostics'}).getByText('Compile PASS',{exact:true}).waitFor();
  await page.getByRole('button',{name:'Undo edit',exact:true}).click();await page.waitForFunction(()=>[...document.querySelectorAll('.editor-rung svg > g:first-of-type > line')].filter(l=>l.getAttribute('x1')===l.getAttribute('x2')&&l.getAttribute('y1')!=='20').length===1);
  console.log(`PASS open branch ${mode?'database':'local'} single-vertical/open-L/reverse-delete/reconnect/explicit-join/compile-gate/Undo${mode?'/saved-reload':''}`);
+ // Legacy Gap reproduction: one Delete leaves a genuinely empty rendered cell.
+ page.once('dialog',d=>d.accept('Erase acceptance'));await page.getByRole('button',{name:'New project',exact:true}).click();await page.getByRole('heading',{name:'Erase acceptance',exact:true}).waitFor();
+ await page.evaluate(async()=>{const {useProjectStore}=await import('/PLC-LadderMCP/src/store.ts');const s=useProjectStore.getState(),p=structuredClone(s.project);p.programs[0].networks[0].root={kind:'series',id:'erase-root',children:[{kind:'wire',id:'gap-a',connected:false},{kind:'wire',id:'gap-b',connected:false},{kind:'parallel',id:'gap-branch',branches:[{kind:'wire',id:'gap-top',connected:false},{kind:'wire',id:'gap-middle',connected:false},{kind:'wire',id:'gap-bottom',connected:false}]}]};await s.editProject(p);});
+ const erasedRung=page.locator('.editor-rung').first(),oldGap=erasedRung.locator('[data-node-id="gap-a"]');await oldGap.getByText('Gap',{exact:true}).waitFor();
+ await oldGap.click();await stage.focus();await stage.press('Delete');await oldGap.getByText('Gap',{exact:true}).waitFor({state:'hidden'});assert.equal(await oldGap.locator('line,circle,path').count(),0);assert.ok((await oldGap.getAttribute('aria-label')).startsWith('Empty cell'));
+ await page.getByRole('button',{name:'Undo edit',exact:true}).click();await oldGap.getByText('Gap',{exact:true}).waitFor();
+ await erasedRung.locator('[data-cell-row="0"][data-cell-column="0"]').first().click();await erasedRung.locator('[data-cell-row="2"][data-cell-column="9"]').first().click({modifiers:['Shift']});await stage.focus();await stage.press('Delete');
+ await page.waitForFunction(()=>![...document.querySelectorAll('.editor-rung text')].some(n=>n.textContent==='Gap'));assert.equal(await erasedRung.locator('[data-node-id] line,[data-node-id] circle,[data-node-id] path').count(),0);assert.equal(await erasedRung.locator('svg').evaluate(svg=>svg.querySelectorAll(':scope > g:first-of-type > line').length),2);
+ if(mode){await page.locator('.editor-save-state').filter({hasText:/saved/}).waitFor();await page.reload();await page.getByRole('heading',{name:'Erase acceptance',exact:true}).waitFor();assert.equal(await erasedRung.getByText('Gap',{exact:true}).count(),0);assert.equal(await erasedRung.locator('[data-node-id] line,[data-node-id] circle').count(),0);}
+ await stage.evaluate(el=>el.scrollLeft=0);await page.screenshot({path:`${shots}/erase-blank-${mode}.png`,fullPage:true});console.log(`PASS erase ${mode?'database':'local'} legacy-Gap/one-Delete/no-glyphs/whole-branch-clear/Undo${mode?'/saved-reload':''}`);
  await page.setViewportSize({width:520,height:800}); await page.screenshot({path:`${shots}/editor-workspace-${mode}-520.png`,fullPage:true});
  await page.setViewportSize({width:1100,height:800}); await page.screenshot({path:`${shots}/editor-workspace-${mode}-1100.png`,fullPage:true});
  assert.deepEqual(errors,[]); console.log(`PASS browser ${mode?'PostgreSQL':'local'} insert/properties/branch/networks/clipboard/cut-identity/dialog/context-menu/duplicate/find/navigation/undo/redo/keyboard/zoom/cell-grid/coil-wires/ctrl-arrow-wires${mode?'/reload':'/old-backend-error'}`); await context.close();

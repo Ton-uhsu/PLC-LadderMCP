@@ -16,7 +16,7 @@ test('rectangular Copy/Paste preserves cells including projected wires and new i
 });
 test('Cut preserves vacated coordinates and same-project move preserves symbol identities',()=>{
  const p=fixture(),result=cutRange(p,0,{anchor:{row:0,column:0},focus:{row:0,column:9}},'one',ids());
- assert.ok(layoutLadder(result.project.programs[0].networks[0].root).cells.every(c=>c.kind==='wire'&&c.connected===false));
+ assert.ok(layoutLadder(result.project.programs[0].networks[0].root).cells.every(c=>c.kind==='blank'&&c.connected===false));
  const moved=pasteRange(result.project,1,{row:0,column:0},result.clip,'one',(()=>{let n=100;return()=>`paste-${++n}`;})());
  assert.ok(listNodes(moved.project.programs[0].networks[1].root).some(l=>l.node.id==='e1'));
 });

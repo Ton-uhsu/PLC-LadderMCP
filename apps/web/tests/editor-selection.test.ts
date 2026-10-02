@@ -92,7 +92,7 @@ test("clears every symbol and wire in a rectangular range without touching anoth
   );
 });
 
-test("turns selected projected wire cells into explicit gaps", () => {
+test("clears selected projected wires into empty cells", () => {
   const project = projectWithSeries();
   const root = project.programs[0].networks[0].root;
   if (root.kind !== "series") throw new Error("Expected series root");
@@ -115,7 +115,7 @@ test("turns selected projected wire cells into explicit gaps", () => {
     (cell) => cell.row === 0 && (cell.column === 1 || cell.column === 2),
   );
   assert.equal(selectedCells.length, 2);
-  assert.ok(selectedCells.every((cell) => cell.kind === "wire" && cell.connected === false));
+  assert.ok(selectedCells.every((cell) => cell.kind === "blank" && cell.connected === false));
 });
 
 test("does not create an edit when the range contains only blank cells", () => {

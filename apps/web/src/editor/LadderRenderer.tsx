@@ -52,7 +52,7 @@ export function LadderRenderer({ diagnosticNodeIds = [], root, selectedId, onSel
       }} className={diagnosticNodeIds.includes(node.id) ? "ladder-element diagnostic-error-node" : "ladder-element"}>
         <rect x={x + 3} y={y + 3} width={width - 6} height="82" rx="5" fill={selected ? (theme === 'dark' ? '#243e61' : '#dbeafe') : 'transparent'} stroke={diagnosticNodeIds.includes(node.id) ? '#f87171' : selected ? '#2563eb' : 'transparent'}/>
         <title>{`${nodeLabel(node)} · ${node.id}`}</title>
-        <g stroke={ink} strokeWidth="2" fill="none">
+        {node.kind==='wire' && !node.connected && node.erased ? null : <g stroke={ink} strokeWidth="2" fill="none">
           <line x1={x} y1={baseline} x2={center - 26} y2={baseline}/><line x1={center + 26} y1={baseline} x2={x + width} y2={baseline}/>
           {node.kind === 'wire' ? node.connected ? <line x1={center - 26} y1={baseline} x2={center + 26} y2={baseline}/> : <><circle cx={center - 26} cy={baseline} r="3" stroke="#f59e0b"/><circle cx={center + 26} cy={baseline} r="3" stroke="#f59e0b"/></> : node.kind === 'contact' ? <>
             <line x1={center - 10} y1={baseline - 14} x2={center - 10} y2={baseline + 14}/><line x1={center + 10} y1={baseline - 14} x2={center + 10} y2={baseline + 14}/>
@@ -62,8 +62,8 @@ export function LadderRenderer({ diagnosticNodeIds = [], root, selectedId, onSel
             <path d={`M ${center - 8} ${baseline - 16} Q ${center - 24} ${baseline} ${center - 8} ${baseline + 16} M ${center + 8} ${baseline - 16} Q ${center + 24} ${baseline} ${center + 8} ${baseline + 16}`}/>
             <line x1={center - 26} y1={baseline} x2={center - 16} y2={baseline}/><line x1={center + 16} y1={baseline} x2={center + 26} y2={baseline}/>
           </> : <rect x={node.kind === 'action' ? center - Math.max(48, nodeLabel(node).length * 4 + 12) : x + 16} y={baseline - 15} width={node.kind === 'action' ? Math.max(96, nodeLabel(node).length * 8 + 24) : width - 32} height="30" fill={paper} strokeDasharray={children ? '4 3' : undefined}/>}
-        </g>
-        <text x={center} y={node.kind === 'action' && node.action.kind === 'instruction' || children ? baseline + 5 : y + 20} textAnchor="middle" fill={node.kind === "wire" && !node.connected ? "#f59e0b" : ink} fontFamily="monospace" fontSize="13">{children ? `Empty ${node.kind}` : node.kind === 'wire' ? node.connected ? '' : 'Gap' : nodeLabel(node).length > (width - 16) / 8 ? nodeLabel(node).slice(0, Math.floor((width - 16) / 8) - 1) + '…' : nodeLabel(node)}</text>
+        </g>}
+        <text x={center} y={node.kind === 'action' && node.action.kind === 'instruction' || children ? baseline + 5 : y + 20} textAnchor="middle" fill={node.kind === "wire" && !node.connected ? "#f59e0b" : ink} fontFamily="monospace" fontSize="13">{children ? `Empty ${node.kind}` : node.kind === 'wire' ? node.connected || node.erased ? '' : 'Gap' : nodeLabel(node).length > (width - 16) / 8 ? nodeLabel(node).slice(0, Math.floor((width - 16) / 8) - 1) + '…' : nodeLabel(node)}</text>
         {node.kind === 'contact' && node.edge && node.edge !== 'none' && <text x={center} y={baseline + 5} textAnchor="middle" fill={ink} fontSize="14">{node.edge === 'rising' ? '↑' : '↓'}</text>}
       </g>;
     })}

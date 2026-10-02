@@ -143,11 +143,11 @@ export function EditorWorkspace() {
     if (disabled) return;
     if (cellSelection) {
       const range = cellSelection;
-      void perform(p => clearCellRange(p, range.networkId, range, () => crypto.randomUUID())).then(() => setCellSelection(null)).catch(() => undefined);
+      void perform(p => clearCellRange(p, range.networkId, range, () => crypto.randomUUID())).then(result => {setCellSelection(null);const root=result.project.programs[0].networks.find(n=>n.id===range.networkId)!.root;const at=layoutLadder(root).cells.find(c=>c.row===range.focus.row && c.column===range.focus.column);if(at)updateCellFocus(range.networkId,at);stage.current?.focus();}).catch(() => undefined);
       return;
     }
     if (cell && !cell.nodeId) {
-      if (cell.kind === 'wire') void perform((p, n) => { const at = materializeCell(p, n, cell, () => crypto.randomUUID()); return editStructured(at.project, n, {kind:'update',nodeId:at.selectedId,node:{kind:'wire',id:at.selectedId,connected:false}}); }).catch(() => undefined);
+      if (cell.kind === 'wire') void perform((p, n) => { const at = materializeCell(p, n, cell, () => crypto.randomUUID()); return editStructured(at.project, n, {kind:'update',nodeId:at.selectedId,node:{kind:'wire',id:at.selectedId,connected:false,erased:true}}); }).catch(() => undefined);
       return;
     }
     if (selection?.parent) mutate({ kind: 'remove', nodeId: selection.node.id });
@@ -168,7 +168,7 @@ export function EditorWorkspace() {
       if (cell && !cell.nodeId) {
         if (cell.kind !== 'wire') return;
         const clip = { node: { kind: 'wire' as const, id: crypto.randomUUID(), connected: true }, network: false, cut: false, origin };
-        if (cut) void perform((p, n) => { const at = materializeCell(p, n, cell, () => crypto.randomUUID()); return editStructured(at.project, n, { kind: 'update', nodeId: at.selectedId, node: {kind:'wire',id:at.selectedId,connected:false} }); }).then(() => clipboard.set(clip)).catch(() => undefined);
+        if (cut) void perform((p, n) => { const at = materializeCell(p, n, cell, () => crypto.randomUUID()); return editStructured(at.project, n, { kind: 'update', nodeId: at.selectedId, node: {kind:'wire',id:at.selectedId,connected:false,erased:true} }); }).then(() => clipboard.set(clip)).catch(() => undefined);
         else clipboard.set(clip);
         setMenu(null); stage.current?.focus(); return;
       }

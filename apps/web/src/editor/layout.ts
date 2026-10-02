@@ -2,7 +2,7 @@ import { operandToFxText, childNodes, containsAction, type LogicNode, type Opera
 export const COLUMN_WIDTH = 120, ROW_HEIGHT = 88, GRID_X = 24, GRID_Y = 32, MIN_COLUMNS = 10;
 export function operandLabel(operand: Operand) { return operandToFxText(operand); }
 export function nodeLabel(node: LogicNode): string {
-  if (node.kind === 'wire') return node.connected ? 'Wire' : 'Disconnected wire';
+  if (node.kind === 'wire') return node.connected ? 'Wire' : node.erased ? 'Empty cell' : 'Disconnected wire';
   if (node.kind === 'contact') return `${node.mode} ${node.device.address}${node.edge && node.edge !== 'none' ? ` · ${node.edge}` : ''}`;
   if (node.kind === 'action') {
     const a = node.action;
@@ -61,7 +61,7 @@ export function layoutLadder(root: LogicNode, _minWidth = 0): Layout {
       const first = right ? column + extra : column;
       if (extra > 0 && right) padding(column, row, extra, { anchorId: node.id, side: 'before', connected: true });
       nodes.push({ node, x: x(first), y: y(row), width: natural.columns * COLUMN_WIDTH, height: ROW_HEIGHT });
-      for (let i = 0; i < natural.columns; i++) cells.push({ column: first + i, row, nodeId: node.id, kind: node.kind === 'wire' ? 'wire' : 'node', ...(node.kind === 'wire' ? { connected: node.connected } : {}) });
+      for (let i = 0; i < natural.columns; i++) cells.push({ column: first + i, row, nodeId: node.id, kind: node.kind === 'wire' ? !node.connected && node.erased ? 'blank' : 'wire' : 'node', ...(node.kind === 'wire' ? { connected: node.connected } : {}) });
       if (extra > 0 && !right) {
         if (children) { padding(first + natural.columns, row, extra, { parentId: node.id, index: 0, connected: false }); for (const cell of cells.filter(c => c.slot?.parentId === node.id)) { cell.slot!.offset++; cell.slot!.count++; } }
         else padding(first + natural.columns, row, extra, { anchorId: node.id, side: 'after', connected: !top });
