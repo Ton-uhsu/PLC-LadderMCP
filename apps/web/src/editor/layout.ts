@@ -30,6 +30,9 @@ export function layoutLadder(root: LogicNode, _minWidth = 0): Layout {
     sizes.set(node.id, size); return size;
   }
   const size = measure(root);
+  function hasOpenRow(node: LogicNode): boolean {
+    return node.kind === 'series' && !!node.openEnd || (childNodes(node)?.some(hasOpenRow) ?? false);
+  }
   function suffix(node: LogicNode): number {
     if (!containsAction(node) || node.kind === 'action') return 0;
     if (node.kind === 'parallel') return Math.max(0, ...node.branches.map(suffix));
@@ -80,14 +83,14 @@ export function layoutLadder(root: LogicNode, _minWidth = 0): Layout {
         const child = children[i], count = sizes.get(child.id)!.columns + (i === expansion ? extra : 0);
         place(child, cursor, row, count, output || containsAction(child)); cursor += count;
       }
-      if (extra > 0 && expansion < 0) padding(cursor, row, extra, { parentId: node.id, index: children.length, connected: !top });
+      if (extra > 0 && expansion < 0) padding(cursor, row, extra, { parentId: node.id, index: children.length, connected: !top && !hasOpenRow(node) });
     } else {
       let cursor = row;
       const trailing = Math.max(0, ...children.map(suffix));
       for (const child of children) {
         const after = output || containsAction(node) ? trailing - suffix(child) : 0;
         place(child, column, cursor, allocated - after, output || containsAction(node));
-        if (after) padding(column + allocated - after, cursor, after, {anchorId:child.id,side:'after',connected:true});
+        if (after && !hasOpenRow(child)) padding(column + allocated - after, cursor, after, {anchorId:child.id,side:'after',connected:true});
         cursor += sizes.get(child.id)!.rows;
       }
       const starts:number[]=[];let branchRow=row;

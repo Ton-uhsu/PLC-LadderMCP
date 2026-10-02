@@ -4,6 +4,11 @@
 
 
 ## Done
+- [x] WORK-021 | fix: Ctrl+Left on an open branch never fills its right tail | 2026-10-02 | fix | → owner: docs/designs/ladder-wire-editing.md
+  - Delivered: open rows and their enclosing groups no longer inherit connected right padding from series expansion or output suffix alignment. Left draws only its addressed cell; the existing vertical junction and unrelated output position remain stable.
+  - Verified: 52 Web tests and production build; full Chromium local/PGlite one-left-cell/no-right-tail/Undo/Redo/saved-reload regression plus prior editor checks. Correct left-facing L screenshot inspected.
+  - Handoff: Web-only update, no schema migration; existing incomplete-draft Compile rules apply.
+
 - [x] WORK-020 | fix: draw exactly one horizontal block per key press | 2026-10-02 | fix | → owner: docs/designs/ladder-wire-editing.md
   - Delivered: blank closed-branch allocations become erased disconnected cells before drawing, preventing inferred padding from connecting the remaining row. Ctrl+Left/Right moves one column and connects one cell, including the first cell; open continuation and unrelated geometry stay intact.
   - Verified: 51 Web tests and production build; full Chromium local/PGlite left/right/first-cell blank-tail/Undo acceptance and all prior cursor, drawing, clipboard, Delete, Compile/export and saved-reload regressions.
@@ -23,10 +28,5 @@
   - Delivered: one Delete leaves blank cells, including legacy Gap nodes, without orange endpoints or wire stubs. Clearing a complete empty branch block removes its vertical legs; coordinates and cursor remain stable. Undo restores the edit; redraw and saved reload retain correct semantics.
   - Verified: 46 Web tests; Web/backend builds; full Chromium local/PGlite legacy-Gap, one-Delete, zero-glyph branch clearing, Undo and durable reload, alongside cursor/clipboard/open-branch/Compile/export regressions. Blank screenshot inspected.
   - Handoff: restart Web and server for the optional wire erased draft marker; no SQL migration. Blank paths still fail Compile.
-
-- [x] WORK-016 | fix: open wire drawing and reversible vertical junctions | 2026-10-02 | fix | → owner: docs/designs/ladder-wire-editing.md
-  - Delivered: Ctrl+Up/Down draws only a vertical leg, Right extends an open L, and the return join is explicit. Traversing an existing vertical segment deletes only that junction; traversing its gap reconnects it. Horizontal segments, nested legs and symbol identities survive; incomplete drafts persist and block Compile/Export. Local project name changes reset stale cursor state.
-  - Verified: 44 Web tests, including four open-branch regressions and the nested user-image reproduction; Web/backend builds, semantic smoke/HTTP E2E, persistence 8 pass/2 native skipped. Chromium local/PGlite drawing, reverse-delete/reconnect, explicit join, Compile gate, saved reload and Undo passed alongside cursor/clipboard/export regressions; dark screenshots inspected.
-  - Handoff: update both server and Web for optional series draft-junction fields; no SQL migration. Arbitrary non-structured graph connections remain unsupported. No real Windows IDE/native database claim.
 
 Older records: [October work archive](docs/task-archive/2026-10.md).

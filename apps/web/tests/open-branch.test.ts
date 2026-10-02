@@ -84,3 +84,15 @@ test('horizontal open drafts extend left past their initial junction and right b
  assert.equal(compileWithDiagnostics(r.project).status,'FAIL');
  assert.deepEqual(p,demoProject);
 });
+
+test('Left on an open row with output suffix alignment draws only one left cell and no right tail',()=>{
+ const p=structuredClone(demoProject);p.programs[0].networks[0].root={kind:'series',id:'image-root',children:[{kind:'contact',id:'image-contact',mode:'NO',device:{kind:'device',address:'X0'}},{kind:'wire',id:'image-prefix',connected:true},{kind:'parallel',id:'image-group',branches:[{kind:'series',id:'image-top',children:[{kind:'action',id:'image-out',action:{kind:'coil',id:'image-coil',device:{kind:'device',address:'Y0'}}},...Array.from({length:6},(_,i)=>({kind:'wire',id:`image-tail-${i}`,connected:true}))]},{kind:'series',id:'image-open',children:[],openEnd:true}]}]};
+ const before=layoutLadder(p.programs[0].networks[0].root);
+ const r=editGridWire(p,0,{row:1,column:2},'left',ids()),after=layoutLadder(r.project.programs[0].networks[0].root);
+ assert.deepEqual(r.cursor,{row:1,column:1});
+ assert.deepEqual(after.cells.filter(c=>c.row===1&&c.connected).map(c=>c.column),[1]);
+ assert.equal(after.wires.filter(w=>w.y1===w.y2&&w.y1===164).length,0);
+ assert.deepEqual(after.wires.filter(w=>w.x1===w.x2),before.wires.filter(w=>w.x1===w.x2));
+ assert.equal(after.nodes.find(n=>n.node.id==='image-out')!.x,before.nodes.find(n=>n.node.id==='image-out')!.x);
+ assert.deepEqual(snapshotSchema.parse(r.project),r.project);
+});

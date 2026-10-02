@@ -122,3 +122,12 @@ Readiness: PASS for the report that Ctrl+Left/Right fills the entire remaining r
 Before drawing in that allocation, materialization retains its full span as explicit disconnected erased cells. Only the addressed cell becomes connected; all untouched cells stay blank with no Gap glyph. The first cell of an empty branch uses the same rule. Open drafts still materialize only through the addressed offset, so their end/junction geometry and continuous extension remain intact. Connected padding retains its already-existing connections. All work remains one atomic edit and uses the existing snapshot schema.
 
 Verified: 51 Web tests and Web production build; targeted tests exercise both directions, a second key press, the first branch cell, one-column cursor movement and preservation of unrelated coordinates. Full Chromium local/PGlite acceptance checks one visible wire glyph and zero inferred horizontal tail segments after each direction, with Undo, alongside the existing continuous-drawing, Delete, clipboard, Compile, export and saved-reload regressions.
+
+
+## WORK-021 — no opposite-direction tail on open rows (2026-10-02)
+
+Readiness: PASS for the new images and explicit user instruction to fix, commit and push. WORK-020 addressed materialization of empty closed branches; open rows still inherited a second kind of automatic wire from layout. Series expansion and parallel output suffix alignment could append connected padding to a subtree containing an open row, although the drawing command connected only the requested left cell.
+
+Layout now treats that remaining allocation as blank for open subtrees. Existing explicit wire children and junction positions are retained. The regression starts with an open row at column 2 under an output branch with a six-cell suffix, then presses Left. Only column 1 becomes a connected horizontal wire; all right-side cells remain blank, and the vertical junction/output coordinates are unchanged.
+
+Verified: 52 Web tests and production build, full Chromium local/PGlite regression including no inferred right-alignment wire, Undo/Redo and saved reload. A left-facing L screenshot was inspected. Earlier continuous drawing, one-block closed-branch drawing, Delete, clipboard, cursor, Compile/export and persistence workflows pass. No schema change or migration.
