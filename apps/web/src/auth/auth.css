@@ -325,37 +325,44 @@
 .auth-loading > span { color: #71717a; font-size: 11px; }
 
 .auth-authenticated { min-height: 100vh; }
-.auth-session-chip {
-  position: fixed;
-  z-index: 100;
-  left: 18px;
-  bottom: 18px;
-  display: flex;
-  align-items: center;
+.auth-session-controls {
+  display: grid;
   gap: 8px;
-  padding: 7px 8px 7px 10px;
-  border: 1px solid #343438;
-  border-radius: 999px;
-  background: rgba(13,14,16,.94);
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid #343438;
   color: #d4d4d8;
-  box-shadow: 0 10px 35px rgba(0,0,0,.24);
   font-size: 11px;
-  backdrop-filter: blur(12px);
 }
-.auth-session-chip > svg { color: #86efac; }
-.auth-session-chip button {
+.auth-session-user { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.auth-session-user > svg { flex: none; color: #86efac; }
+.auth-session-user > span { overflow: hidden; text-overflow: ellipsis; }
+.auth-session-controls button, .sidebar .auth-session-controls button {
   display: inline-flex;
   align-items: center;
-  gap: 5px;
+  gap: 8px;
   border: 1px solid #343438;
-  border-radius: 999px;
-  padding: 5px 8px;
+  border-radius: 4px;
+  padding: 7px 8px;
   background: #18181b;
   color: inherit;
   cursor: pointer;
-  font-size: 10px;
+  font-size: 11px;
 }
-.auth-session-chip button:hover { background: #27272a; color: #fafafa; }
+.auth-session-controls button:hover { background: #27272a; color: #fafafa; }
+.mobile-session-footer { display: none; }
+.mobile-session-footer .auth-session-controls { display: flex; align-items: center; gap: 16px; margin: 0; padding: 0; border: 0; }
+@media (max-width: 900px) {
+  .app-shell:not(.editor-mode) .sidebar .auth-session-user > span,
+  .app-shell:not(.editor-mode) .sidebar .auth-session-controls button > span { display: none; }
+  .app-shell:not(.editor-mode) .sidebar .auth-session-controls button { justify-content: center; }
+}
+@media (max-width: 760px) {
+  .editor-mode .mobile-session-footer { display: block; flex: none; padding: 8px 12px; background: #13171d; border-top: 1px solid #343438; }
+}
+@media (max-width: 620px) {
+  .mobile-session-footer { display: block; padding: 8px 12px; background: #13171d; border-top: 1px solid #343438; }
+}
 
 /* The browser should never ask a human for the MCP machine token. */
 .app-shell .server-bar .token-input { display: none; }
@@ -380,5 +387,4 @@
   .auth-flow { display: none; }
   .auth-login-panel { padding: 30px 18px 36px; }
   .auth-card { width: 100%; }
-  .auth-session-chip { left: 10px; bottom: 10px; }
 }

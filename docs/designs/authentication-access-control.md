@@ -310,3 +310,9 @@ RBAC       : not required in single-admin V1
 The key rule is:
 
 > **Human and AI credentials are separate; remote MCP is authenticated; neither credential type can bypass the semantic-batch, validation, Human Review, and Apply safety lifecycle.**
+
+## WORK-026 — account controls inside the application layout (2026-10-02)
+
+AuthGate provides the verified user and existing logout action through a React context. The application renders admin/Sign out in the sidebar footer as normal document flow. There is no fixed-position session chip, shadow or overlay. On narrow screens where the sidebar is hidden, a page footer below the editor status bar reserves its own space and provides the same controls. Only one account section is visible at each breakpoint; the session/token clearing behavior is unchanged.
+
+Verified: production build and full Chromium local/PGlite editor regression, sidebar containment/static positioning, mobile footer clearance, one visible Sign out and logout returning to the login screen. Desktop and narrow screenshots inspected. Web-only change; no backend or database migration.

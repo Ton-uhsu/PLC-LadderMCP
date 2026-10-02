@@ -24,7 +24,9 @@ for(let mode=0;mode<2;mode++){
  await context.addInitScript(api=>localStorage.setItem('plc-ladder-api',api),api); const page=await context.newPage(); const errors=[]; page.on('pageerror',e=>errors.push(e.message));
  await page.goto('http://127.0.0.1:5189/PLC-LadderMCP/'); await page.getByLabel('Username').fill('admin'); await page.getByLabel('Password').fill('test'); await page.getByRole('button',{name:'Enter workspace'}).click();
  await page.getByRole('button',{name:'New project',exact:true}).waitFor(); page.once('dialog',d=>d.accept('Conveyor control'));await page.getByRole('button',{name:'New project',exact:true}).click(); await page.getByRole('heading',{name:'Conveyor control',exact:true}).waitFor();
- const sessionPosition=await page.locator('.auth-session-chip').boundingBox();assert.equal(sessionPosition.x,18);assert.equal(Math.round(sessionPosition.y+sessionPosition.height),966);
+ const sidebarAccount=page.locator('.sidebar .auth-session-controls');await sidebarAccount.getByText('admin',{exact:true}).waitFor();
+ const sessionPosition=await sidebarAccount.boundingBox(),sidebarPosition=await page.locator('.sidebar').boundingBox();assert.ok(sessionPosition.x>=sidebarPosition.x&&sessionPosition.x+sessionPosition.width<=sidebarPosition.x+sidebarPosition.width);assert.ok(sessionPosition.y+sessionPosition.height<=sidebarPosition.y+sidebarPosition.height);
+ assert.equal(await sidebarAccount.evaluate(el=>getComputedStyle(el).position),'static');assert.equal(await page.getByRole('button',{name:'Sign out',exact:true}).count(),1);
  await page.getByRole('button',{name:'Toggle entry mode',exact:true}).click(); await page.getByRole('button',{name:'Toggle properties',exact:true}).click();
  const add=async(tool,value)=>{await page.getByRole('button',{name:'Insert '+tool,exact:true}).click();await page.getByLabel('Element address or instruction').fill(value);await page.getByLabel('Element address or instruction').press('Enter');await page.locator('.editor-command-entry').waitFor({state:'hidden'});};
  await add('NO contact','X0'); await add('Output coil','Y0'); await add('Output coil','Y1');
@@ -334,8 +336,10 @@ await openRung.locator('[data-cell-row="0"][data-cell-column="1"]').first().clic
  await page.getByRole('button',{name:'Compile project',exact:true}).click();await diagnostics.getByText('Compile FAIL',{exact:true}).waitFor();await diagnostics.getByRole('button',{name:'Close compile results',exact:true}).press('Escape');await diagnostics.waitFor({state:'hidden'});
  await page.screenshot({path:`${shots}/compile-closed-edit-${mode}.png`,fullPage:true});console.log(`PASS long compile ${mode?'database':'local'} 84-errors/bounded-panel/scroll-visible-close/immediate-wire-edit/new-run-reopens`);
  await page.setViewportSize({width:520,height:800}); await page.screenshot({path:`${shots}/editor-workspace-${mode}-520.png`,fullPage:true});
- const mobileSession=await page.locator('.auth-session-chip').boundingBox();assert.equal(mobileSession.x,10);assert.equal(Math.round(mobileSession.y+mobileSession.height),766);
+ const mobileAccount=page.locator('.mobile-session-footer .auth-session-controls');await mobileAccount.getByText('admin',{exact:true}).waitFor();assert.equal(await mobileAccount.evaluate(el=>getComputedStyle(el).position),'static');assert.equal(await page.getByRole('button',{name:'Sign out',exact:true}).count(),1);
+ const mobileSession=await mobileAccount.boundingBox(),mobileStatus=await page.locator('.editor-statusbar').boundingBox();assert.ok(mobileSession.y>=mobileStatus.y+mobileStatus.height);assert.ok(mobileSession.y+mobileSession.height<=800);
  await page.setViewportSize({width:1100,height:800}); await page.screenshot({path:`${shots}/editor-workspace-${mode}-1100.png`,fullPage:true});
+ await sidebarAccount.getByText('admin',{exact:true}).waitFor();await page.getByRole('button',{name:'Sign out',exact:true}).click();await page.getByRole('button',{name:'Enter workspace',exact:true}).waitFor();console.log(`PASS account ${mode?'database':'local'} sidebar-footer/mobile-footer/no-overlay/responsive/sign-out`);
  assert.deepEqual(errors,[]); console.log(`PASS browser ${mode?'PostgreSQL':'local'} insert/properties/branch/networks/clipboard/cut-identity/dialog/context-menu/duplicate/find/navigation/undo/redo/keyboard/zoom/cell-grid/coil-wires/ctrl-arrow-wires${mode?'/reload':'/old-backend-error'}`); await context.close();
 }
 console.log('Browser QA screenshots: '+shots);

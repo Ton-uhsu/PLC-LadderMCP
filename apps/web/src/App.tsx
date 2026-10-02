@@ -13,6 +13,7 @@ import {
 import { ProjectSettings } from "./projects/ProjectSettings";
 import { LadderRenderer } from "./editor/LadderRenderer";
 import { EditorWorkspace } from "./editor/EditorWorkspace";
+import { SessionControls } from './auth/SessionControls';
 import { useProjectStore } from "./store";
 
 type Vendor = "GX Works2" | "SamSoar2022";
@@ -324,6 +325,7 @@ export default function App() {
           <span className="status-dot"/>
           <div><b>Engine ready</b><small>IR schema v0.2 · shared FX3U compiler</small></div>
         </div>
+        <SessionControls/>
       </div>
     </aside>
 
@@ -502,6 +504,7 @@ export default function App() {
           </section>
         </aside>
       </div>
+      <div className="mobile-session-footer"><SessionControls/></div>
     </main>
   </div>;
 }

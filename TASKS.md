@@ -4,6 +4,11 @@
 
 
 ## Done
+- [x] WORK-026 | fix: embed account controls in the sidebar footer | 2026-10-02 | fix | → owner: docs/designs/authentication-access-control.md
+  - Delivered: admin/Sign out uses normal sidebar footer layout, with no floating chip. Hidden-sidebar screens use an in-flow page footer. AuthGate shares the existing user/logout through context; session behavior remains intact.
+  - Verified: production build and full Chromium local/PGlite regression, sidebar bounds/static positioning, one visible Sign out, mobile footer below status bar and successful logout. Desktop/narrow screenshots inspected.
+  - Handoff: Web-only update and browser refresh; no backend/schema migration.
+
 - [x] WORK-025 | fix: dismiss compile results and move the session chip to bottom left | 2026-10-02 | fix | → owner: docs/designs/ladder-wire-editing.md
   - Delivered: Close/Escape hides compile diagnostics and red highlights, returns canvas focus and retains selection/report/export validation. View reopens results; a new run opens automatically. A bounded panel keeps Close visible while scrolling. Request errors are dismissible; admin/Sign out sits at bottom left on desktop and narrow screens.
   - Verified: 66 Web tests, production build and Chromium local/PGlite close/reopen/Escape/selection/report retention/request-error dismissal, 84-error scrolling/immediate wire edit/new-run reopening, desktop/narrow session coordinates and prior editor/export/persistence regressions. Screenshots inspected.

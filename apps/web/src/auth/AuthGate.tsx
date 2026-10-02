@@ -6,12 +6,12 @@ import {
   KeyRound,
   LockKeyhole,
   LogIn,
-  LogOut,
   ShieldCheck,
   UserRound,
   Workflow,
 } from "lucide-react";
 import { useProjectStore } from "../store";
+import { AuthSessionContext } from './SessionControls';
 import {
   clearWebSession,
   getConfiguredApiUrl,
@@ -206,11 +206,7 @@ export function AuthGate({ children }: { children: ReactNode }) {
     </div>;
   }
 
-  return <div className="auth-authenticated">
-    <div className="auth-session-chip">
-      <ShieldCheck size={14}/><span>{user.username}</span>
-      <button onClick={logout} title="Sign out"><LogOut size={14}/> Sign out</button>
-    </div>
-    {children}
-  </div>;
+  return <AuthSessionContext.Provider value={{user,logout}}>
+    <div className="auth-authenticated">{children}</div>
+  </AuthSessionContext.Provider>;
 }
