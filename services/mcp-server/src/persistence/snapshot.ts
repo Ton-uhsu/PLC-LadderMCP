@@ -13,7 +13,7 @@ const action = z.union([
 const node: z.ZodType<LogicNode> = z.lazy(() => z.union([
   z.object({ kind: z.literal('wire'), id, connected: z.boolean() }).strict(),
   z.object({ kind: z.literal('contact'), id, device, mode: z.enum(['NO', 'NC']), edge: z.enum(['none', 'rising', 'falling']).optional() }).strict(),
-  z.object({ kind: z.literal('series'), id, children: z.array(node) }).strict(),
+  z.object({ kind: z.literal('series'), id, children: z.array(node), openEnd: z.boolean().optional(), leftBreak: z.boolean().optional(), rightBreak: z.boolean().optional() }).strict(),
   z.object({ kind: z.literal('parallel'), id, branches: z.array(node) }).strict(),
   z.object({ kind: z.literal('action'), id, action }).strict(),
 ]));

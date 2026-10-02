@@ -134,6 +134,7 @@ export function outputActions(node: LogicNode): ActionNode[] {
 // Connected wires are Boolean TRUE in conditions; gaps always block compile.
 // Normalization is compile-only and never rewrites the authoritative snapshot.
 export function normalizeWires(node: LogicNode): LogicNode | null {
+  if(node.kind==='series' && (node.openEnd || node.leftBreak || node.rightBreak))throw new Error('Open wire branch: connect its end before Compile/Export.');
   if (node.kind === 'wire') { if (!node.connected) throw new Error('Disconnected wire: complete the path before Compile/Export.'); return null; }
   if (node.kind === 'contact' || node.kind === 'action') return node;
   const children = (node.kind === 'series' ? node.children : node.branches).map(normalizeWires);
@@ -149,6 +150,12 @@ export function normalizeWires(node: LogicNode): LogicNode | null {
   return node.kind === 'series' ? { ...node, children: kept } : { ...node, branches: kept };
 }
 export function compileNetwork(network: LadderNetworkV02): ListInstruction[] {
+  function checkOpen(node: LogicNode) {
+    if(node.kind === 'series' && (node.openEnd || node.leftBreak || node.rightBreak)) throw new Error('Open wire branch: connect its end before Compile/Export.');
+    if(node.kind === 'series') node.children.forEach(checkOpen);
+    if(node.kind === 'parallel') node.branches.forEach(checkOpen);
+  }
+  checkOpen(network.root);
   const original = network.root;
   if (original.kind !== 'series') throw new Error('v0.2 compiler currently requires a series root.');
   const outputIndex = original.children.findIndex(containsAction);

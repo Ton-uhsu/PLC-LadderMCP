@@ -75,3 +75,12 @@ Scope is a working interaction prototype, not complete GX Works2 parity: vendor-
 ## WORK-015 — restore original colors (2026-10-02)
 
 User requests the original dark theme while retaining the cursor-first IDE layout. Remove the white workspace overrides, restore the renderer's dark symbols, and style the newly added menu/program tree/input dialog using the existing navy/charcoal palette. Editing semantics are unchanged. Web build and full local/PGlite Chromium workflow pass; dark desktop, symbol-dialog and narrow screenshots inspected.
+
+
+## WORK-016 — open segments and reversible junctions (2026-10-02)
+
+User screenshots require a single vertical stroke followed by an open L; reverse traversal deletes only the existing vertical segment. Grid Ctrl+Up/Down now creates an empty series branch with `openEnd: true`, rather than a connected horizontal branch plus two return legs. Horizontal continuation is drawn explicitly, and a matching right boundary joins only when requested. Completed existing parallel geometry remains closed. At a vertical boundary, Up/Down refers to the same undirected segment; deletion/reconnection toggles a `leftBreak` or `rightBreak` on its lower series branch. Branch rows, horizontal wires, nested vertical legs and symbol identities remain intact; no subtree is silently deleted.
+
+Optional series flags are authoritative incomplete-draft topology, accepted by snapshot validation and included in logic hashes. Layout omits broken junctions and open return legs. Shared validation/Compile locates OPEN_BRANCH or DISCONNECTED_JUNCTION; compiler and wire normalization reject unresolved draft markers before Export. Compiler version advances to fx3u-v02-3 to invalidate earlier eligibility. Update Web and backend together; no SQL migration. This extends structured branch drafting, not arbitrary grid-graph editing. Explicit joining currently requires a matching structured branch boundary.
+
+Verified: 44 Web tests including four targeted open-branch regressions and the nested user-image case; Web/backend builds; semantic smoke and HTTP/MCP E2E; embedded persistence 8 pass/2 native skipped; full Chromium local/PGlite flows for open L, reverse deletion, reconnect, explicit join, Compile gating, saved reload, Undo, cursor input, rectangular clipboard and GX download. Dark desktop captures inspected. Native Windows IDE opening remains unverified.

@@ -95,7 +95,7 @@ export function EditorWorkspace() {
     window.setTimeout(() => { suppressSelectionClick.current = false; }, 0);
   }
   const disabled = busy || switching || !connected || !network || storageMode === 'database' && !projectId;
-  useEffect(() => { setSelectedId(null); setCursor(null); setCellSelection(null); setEntry(null); setError(''); }, [projectId]);
+  useEffect(() => { setSelectedId(null); setCursor(null); setCellSelection(null); setEntry(null); setError(''); }, [projectId, project.name]);
   useEffect(() => {
     if(storageMode!=='database' || !projectId || !state.connected || state.dirty)return;
     const contextKey=compileContext(state),inputKey=compileInput(state);let cancelled=false;

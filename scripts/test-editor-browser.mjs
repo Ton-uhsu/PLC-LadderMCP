@@ -102,34 +102,7 @@ for(let mode=0;mode<2;mode++){
  await deletedPadding.waitFor(); assert.equal(await deletedPadding.getAttribute('data-cell-column'),'1');
  assert.equal(await page.locator('.editor-rung').first().getByText('OUT Y1',{exact:true}).count(),1);
  await page.waitForFunction(()=>!document.querySelector('[aria-label="Undo edit"]').disabled); await stage.press('Control+z'); await deletedPadding.waitFor({state:'hidden'});
- const m0 = page.locator('.editor-rung').nth(1).locator('[data-node-id]').filter({hasText:'NC M0'});
- await m0.click(); await stage.focus(); await stage.press('Control+ArrowRight');
- const rung2 = page.locator('.editor-rung').nth(1);
- await rung2.locator('[data-node-id][data-cell-row="0"][data-cell-column="1"][aria-label^="Wire"][aria-pressed="true"]').waitFor(); assert.equal(await rung2.locator('[aria-label^="Disconnected wire"]').count(),0);
- await stage.press('Control+ArrowRight');
- await rung2.locator('[data-node-id][data-cell-row="0"][data-cell-column="2"][aria-label^="Wire"][aria-pressed="true"]').waitFor();
- await stage.press('Control+ArrowDown');
- await rung2.locator('[data-node-id][data-cell-row="1"][data-cell-column="2"][aria-label^="Wire"][aria-pressed="true"]').waitFor();
- await stage.press('Control+ArrowDown');
- const wireBottom = rung2.locator('[data-node-id][data-cell-row="2"][data-cell-column="2"][aria-label^="Wire"]'); await rung2.locator('[data-node-id][data-cell-row="2"][data-cell-column="2"][aria-label^="Wire"][aria-pressed="true"]').waitFor();
- assert.equal(await rung2.locator('[aria-label^="Disconnected wire"]').count(),0);
- await stage.press('Control+ArrowUp'); await rung2.locator('[data-node-id][data-cell-row="1"][data-cell-column="2"][aria-label^="Wire"][aria-pressed="true"]').waitFor();
- await stage.evaluate(el=>el.scrollLeft=0);
- const wireBox=await wireBottom.locator('rect').boundingBox(); assert.ok(Math.abs(wireBox.width-115)<1,JSON.stringify({wireBox,zoom:await page.locator('.zoom-label').textContent()}));
- const contactCell=page.locator('.editor-rung').nth(1).locator('[data-node-id]').filter({hasText:'NC M0'}).locator('rect');
- const contactBox=await contactCell.boundingBox(); const columnBox=await page.locator('[data-ruler-column="0"]').boundingBox();
- assert.ok(Math.abs(contactBox.x+contactBox.width/2-columnBox.x-columnBox.width/2)<1);
- const selectedColumn=await page.locator('[data-ruler-column="2"]').boundingBox(); assert.ok(Math.abs(wireBox.x+wireBox.width/2-selectedColumn.x-selectedColumn.width/2)<1);
- await page.screenshot({path:`${shots}/editor-directional-wire-${mode}.png`,fullPage:true});
- const output=page.locator('.editor-rung').first().locator('[data-node-id]').filter({hasText:'OUT Y1'});
- await output.click(); await stage.focus(); await stage.press('Control+ArrowDown');
- const outputWire=page.locator('.editor-rung').first().locator('[data-node-id][data-cell-row="2"][data-cell-column="9"][aria-label^="Wire"]'); await outputWire.waitFor();
- assert.equal(await page.locator('.editor-rung').first().locator('[aria-label^="Disconnected wire"]').count(),0);
- await outputWire.click(); await add('Output coil','Y2'); await page.locator('.editor-rung').first().getByText('OUT Y2',{exact:true}).waitFor();
- await page.waitForFunction(()=>!document.querySelector('[aria-label="Undo edit"]').disabled); await page.getByRole('button',{name:'Undo edit',exact:true}).click(); await outputWire.waitFor();
- await page.waitForFunction(()=>!document.querySelector('[aria-label="Undo edit"]').disabled); await page.getByRole('button',{name:'Undo edit',exact:true}).click(); await outputWire.waitFor({state:'hidden'});
- await output.click(); await stage.focus(); await stage.press('Control+ArrowLeft');
- const outputLead=page.locator('.editor-rung').first().locator('[data-node-id][data-cell-row="1"][data-cell-column="8"][aria-label^="Wire"]'); await outputLead.waitFor();
+ // Open-branch drawing is exercised separately below; completed toolbar branches remain covered above.
  await page.locator('.rung-gutter').first().click();
  if(!mode){
   const beforeFailedEdit=await page.locator('.editor-rung').first().locator('[data-node-id]').count();
@@ -207,6 +180,32 @@ for(let mode=0;mode<2;mode++){
  await keyEntry('F8','MOV K100 D0');await classic.getByText('MOV K100 D0',{exact:true}).waitFor();
  if(mode)await page.locator('.editor-save-state').filter({hasText:/saved/}).waitFor();
  await page.screenshot({path:`${shots}/classic-cursor-${mode}.png`,fullPage:true});console.log(`PASS classic cursor ${mode?'database':'local'} F5/F6/F7/F8/overwrite/continue/Enter/doubleclick/Escape/Shift-arrows/Insert`);
+ // Regression for user screenshots: Down alone, then Right creates an open L.
+ page.once('dialog',d=>d.accept('Open branch acceptance'));await page.getByRole('button',{name:'New project',exact:true}).click();await page.getByRole('heading',{name:'Open branch acceptance',exact:true}).waitFor();
+ const openRung=page.locator('.editor-rung').first();await openRung.locator('[data-cell-row="0"][data-cell-column="0"]').first().click();
+ await keyEntry('F5','X0');await keyEntry('F7','Y0');
+await openRung.locator('[data-cell-row="0"][data-cell-column="1"]').first().click();await stage.focus();await stage.press('Control+ArrowDown');
+ await page.waitForFunction(()=>document.querySelector('.editor-statusbar').textContent.includes('Row 2 · Column 1'));
+ const verticals=()=>openRung.locator('svg').evaluate(svg=>[...svg.querySelectorAll(':scope > g:first-of-type > line')].filter(l=>l.getAttribute('x1')===l.getAttribute('x2') && l.getAttribute('y1')!=='20').length);
+ assert.equal(await verticals(),1);assert.equal(await openRung.locator('[data-node-id][data-cell-row="1"]').count(),0);
+ if(mode)await page.locator('.editor-save-state').filter({hasText:/saved/}).waitFor();
+ await page.getByRole('button',{name:'Compile project',exact:true}).click();await page.getByRole('region',{name:'Compile diagnostics'}).getByRole('button').filter({hasText:'OPEN_BRANCH'}).waitFor();
+ await stage.focus();await stage.press('Control+ArrowRight');await openRung.locator('[data-node-id][data-cell-row="1"][data-cell-column="1"][aria-label^="Wire"]').waitFor();assert.equal(await verticals(),1);
+ if(mode)await page.locator('.editor-save-state').filter({hasText:/saved/}).waitFor();await stage.evaluate(el=>el.scrollLeft=0);
+ await page.screenshot({path:`${shots}/open-L-${mode}.png`,fullPage:true});
+ if(mode){await page.locator('.editor-save-state').filter({hasText:/saved/}).waitFor();await page.reload();await page.getByRole('heading',{name:'Open branch acceptance',exact:true}).waitFor();await openRung.locator('[data-node-id][data-cell-row="1"][data-cell-column="1"][aria-label^="Wire"]').waitFor();assert.equal(await verticals(),1);}
+ // Traverse the existing left leg in reverse: remove only it and keep the horizontal wire.
+ await openRung.locator('[data-cell-row="1"][data-cell-column="1"]').first().click();await stage.focus();await stage.press('Control+ArrowUp');
+ await page.waitForFunction(()=>[...document.querySelectorAll('.editor-rung svg > g:first-of-type > line')].filter(l=>l.getAttribute('x1')===l.getAttribute('x2')&&l.getAttribute('y1')!=='20').length===0);
+ assert.equal(await openRung.locator('[data-node-id][data-cell-row="1"][data-cell-column="1"][aria-label^="Wire"]').count(),1);
+ if(mode){await page.locator('.editor-save-state').filter({hasText:/saved/}).waitFor();await page.reload();await page.getByRole('heading',{name:'Open branch acceptance',exact:true}).waitFor();assert.equal(await verticals(),0);}
+ await openRung.locator('[data-cell-row="1"][data-cell-column="1"]').first().click();await stage.focus();await stage.press('Control+ArrowUp');
+ await page.waitForFunction(()=>[...document.querySelectorAll('.editor-rung svg > g:first-of-type > line')].filter(l=>l.getAttribute('x1')===l.getAttribute('x2')&&l.getAttribute('y1')!=='20').length===1);
+ await openRung.locator('[data-cell-row="1"][data-cell-column="2"]').first().click();await stage.focus();await stage.press('Control+ArrowUp');
+ await page.waitForFunction(()=>[...document.querySelectorAll('.editor-rung svg > g:first-of-type > line')].filter(l=>l.getAttribute('x1')===l.getAttribute('x2')&&l.getAttribute('y1')!=='20').length===2);assert.equal(await verticals(),2);if(mode)await page.locator('.editor-save-state').filter({hasText:/saved/}).waitFor();
+ await page.getByRole('button',{name:'Compile project',exact:true}).click();await page.getByRole('region',{name:'Compile diagnostics'}).getByText('Compile PASS',{exact:true}).waitFor();
+ await page.getByRole('button',{name:'Undo edit',exact:true}).click();await page.waitForFunction(()=>[...document.querySelectorAll('.editor-rung svg > g:first-of-type > line')].filter(l=>l.getAttribute('x1')===l.getAttribute('x2')&&l.getAttribute('y1')!=='20').length===1);
+ console.log(`PASS open branch ${mode?'database':'local'} single-vertical/open-L/reverse-delete/reconnect/explicit-join/compile-gate/Undo${mode?'/saved-reload':''}`);
  await page.setViewportSize({width:520,height:800}); await page.screenshot({path:`${shots}/editor-workspace-${mode}-520.png`,fullPage:true});
  await page.setViewportSize({width:1100,height:800}); await page.screenshot({path:`${shots}/editor-workspace-${mode}-1100.png`,fullPage:true});
  assert.deepEqual(errors,[]); console.log(`PASS browser ${mode?'PostgreSQL':'local'} insert/properties/branch/networks/clipboard/cut-identity/dialog/context-menu/duplicate/find/navigation/undo/redo/keyboard/zoom/cell-grid/coil-wires/ctrl-arrow-wires${mode?'/reload':'/old-backend-error'}`); await context.close();

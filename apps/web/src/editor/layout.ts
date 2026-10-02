@@ -21,7 +21,7 @@ export function layoutLadder(root: LogicNode, _minWidth = 0): Layout {
   function measure(node: LogicNode): { columns: number; rows: number } {
     const children = childNodes(node);
     const items = children?.map(measure) ?? [];
-    const size = !items.length ? { columns: node.kind === 'action' && node.action.kind === 'instruction' ? Math.max(1, Math.ceil((nodeLabel(node).length * 8 + 40) / COLUMN_WIDTH)) : 1, rows: 1 }
+    const size = !items.length ? { columns: node.kind === 'series' && node.openEnd ? 0 : node.kind === 'action' && node.action.kind === 'instruction' ? Math.max(1, Math.ceil((nodeLabel(node).length * 8 + 40) / COLUMN_WIDTH)) : 1, rows: 1 }
       : node.kind === 'series' ? { columns: items.reduce((sum, item) => sum + item.columns, 0), rows: Math.max(...items.map(item => item.rows)) }
       : { columns: Math.max(...items.map(item => item.columns)), rows: items.reduce((sum, item) => sum + item.rows, 0) };
     sizes.set(node.id, size); return size;
@@ -48,6 +48,14 @@ export function layoutLadder(root: LogicNode, _minWidth = 0): Layout {
   function place(node: LogicNode, column: number, row: number, allocated: number, output = false, top = false) {
     const natural = sizes.get(node.id)!, children = childNodes(node);
     const extra = allocated - natural.columns;
+    if(node.kind==='series' && node.openEnd) {
+      nodes.push({node,x:x(column),y:y(row),width:Math.max(1,natural.columns)*COLUMN_WIDTH,height:natural.rows*ROW_HEIGHT});
+      if(children?.length) {
+        let current=column;for(const child of children){const size=sizes.get(child.id)!;place(child,current,row,size.columns);current+=size.columns;}
+      }
+      padding(column+natural.columns,row,columns-column-natural.columns,{parentId:node.id,index:node.children.length,connected:false});
+      return;
+    }
     if (!children?.length) {
       const right = node.kind === 'action' || output && node.kind === 'wire';
       const first = right ? column + extra : column;
@@ -79,8 +87,13 @@ export function layoutLadder(root: LogicNode, _minWidth = 0): Layout {
         if (after) padding(column + allocated - after, cursor, after, {anchorId:child.id,side:'after',connected:true});
         cursor += sizes.get(child.id)!.rows;
       }
-      const lastRow = cursor - sizes.get(children.at(-1)!.id)!.rows;
-      for (let r = row; r < lastRow; r++) { wire(x(column), y(r) + ROW_HEIGHT / 2, x(column), y(r + 1) + ROW_HEIGHT / 2); wire(x(column + allocated), y(r) + ROW_HEIGHT / 2, x(column + allocated), y(r + 1) + ROW_HEIGHT / 2); }
+      const starts:number[]=[];let branchRow=row;
+      for(const child of children){starts.push(branchRow);branchRow+=sizes.get(child.id)!.rows;}
+      for(let i=1;i<children.length;i++){
+        const above=children[i-1],below=children[i];
+        if(!(below.kind==='series' && below.leftBreak))wire(x(column),y(starts[i-1])+ROW_HEIGHT/2,x(column),y(starts[i])+ROW_HEIGHT/2);
+        if(!(above.kind==='series' && above.openEnd) && !(below.kind==='series' && (below.openEnd || below.rightBreak)))wire(x(column+allocated),y(starts[i-1])+ROW_HEIGHT/2,x(column+allocated),y(starts[i])+ROW_HEIGHT/2);
+      }
     }
   }
   place(root, 0, 0, columns, false, true);
