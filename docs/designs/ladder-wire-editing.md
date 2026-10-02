@@ -93,3 +93,12 @@ Readiness: PASS for the user request to remove Gap cells and all selected wire m
 If a selected parallel block is completely erased, both vertical junctions are broken on its lower branches so no rectangle remains. Unrelated symbols and connections survive. The cursor stays at the cleared focus cell, one Undo restores the complete operation, and directional drawing can reconnect a blank cell. Optional wire erased flags require Web and server updates together; no SQL migration.
 
 Verified: 46 Web tests, Web/backend production builds, and full Chromium local/PGlite editor regression. The user-image legacy Gap fixture passes single Delete, no SVG glyphs, whole-block branch clearing, Undo and saved reload. Blank dark-canvas screenshot inspected. Existing cursor, clipboard, open L, reverse junction deletion, Compile gating and export download checks pass.
+
+
+## WORK-018 — Delete for vertical segments (2026-10-02)
+
+Readiness: PASS for toolbar and keyboard Delete on drawn vertical lines. Earlier range clearing handled cell contents and fully empty branch blocks, but ignored individual junctions; Ctrl-arrow drawing also left the selected range at the source while moving the cursor. Drawing now synchronizes both, and Delete falls back to the cursor cell when the range was cleared.
+
+Range clearing locates rendered branch junctions and writes the existing leftBreak/rightBreak flag on their lower branch. A segment belongs to its lower endpoint cell; at a top endpoint without an incoming junction, Delete addresses the outgoing segment. The rightmost return boundary maps to the final grid cell. Stable branch rows and unrelated junctions/symbols remain in place. Clearing contents and junctions is one undoable edit. Saved deleted junctions retain the same existing schema and Compile checks; this change needs only a Web update.
+
+Verified: 49 Web tests, Web production build, and full Chromium local/PGlite workflow. Browser tests exercise Delete immediately after Ctrl+Down, keyboard/toolbar equivalence, Undo and persistence reload. Unit regressions additionally cover upward-drawn endpoints, one of consecutive vertical legs, right-return deletion, unrelated symbols, stable rows and snapshot round trips.

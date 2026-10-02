@@ -188,6 +188,15 @@ await openRung.locator('[data-cell-row="0"][data-cell-column="1"]').first().clic
  await page.waitForFunction(()=>document.querySelector('.editor-statusbar').textContent.includes('Row 2 · Column 1'));
  const verticals=()=>openRung.locator('svg').evaluate(svg=>[...svg.querySelectorAll(':scope > g:first-of-type > line')].filter(l=>l.getAttribute('x1')===l.getAttribute('x2') && l.getAttribute('y1')!=='20').length);
  assert.equal(await verticals(),1);assert.equal(await openRung.locator('[data-node-id][data-cell-row="1"]').count(),0);
+ // Delete immediately after drawing: actual cursor, blank lower cell, toolbar and key.
+ await stage.press('Delete');await page.waitForFunction(()=>[...document.querySelectorAll('.editor-rung svg > g:first-of-type > line')].filter(l=>l.getAttribute('x1')===l.getAttribute('x2')&&l.getAttribute('y1')!=='20').length===0);
+ await page.getByRole('button',{name:'Undo edit',exact:true}).click();await page.waitForFunction(()=>[...document.querySelectorAll('.editor-rung svg > g:first-of-type > line')].filter(l=>l.getAttribute('x1')===l.getAttribute('x2')&&l.getAttribute('y1')!=='20').length===1);
+ await page.getByRole('button',{name:'Delete element',exact:true}).click();await page.waitForFunction(()=>[...document.querySelectorAll('.editor-rung svg > g:first-of-type > line')].filter(l=>l.getAttribute('x1')===l.getAttribute('x2')&&l.getAttribute('y1')!=='20').length===0);
+ if(mode){await page.locator('.editor-save-state').filter({hasText:/saved/}).waitFor();await page.reload();await page.getByRole('heading',{name:'Open branch acceptance',exact:true}).waitFor();assert.equal(await verticals(),0);await openRung.locator('[data-cell-row="1"][data-cell-column="1"]').first().click();await stage.focus();await stage.press('Control+ArrowUp');await page.waitForFunction(()=>[...document.querySelectorAll('.editor-rung svg > g:first-of-type > line')].filter(l=>l.getAttribute('x1')===l.getAttribute('x2')&&l.getAttribute('y1')!=='20').length===1);}
+ else {await page.getByRole('button',{name:'Undo edit',exact:true}).click();await page.waitForFunction(()=>[...document.querySelectorAll('.editor-rung svg > g:first-of-type > line')].filter(l=>l.getAttribute('x1')===l.getAttribute('x2')&&l.getAttribute('y1')!=='20').length===1);}
+ await openRung.locator('[data-cell-row="1"][data-cell-column="1"]').first().click();await stage.focus();
+ console.log(`PASS vertical Delete ${mode?'database':'local'} keyboard/toolbar/immediate-cursor/Undo${mode?'/saved-reload':''}`);
+
  if(mode)await page.locator('.editor-save-state').filter({hasText:/saved/}).waitFor();
  await page.getByRole('button',{name:'Compile project',exact:true}).click();await page.getByRole('region',{name:'Compile diagnostics'}).getByRole('button').filter({hasText:'OPEN_BRANCH'}).waitFor();
  await stage.focus();await stage.press('Control+ArrowRight');await openRung.locator('[data-node-id][data-cell-row="1"][data-cell-column="1"][aria-label^="Wire"]').waitFor();assert.equal(await verticals(),1);

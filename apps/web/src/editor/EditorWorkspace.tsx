@@ -141,8 +141,8 @@ export function EditorWorkspace() {
   function openTool(tool: EditorTool, initial?:string) { if (disabled || multipleCells) return; setEntry(tool); setInput(initial ?? tools.find(t => t.tool === tool)!.input); setError(''); }
   function remove() {
     if (disabled) return;
-    if (cellSelection) {
-      const range = cellSelection;
+    if (cellSelection || cursor && cell) {
+      const range = cellSelection ?? { networkId: cursor!.networkId, anchor: cell!, focus: cell! };
       void perform(p => clearCellRange(p, range.networkId, range, () => crypto.randomUUID())).then(result => {setCellSelection(null);const root=result.project.programs[0].networks.find(n=>n.id===range.networkId)!.root;const at=layoutLadder(root).cells.find(c=>c.row===range.focus.row && c.column===range.focus.column);if(at)updateCellFocus(range.networkId,at);stage.current?.focus();}).catch(() => undefined);
       return;
     }
@@ -243,7 +243,7 @@ export function EditorWorkspace() {
     if (e.ctrlKey && !e.altKey && !e.metaKey && !e.shiftKey && ['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(e.key)) {
       e.preventDefault(); if (selection && grid && !disabled && !multipleCells && !e.repeat) {
         let destination: CellCursor = cell ?? { row: 0, column: 0 };
-        void perform((p, n) => { const result = editGridWire(p, n, destination, e.key.slice(5).toLowerCase() as WireDirection, () => crypto.randomUUID()); destination = result.cursor; return result; }).then(() => { setCursor({ ...destination, networkId: network.id }); stage.current?.focus(); }).catch(() => undefined);
+        void perform((p, n) => { const result = editGridWire(p, n, destination, e.key.slice(5).toLowerCase() as WireDirection, () => crypto.randomUUID()); destination = result.cursor; return result; }).then(() => { setCursor({ ...destination, networkId: network.id }); setCellSelection({networkId: network.id, anchor: destination, focus: destination}); stage.current?.focus(); }).catch(() => undefined);
       } return;
     }
     if (e.ctrlKey || e.metaKey || e.altKey) return;

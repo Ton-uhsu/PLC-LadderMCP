@@ -128,8 +128,40 @@ export function clearCellRange(
     changed = true;
   }
 
+  // Junctions belong to the cell at their lower end. At a top endpoint with
+  // no incoming junction, Delete addresses the outgoing segment instead.
+  const bounds = normalizeCellRange(range);
+  const junctions: { groupId: string; branchIndex: number; side: 'leftBreak' | 'rightBreak'; column: number; upper: number; lower: number }[] = [];
+  for (const group of layout.nodes.filter(p => p.node.kind === 'parallel')) {
+    if (group.node.kind !== 'parallel') continue;
+    const branches = group.node.branches;
+    for (let i = 1; i < branches.length; i++) {
+      const above = layout.nodes.find(p => p.node.id === branches[i - 1].id)!;
+      const below = layout.nodes.find(p => p.node.id === branches[i].id)!;
+      for (const side of ['leftBreak', 'rightBreak'] as const) {
+        const x = side === 'leftBreak' ? group.x : group.x + group.width;
+        const y1 = above.y + ROW_HEIGHT / 2, y2 = below.y + ROW_HEIGHT / 2;
+        if (!layout.wires.some(w => w.x1 === x && w.x2 === x && w.y1 === y1 && w.y2 === y2)) continue;
+        junctions.push({groupId: group.node.id, branchIndex: i, side, column: Math.min(layout.columns - 1, (x - GRID_X) / COLUMN_WIDTH), upper: (above.y - GRID_Y) / ROW_HEIGHT, lower: (below.y - GRID_Y) / ROW_HEIGHT});
+      }
+    }
+  }
+  const inRows = (row: number) => row >= bounds.top && row <= bounds.bottom;
+  for (const junction of junctions) {
+    if (junction.column < bounds.left || junction.column > bounds.right) continue;
+    const incoming = inRows(junction.lower);
+    const outgoing = inRows(junction.upper) && !junctions.some(j => j.column === junction.column && j.lower === junction.upper);
+    if (!incoming && !outgoing) continue;
+    next = structuredClone(next);
+    const group = listNodes(next.programs[0].networks.find(n => n.id === networkId)!.root).find(l => l.node.id === junction.groupId)!.node;
+    if (group.kind !== 'parallel') continue;
+    const branch = group.branches[junction.branchIndex];
+    if (branch.kind === 'series') branch[junction.side] = true;
+    else group.branches[junction.branchIndex] = {kind: 'series', id: id(), children: [branch], [junction.side]: true};
+    changed = true;
+  }
+
   // A fully erased block has no remaining vertical junctions either.
-  const bounds=normalizeCellRange(range);
   for(const placed of layout.nodes.filter(p=>p.node.kind==='parallel')){
     const left=(placed.x-GRID_X)/COLUMN_WIDTH,top=(placed.y-GRID_Y)/ROW_HEIGHT;
     if(left<bounds.left || left+placed.width/COLUMN_WIDTH-1>bounds.right || top<bounds.top || top+placed.height/ROW_HEIGHT-1>bounds.bottom)continue;

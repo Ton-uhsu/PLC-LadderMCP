@@ -3,8 +3,12 @@
 ## Active
 
 
-
 ## Done
+- [x] WORK-018 | fix: Delete clears selected vertical wire segments | 2026-10-02 | fix | → owner: docs/designs/ladder-wire-editing.md
+  - Delivered: cell Delete addresses actual left/right branch junctions, including vertical-only open rows. Drawing synchronizes cursor and cell selection; toolbar and keyboard Delete use the current cell after clearing. Stable rows, unrelated junctions/symbols and atomic Undo retained.
+  - Verified: 49 Web tests and production build; full Chromium local/PGlite regressions plus immediate-drawing keyboard Delete, toolbar Delete, Undo and deleted-junction saved reload. Targeted tests cover upward endpoints, consecutive legs and right return boundaries.
+  - Handoff: Web-only update; existing persisted break flags and server schema suffice. No SQL migration.
+
 - [x] WORK-017 | fix: Delete clears cells without residual Gap symbols | 2026-10-02 | fix | → owner: docs/designs/ladder-wire-editing.md
   - Delivered: one Delete leaves blank cells, including legacy Gap nodes, without orange endpoints or wire stubs. Clearing a complete empty branch block removes its vertical legs; coordinates and cursor remain stable. Undo restores the edit; redraw and saved reload retain correct semantics.
   - Verified: 46 Web tests; Web/backend builds; full Chromium local/PGlite legacy-Gap, one-Delete, zero-glyph branch clearing, Undo and durable reload, alongside cursor/clipboard/open-branch/Compile/export regressions. Blank screenshot inspected.
@@ -22,10 +26,5 @@
 - [x] WORK-014 | feat: classic IDE layout and cursor-first Ladder input | 2026-10-01 | feature | → owner: docs/designs/ladder-wire-editing.md
   - Delivered: white fixed-cell Ladder sheet, compact menus/toolbar and program navigation; optional properties. F5/F6/F7/F8 input, Enter/double-click editing, Overwrite/Insert, continued cursor and Shift-arrow ranges. Existing wire, clipboard and Compile behavior retained.
   - Verified: 40 Web tests and production build; Chromium local/PGlite cursor scenarios and full earlier editor/clipboard/Compile/export regression passed; desktop/narrow screenshots inspected. Working prototype; full vendor keyboard/branch/monitor parity and real Windows IDE acceptance remain outside this slice.
-
-- [x] WORK-013 | feat: range clipboard and explicit compile diagnostics | 2026-10-01 | feature | → owner: docs/designs/ladder-wire-editing.md
-  - Delivered: atomic rectangular clipboard preserving cells/branches and identities, collision/partial-span rejection, revision-bound Compile with clickable errors/history, stale export protection, retained adapter bytes and idempotent requests. SamSoar explicitly identifies its intermediate CSV limitation.
-  - Verified: 40 Web tests; persistence 8 pass/2 native skipped; Web/backend builds, semantic smoke and HTTP E2E. Chromium local/PGlite copy/cut/paste/one-step Undo, collision, Compile PASS/stale/FAIL navigation, GX download and durable history reload passed. Native Windows IDE opening remains unverified; roadmap tasks retain Partial status.
-
 
 Older records: [October work archive](docs/task-archive/2026-10.md).
