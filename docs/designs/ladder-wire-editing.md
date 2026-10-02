@@ -102,3 +102,14 @@ Readiness: PASS for toolbar and keyboard Delete on drawn vertical lines. Earlier
 Range clearing locates rendered branch junctions and writes the existing leftBreak/rightBreak flag on their lower branch. A segment belongs to its lower endpoint cell; at a top endpoint without an incoming junction, Delete addresses the outgoing segment. The rightmost return boundary maps to the final grid cell. Stable branch rows and unrelated junctions/symbols remain in place. Clearing contents and junctions is one undoable edit. Saved deleted junctions retain the same existing schema and Compile checks; this change needs only a Web update.
 
 Verified: 49 Web tests, Web production build, and full Chromium local/PGlite workflow. Browser tests exercise Delete immediately after Ctrl+Down, keyboard/toolbar equivalence, Undo and persistence reload. Unit regressions additionally cover upward-drawn endpoints, one of consecutive vertical legs, right-return deletion, unrelated symbols, stable rows and snapshot round trips.
+
+
+## WORK-019 — continuous horizontal drafting and one cursor (2026-10-02)
+
+Readiness: PASS for the user screenshots and requested removal of the secondary shadow. Single-cell selection no longer renders the separate range rectangle over the cursor. Multi-cell selections retain their rectangle and batch commands.
+
+An open row now accepts Ctrl+Left before the original branch start. It prepends real connected wire cells and records a nonpositive integer wireOffset relative to the branch junction, preserving the original vertical stroke and unrelated symbols. Ctrl+Right draws through the same cells, appends beyond the original sheet, and retains a spare destination cell so the cursor never falls back to an old symbol at the edge. Left movement stops at the left rail, and occupied symbols remain protected.
+
+wireOffset is an authoritative optional series draft field in snapshot validation/hashes. The renderer offsets only the open row's horizontal children; its measured right extent excludes the left overhang. Unresolved offsets block shared validation, compilation and normalization even if openEnd is accidentally removed. Joining an offset branch is rejected rather than claiming its floating left extension has valid structured topology. Full arbitrary graph reconnection remains separate work. Compiler version becomes fx3u-v02-4; update Web and server together, no SQL migration.
+
+Verified: 50 Web tests, Web/backend production builds, semantic smoke, and full Chromium local/PGlite regression. Continuation acceptance starts at column 3, draws left to column 0 and right through 18 cells, retaining the junction, the destination cell and one cursor. Undo/Redo and database saved reload retain draft coordinates. Dark screenshot inspected. Existing Delete, open-branch, clipboard, range highlight, Compile gating and export download scenarios still pass.

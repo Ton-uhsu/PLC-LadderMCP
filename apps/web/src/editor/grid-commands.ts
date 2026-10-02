@@ -80,6 +80,7 @@ export function editGridWire(project: LadderProjectV02, networkId: number, curso
         const target=placements.find(p=>p.node.id===neighbor.id);
         const end=(group.x+group.width-GRID_X)/COLUMN_WIDTH;
         if(cursor.column===end && !(neighbor.kind==='series' && neighbor.openEnd)){
+          if(open!.node.kind==='series' && open!.node.wireOffset)throw new Error('The left extension is an open wire end. Connect its topology before Compile/Export.');
           const start=(group.x-GRID_X)/COLUMN_WIDTH;
           if(!layout.cells.filter(c=>c.row===cursor.row && c.column>=start && c.column<end).every(c=>c.kind==='node' || c.kind==='wire' && c.connected))throw new Error('Complete the horizontal branch before joining its end.');
           const next=structuredClone(project),branch=listNodes(next.programs[0].networks.find(n=>n.id===networkId)!.root).find(l=>l.node.id===owner.node.id)!.node;
@@ -113,15 +114,25 @@ export function editGridWire(project: LadderProjectV02, networkId: number, curso
     return {project:next,selectedId:branchId,cursor:{row:direction==='up'?cursor.row:cursor.row+1,column:cursor.column}};
   }
   // On an open row, Right draws the segment starting at the cursor, not the next cell.
-  const openRow=layout.nodes.find(p=>p.node.kind==='series' && p.node.openEnd && (p.y-GRID_Y)/ROW_HEIGHT===cursor.row && (p.x-GRID_X)/COLUMN_WIDTH<=cursor.column)
-    ?? listNodes(root).map(l=>l.node).find(n=>n.kind==='series' && n.openEnd && layout.cells.some(c=>c.row===cursor.row && c.slot?.parentId===n.id));
-  if(openRow){
-    const column=direction==='right'?cursor.column:destination.column;
-    const cell=layout.cells.find(c=>c.row===cursor.row && c.column===column);
-    if(!cell)throw new Error('Select a cell inside the current rung.');
-    const at=materializeCell(project,networkId,cell,id),node=listNodes(at.project.programs[0].networks.find(n=>n.id===networkId)!.root).find(l=>l.node.id===at.selectedId)!.node;
-    if(node.kind!=='wire')throw new Error('Wire editing does not overwrite symbols.');
-    const result=node.connected?at:editStructured(at.project,networkId,{kind:'update',nodeId:node.id,node:{...node,connected:true}});
+  const openRow = layout.nodes.filter(p => p.node.kind === 'series' && p.node.openEnd && (p.y-GRID_Y)/ROW_HEIGHT === cursor.row).at(-1);
+  if (openRow && openRow.node.kind === 'series') {
+    const column = direction === 'right' ? cursor.column : destination.column;
+    const start = (openRow.x-GRID_X)/COLUMN_WIDTH + (openRow.node.wireOffset ?? 0);
+    if (column < start) {
+      const next = structuredClone(project);
+      const branch = listNodes(next.programs[0].networks.find(n => n.id === networkId)!.root).find(l => l.node.id === openRow.node.id)!.node;
+      if (branch.kind !== 'series') throw new Error('Select an open wire row.');
+      const wires = Array.from({length: start-column}, () => ({kind:'wire' as const,id:id(),connected:true}));
+      branch.children.unshift(...wires);
+      branch.wireOffset = (branch.wireOffset ?? 0) - wires.length;
+      return {project:next,selectedId:wires[0].id,cursor:destination};
+    }
+    let cell = layout.cells.find(c => c.row === cursor.row && c.column === column);
+    if (!cell && column === layout.columns) cell = {row:cursor.row,column,kind:'blank',slot:{parentId:openRow.node.id,index:openRow.node.children.length,offset:0,count:1,connected:false}};
+    if (!cell) throw new Error('Select a cell inside the current rung.');
+    const at = materializeCell(project,networkId,cell,id), node = listNodes(at.project.programs[0].networks.find(n=>n.id===networkId)!.root).find(l=>l.node.id===at.selectedId)!.node;
+    if (node.kind !== 'wire') throw new Error('Wire editing does not overwrite symbols.');
+    const result = node.connected ? at : editStructured(at.project,networkId,{kind:'update',nodeId:node.id,node:{...node,connected:true}});
     return {...result,cursor:destination};
   }
   let cell = layout.cells.find(c => c.row === destination.row && c.column === destination.column);

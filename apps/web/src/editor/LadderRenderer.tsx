@@ -67,7 +67,7 @@ export function LadderRenderer({ diagnosticNodeIds = [], root, selectedId, onSel
         {node.kind === 'contact' && node.edge && node.edge !== 'none' && <text x={center} y={baseline + 5} textAnchor="middle" fill={ink} fontSize="14">{node.edge === 'rising' ? '↑' : '↓'}</text>}
       </g>;
     })}
-    {normalizedRange && <rect
+    {normalizedRange && (normalizedRange.left !== normalizedRange.right || normalizedRange.top !== normalizedRange.bottom) && <rect
       className="cell-range-selection"
       x={GRID_X + normalizedRange.left * COLUMN_WIDTH + 2}
       y={GRID_Y + normalizedRange.top * ROW_HEIGHT + 2}

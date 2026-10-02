@@ -4,6 +4,11 @@
 
 
 ## Done
+- [x] WORK-019 | fix: continuous horizontal drawing and a single cursor highlight | 2026-10-02 | fix | → owner: docs/designs/ladder-wire-editing.md
+  - Delivered: open horizontal drafts extend left past their initial junction without moving it, and right beyond the old sheet with a spare cursor cell. One-cell selection uses only the main cursor; rectangular range overlay appears only for multiple cells.
+  - Verified: 50 Web tests, Web/backend builds and semantic smoke; full Chromium local/PGlite left-past-junction/right-past-sheet continuation, one-highlight, Undo/Redo and saved reload, alongside all prior editor regressions. Dark continuation screenshot inspected.
+  - Handoff: update server and Web for optional series wireOffset draft marker; compiler version fx3u-v02-4. Unresolved left extensions remain drafts and cannot be closed/exported as valid structured circuits; left rail/symbol protection stays in effect. No SQL migration.
+
 - [x] WORK-018 | fix: Delete clears selected vertical wire segments | 2026-10-02 | fix | → owner: docs/designs/ladder-wire-editing.md
   - Delivered: cell Delete addresses actual left/right branch junctions, including vertical-only open rows. Drawing synchronizes cursor and cell selection; toolbar and keyboard Delete use the current cell after clearing. Stable rows, unrelated junctions/symbols and atomic Undo retained.
   - Verified: 49 Web tests and production build; full Chromium local/PGlite regressions plus immediate-drawing keyboard Delete, toolbar Delete, Undo and deleted-junction saved reload. Targeted tests cover upward endpoints, consecutive legs and right return boundaries.
@@ -22,9 +27,5 @@
 - [x] WORK-015 | fix: restore original dark editor theme | 2026-10-02 | fix | → owner: docs/designs/ladder-wire-editing.md
   - Delivered: original dark canvas/chrome/symbol palette restored; new menu, program tree and input modal match it. Cursor/input/clipboard/Compile behavior unchanged.
   - Verified: Web production build and full Chromium editor workflow passed in local/PGlite modes; dark desktop, dialog and narrow captures inspected. No schema or requirement changes.
-
-- [x] WORK-014 | feat: classic IDE layout and cursor-first Ladder input | 2026-10-01 | feature | → owner: docs/designs/ladder-wire-editing.md
-  - Delivered: white fixed-cell Ladder sheet, compact menus/toolbar and program navigation; optional properties. F5/F6/F7/F8 input, Enter/double-click editing, Overwrite/Insert, continued cursor and Shift-arrow ranges. Existing wire, clipboard and Compile behavior retained.
-  - Verified: 40 Web tests and production build; Chromium local/PGlite cursor scenarios and full earlier editor/clipboard/Compile/export regression passed; desktop/narrow screenshots inspected. Working prototype; full vendor keyboard/branch/monitor parity and real Windows IDE acceptance remain outside this slice.
 
 Older records: [October work archive](docs/task-archive/2026-10.md).

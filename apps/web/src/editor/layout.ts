@@ -17,13 +17,16 @@ export type GridCell = { row: number; column: number; nodeId?: string; kind: 'no
 export type Layout = { width: number; height: number; nodes: Placement[]; wires: Wire[]; cells: GridCell[]; columns: number; rows: number };
 // Stable integer columns: viewport and label changes never stretch a wire or a contact.
 export function layoutLadder(root: LogicNode, _minWidth = 0): Layout {
+  let hasOpenDraft = false;
   const sizes = new Map<string, { columns: number; rows: number }>();
   function measure(node: LogicNode): { columns: number; rows: number } {
+    if (node.kind === 'series' && node.openEnd) hasOpenDraft = true;
     const children = childNodes(node);
     const items = children?.map(measure) ?? [];
     const size = !items.length ? { columns: node.kind === 'series' && node.openEnd ? 0 : node.kind === 'action' && node.action.kind === 'instruction' ? Math.max(1, Math.ceil((nodeLabel(node).length * 8 + 40) / COLUMN_WIDTH)) : 1, rows: 1 }
       : node.kind === 'series' ? { columns: items.reduce((sum, item) => sum + item.columns, 0), rows: Math.max(...items.map(item => item.rows)) }
       : { columns: Math.max(...items.map(item => item.columns)), rows: items.reduce((sum, item) => sum + item.rows, 0) };
+    if (node.kind === 'series' && node.openEnd) size.columns = Math.max(0, size.columns + (node.wireOffset ?? 0));
     sizes.set(node.id, size); return size;
   }
   const size = measure(root);
@@ -35,7 +38,7 @@ export function layoutLadder(root: LogicNode, _minWidth = 0): Layout {
     for (const child of [...node.children].reverse()) { if (containsAction(child)) return count + suffix(child); count += sizes.get(child.id)!.columns; }
     return 0;
   }
-  const columns = Math.max(MIN_COLUMNS + suffix(root), size.columns), rows = size.rows;
+  const columns = Math.max(MIN_COLUMNS + suffix(root), size.columns + (hasOpenDraft ? 1 : 0)), rows = size.rows;
   const nodes: Placement[] = [], wires: Wire[] = [], cells: GridCell[] = [];
   const x = (column: number) => GRID_X + column * COLUMN_WIDTH, y = (row: number) => GRID_Y + row * ROW_HEIGHT;
   const wire = (x1: number, y1: number, x2: number, y2: number) => { if (x1 !== x2 || y1 !== y2) wires.push({ x1, y1, x2, y2 }); };
@@ -51,7 +54,7 @@ export function layoutLadder(root: LogicNode, _minWidth = 0): Layout {
     if(node.kind==='series' && node.openEnd) {
       nodes.push({node,x:x(column),y:y(row),width:Math.max(1,natural.columns)*COLUMN_WIDTH,height:natural.rows*ROW_HEIGHT});
       if(children?.length) {
-        let current=column;for(const child of children){const size=sizes.get(child.id)!;place(child,current,row,size.columns);current+=size.columns;}
+        let current=column+(node.wireOffset??0);for(const child of children){const size=sizes.get(child.id)!;place(child,current,row,size.columns);current+=size.columns;}
       }
       padding(column+natural.columns,row,columns-column-natural.columns,{parentId:node.id,index:node.children.length,connected:false});
       return;

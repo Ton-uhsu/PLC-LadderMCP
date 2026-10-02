@@ -65,3 +65,22 @@ test('deleting the upper left leg preserves the lower right vertical leg shown i
  const verticals=after.wires.filter(w=>w.x1===w.x2);assert.equal(verticals.length,1);assert.equal(verticals[0].x1,GRID_X+2*COLUMN_WIDTH);
  assert.deepEqual(after.nodes.filter(n=>n.node.kind==='wire'),before.nodes.filter(n=>n.node.kind==='wire'));assert.equal(after.rows,3);
 });
+
+test('horizontal open drafts extend left past their initial junction and right beyond the original sheet',()=>{
+ const id=ids(),p=structuredClone(demoProject);
+ let r=editGridWire(p,0,{row:0,column:3},'down',id);
+ const junction=layoutLadder(r.project.programs[0].networks[0].root).wires.find(w=>w.x1===w.x2)!;
+ for(let i=0;i<3;i++)r=editGridWire(r.project,0,r.cursor,'left',id);
+ assert.deepEqual(r.cursor,{row:1,column:0});
+ let layout=layoutLadder(r.project.programs[0].networks[0].root);
+ assert.ok([0,1,2].every(column=>layout.cells.some(c=>c.row===1&&c.column===column&&c.kind==='wire'&&c.connected)));
+ assert.equal(layout.wires.find(w=>w.x1===w.x2)?.x1,junction.x1);
+ for(let i=0;i<18;i++)r=editGridWire(r.project,0,r.cursor,'right',id);
+ layout=layoutLadder(r.project.programs[0].networks[0].root);
+ assert.deepEqual(r.cursor,{row:1,column:18});assert.ok(layout.columns>18);
+ assert.ok(Array.from({length:18},(_,column)=>column).every(column=>layout.cells.some(c=>c.row===1&&c.column===column&&c.connected)));
+ assert.ok(layout.cells.some(c=>c.row===r.cursor.row&&c.column===r.cursor.column));
+ assert.deepEqual(snapshotSchema.parse(r.project),r.project);
+ assert.equal(compileWithDiagnostics(r.project).status,'FAIL');
+ assert.deepEqual(p,demoProject);
+});
