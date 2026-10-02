@@ -106,7 +106,7 @@ button:disabled { cursor: not-allowed; opacity: .45; }
 .ladder-scroll { width:100%; overflow:auto; }
 .topology-ladder { display:block; max-width:none; }
 .ladder-element { cursor:pointer; outline:none; }
-.ladder-element:focus > rect:first-child { stroke:#2563eb; stroke-width:2; }
+.topology-ladder:not(.cell-cursor-mode) .ladder-element:focus-visible > rect:first-child { stroke:#2563eb; stroke-width:2; }
 .structured-editor-grid { display:grid; grid-template-columns:minmax(150px, .65fr) minmax(0, 1fr); gap:18px; }
 .manual-editor h3 { margin:0 0 8px; }
 .manual-editor p { color:#a1a1aa; font-size:12px; line-height:1.6; }

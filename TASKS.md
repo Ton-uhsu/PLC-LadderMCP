@@ -4,6 +4,11 @@
 
 
 ## Done
+- [x] WORK-023 | fix: symmetric Ctrl-left/right erasure and one cursor highlight | 2026-10-02 | fix | → owner: docs/designs/ladder-wire-editing.md
+  - Delivered: normal/open rows edit the same traversed horizontal interval in both directions. One cursor overlay replaces old node/empty-container/focus highlights; the real cursor position remains authoritative at the sheet edge.
+  - Verified: 63 Web tests and production build; Chromium local/PGlite immediate horizontal reverse deletion, one computed highlight, ordinary arrows, Undo/Redo and saved reload, plus prior editor regressions. Cursor screenshot inspected.
+  - Handoff: update/restart Web and refresh the browser; no schema migration.
+
 - [x] WORK-022 | fix: limit every Ctrl-arrow wire addition/deletion to one cell | 2026-10-02 | fix | → owner: docs/designs/ladder-wire-editing.md
   - Delivered: horizontal wires toggle to genuinely blank cells; skipped open-row columns remain blank. Tall vertical legs, shared nested strokes, reconnect and explicit joins edit one row interval with one-row cursor movement. Delete retains per-cell behavior.
   - Verified: 59 Web tests; Web/backend builds; semantic smoke; embedded persistence 8 pass/2 native skipped; Chromium local/PGlite four-direction one-cell checks, Undo, partial-junction saved reload and prior editor regressions.

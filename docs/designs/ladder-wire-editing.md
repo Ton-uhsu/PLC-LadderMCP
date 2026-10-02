@@ -142,3 +142,12 @@ Tall vertical junctions are rendered as individual row intervals. Optional serie
 Partial junction breaks survive strict snapshots and logic hashes, and block shared validation, compilation and export until repaired. Compiler version is fx3u-v02-5. Update both Web and backend; no SQL migration. The existing structured-topology restrictions remain in force.
 
 Verified: 59 Web tests, Web/backend production builds, semantic smoke, embedded persistence 8 pass/2 native skipped, and Chromium local/PGlite editor flows. New browser acceptance checks one changed geometric cell per direction, stable perpendicular wires, atomic Undo and partial tall-junction saved reload/reconnect. Existing drawing, Delete, clipboard, cursor, Compile/export and saved-reload checks pass.
+
+
+## WORK-023 — symmetric horizontal deletion and one visible cursor (2026-10-02)
+
+The user reports residual old highlights and Ctrl+Left/Right failing to erase while vertical deletion works. WORK-022 toggled horizontal cells, but normal rows addressed the destination column in both directions while open rows addressed the actual traversed interval. Normal rows now use the same rule: Right edits the source column, Left edits the destination column. Right→Left or Left→Right from the live cursor therefore toggles the same segment, with one-cell motion and no neighboring deletion. Occupied contacts/instructions/coils are protected; after-output drawing starts at the blank boundary cell.
+
+Cursor mode renders one dedicated fixed-cell rectangle, independent of node selection, inferred padding or empty branch containers. Logical node selection remains available to accessibility and editor commands, but does not add a second visual rectangle. The legacy focus outline applies only outside cursor mode. A cursor just beyond the sheet edge remains visible and actionable, rather than falling back to the previous selected node. Range highlighting remains for actual multi-cell selections.
+
+Verified: 63 Web tests and production build; Chromium local/PGlite regressions exercise immediate Right→Left and Left→Right deletion, a single rendered/computed highlight, plain-arrow movement away from the old focused leaf, atomic Undo/Redo and saved reload/reconnect. Existing vertical edits, clipboard, Compile/export, range selection and deletion regressions pass. This is a Web-only update; no schema migration.

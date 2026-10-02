@@ -17,10 +17,10 @@ test('one wire/contact occupies one integer column regardless of viewport; direc
   for(const wire of grid.wires) if(wire.y1===wire.y2) assert.equal(wire.x2-wire.x1,COLUMN_WIDTH);
   const drawn=editGridWire(fixture,0,{row:0,column:3},'right',id);
   const target=layout(drawn.project).nodes.find(n=>n.node.id===drawn.selectedId)!;
-  assert.equal(target.width,COLUMN_WIDTH); assert.equal(target.x,GRID_X+4*COLUMN_WIDTH);
+  assert.equal(target.width,COLUMN_WIDTH); assert.equal(target.x,GRID_X+3*COLUMN_WIDTH);
   assert.equal(layout(drawn.project).nodes.find(n=>n.node.id==='out')!.x,grid.nodes.find(n=>n.node.id==='out')!.x);
   assert.throws(()=>compileProject(drawn.project),/Disconnected/);
-  const continued=editGridWire(drawn.project,0,{row:0,column:5},'left',id);
+  const continued=editGridWire(drawn.project,0,drawn.cursor,'left',id);
   assert.deepEqual(compileProject(continued.project),compileProject(fixture));
   assert.equal(JSON.stringify(fixture),original);
 });
@@ -29,24 +29,24 @@ test('blank-row drawing adds a single cell per key, including after a coil, with
   const first=editGridWire(empty,0,{row:0,column:1},'left',id);
   assert.equal(layout(first.project).cells.find(c=>c.nodeId===first.selectedId)!.column,0);
   const distant=editGridWire(empty,0,{row:0,column:3},'right',id);
-  assert.equal(layout(distant.project).cells.find(c=>c.nodeId===distant.selectedId)!.column,4);
+  assert.equal(layout(distant.project).cells.find(c=>c.nodeId===distant.selectedId)!.column,3);
   const draft=structuredClone(fixture); const root=draft.programs[0].networks[0].root;
   if(root.kind!=='series') throw Error(); root.children.pop();
-  let result=editGridWire(draft,0,{row:0,column:0},'right',id);
+  let result=editGridWire(draft,0,{row:0,column:1},'right',id);
   assert.equal(layout(result.project).cells.find(c=>c.nodeId===result.selectedId)!.column,1);
   result=editGridWire(result.project,0,result.cursor,'right',id);
   assert.equal(layout(result.project).cells.find(c=>c.nodeId===result.selectedId)!.column,2);
   assert.equal(listNodes(result.project.programs[0].networks[0].root).filter(n=>n.node.kind==='wire').length,2);
   for(const p of layout(result.project).nodes.filter(n=>n.node.kind==='wire')) assert.equal(p.width,COLUMN_WIDTH);
-  const afterCoil=editGridWire(fixture,0,{row:0,column:9},'right',id);
+  const afterCoil=editGridWire(fixture,0,{row:0,column:10},'right',id);
   assert.equal(layout(afterCoil.project).columns,11);
   assert.equal(layout(afterCoil.project).nodes.find(n=>n.node.id==='out')!.x,GRID_X+9*COLUMN_WIDTH);
   assert.deepEqual(compileProject(afterCoil.project),compileProject(fixture));
-  assert.throws(()=>editGridWire(fixture,0,{row:0,column:8},'right',id),/contains a symbol/);
+  assert.throws(()=>editGridWire(fixture,0,{row:0,column:9},'right',id),/contains a symbol/);
 });
 test('directional drawing connects segments and creates rows beyond the vertical edge', () => {
-  const right = editGridWire(fixture, 0, { row: 0, column: 0 }, 'right', id);
-  assert.deepEqual(right.cursor, { row: 0, column: 1 });
+  const right = editGridWire(fixture, 0, { row: 0, column: 1 }, 'right', id);
+  assert.deepEqual(right.cursor, { row: 0, column: 2 });
   assert.equal(layout(right.project).cells.filter(c=>c.row===0 && c.connected===false).length,1);
 
   const down = editGridWire(fixture, 0, { row: 0, column: 0 }, 'down', id);
@@ -79,13 +79,13 @@ test('coil branch can be wired, completed with an output, compiled/exported and 
   assert.ok(validateFx3uV02(filled.project).valid);
   assert.deepEqual(compileProject(filled.project),[{instruction:'LD',device:'X0'},{instruction:'MPS'},{instruction:'OUT',device:'Y0'},{instruction:'MPP'},{instruction:'OUT',device:'Y1'}]);
   assert.ok(exportSamSoar(filled.project).includes('OUT,Y1'));
-  const extended=editGridWire(filled.project,0,{row:1,column:9},'right',id);
+  const extended=editGridWire(filled.project,0,{row:1,column:10},'right',id);
   for(const placed of layout(extended.project).nodes.filter(n=>n.node.kind==='action')) assert.equal(placed.x,GRID_X+9*COLUMN_WIDTH);
   assert.deepEqual(compileProject(extended.project),compileProject(filled.project));
   assert.throws(()=>editWire(filled.project,0,'out','down',id),/contains symbols/);
   const continued=editGridWire(filled.project,0,{row:0,column:9},'left',id);
   assert.throws(()=>compileProject(continued.project),/Disconnected/);
-  const restored=editGridWire(continued.project,0,{row:0,column:7},'right',id);
+  const restored=editGridWire(continued.project,0,continued.cursor,'right',id);
   assert.deepEqual(compileProject(restored.project),compileProject(filled.project));
   assert.ok(listNodes(restored.project.programs[0].networks[0].root).some(n=>n.node.id==='out' && n.node.kind==='action' && n.node.action.id==='y'));
 });
@@ -97,7 +97,7 @@ test('Ctrl horizontal draws one block in an empty closed branch and keeps its re
   const r=editGridWire(p,0,start,direction,id),grid=layout(r.project);
   assert.equal(r.cursor.column,start.column+(direction==='left'?-1:1));
   const filled=grid.cells.filter(c=>c.row===1&&c.connected);
-  assert.equal(filled.length,1);assert.equal(filled[0].column,r.cursor.column);
+  assert.equal(filled.length,1);assert.equal(filled[0].column,Math.min(start.column,r.cursor.column));
   const again=editGridWire(r.project,0,r.cursor,direction,id);
   assert.equal(layout(again.project).cells.filter(c=>c.row===1&&c.connected).length,2);
   assert.equal(layout(again.project).nodes.find(n=>n.node.id==='top-0')!.x,layout(p).nodes.find(n=>n.node.id==='top-0')!.x);

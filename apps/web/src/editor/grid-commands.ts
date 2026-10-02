@@ -178,11 +178,14 @@ export function editGridWire(project: LadderProjectV02, networkId: number, curso
     const result = editStructured(at.project,networkId,{kind:'update',nodeId:node.id,node:{...node,connected:!node.connected,erased:node.connected}});
     return {...result,cursor:destination};
   }
-  let cell = layout.cells.find(c => c.row === destination.row && c.column === destination.column);
-  if (!cell && destination.column === layout.columns) {
-    const source = layout.cells.find(c=>c.row===cursor.row && c.column===cursor.column);
-    if(source?.nodeId) cell={...destination,kind:'blank',slot:{anchorId:source.nodeId,side:'after',count:1,offset:0,connected:false}};
-    else if(root.kind==='series' && destination.row===0) cell={...destination,kind:'blank',slot:{parentId:root.id,index:root.children.length,count:1,offset:0,connected:false}};
+  // The traversed horizontal interval is identical in either direction.
+  // Right edits the source column; Left edits the destination column.
+  const target = {row:cursor.row,column:Math.min(cursor.column,destination.column)};
+  let cell = layout.cells.find(c => c.row === target.row && c.column === target.column);
+  if (!cell && target.column === layout.columns) {
+    const source = layout.cells.find(c=>c.row===cursor.row && c.column===Math.min(cursor.column,layout.columns-1));
+    if(source?.nodeId) cell={...target,kind:'blank',slot:{anchorId:source.nodeId,side:'after',count:1,offset:0,connected:false}};
+    else if(root.kind==='series' && target.row===0) cell={...target,kind:'blank',slot:{parentId:root.id,index:root.children.length,count:1,offset:0,connected:false}};
   }
   if (horizontal && cell && !cell.nodeId && !cell.slot) {
     const source = layout.cells.find(candidate => candidate.row === cursor.row && candidate.column === cursor.column);

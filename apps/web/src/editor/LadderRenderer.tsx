@@ -23,34 +23,36 @@ type LadderRendererProps = {
 
 export function LadderRenderer({ diagnosticNodeIds = [], root, selectedId, onSelect, onEdit, onContextMenu, onCellSelect, onCellEdit, onCellPointerDown, onCellPointerMove, onCellPointerUp, cursor, selectionRange, theme = 'light', minWidth = 0 }: LadderRendererProps) {
   const layout = layoutLadder(root, minWidth);
+  const displayWidth = Math.max(layout.width, cursor ? GRID_X * 2 + (cursor.column + 1) * COLUMN_WIDTH : 0);
+  if (cursor && cursor.column === layout.columns && cursor.row < layout.rows) layout.cells.push({row:cursor.row,column:cursor.column,kind:'blank'});
   const ink = theme === 'dark' ? '#d4dde9' : '#27272a';
   const paper = theme === 'dark' ? '#181c23' : '#f4f4f5';
   const normalizedRange = selectionRange ? normalizeCellRange(selectionRange) : null;
   function cellFromClient(clientX: number, clientY: number, svg: SVGSVGElement) {
     const bounds = svg.getBoundingClientRect();
-    const x = (clientX - bounds.left) * layout.width / bounds.width;
+    const x = (clientX - bounds.left) * displayWidth / bounds.width;
     const y = (clientY - bounds.top) * layout.height / bounds.height;
     const column = Math.floor((x - GRID_X) / COLUMN_WIDTH);
     const row = Math.floor((y - GRID_Y) / ROW_HEIGHT);
     return layout.cells.find(cell => cell.row === row && cell.column === column);
   }
-  return <div className="ladder-scroll"><svg className="topology-ladder" width={layout.width} height={layout.height} viewBox={`0 0 ${layout.width} ${layout.height}`} aria-label="Ladder topology" role="group" onPointerMove={e => { if (e.buttons !== 1) return; const cell = cellFromClient(e.clientX, e.clientY, e.currentTarget); if (cell) onCellPointerMove?.(cell); }} onPointerUp={onCellPointerUp} onPointerLeave={onCellPointerUp}>
+  return <div className="ladder-scroll"><svg className={cursor ? 'topology-ladder cell-cursor-mode' : 'topology-ladder'} width={displayWidth} height={layout.height} viewBox={`0 0 ${displayWidth} ${layout.height}`} aria-label="Ladder topology" role="group" onPointerMove={e => { if (e.buttons !== 1) return; const cell = cellFromClient(e.clientX, e.clientY, e.currentTarget); if (cell) onCellPointerMove?.(cell); }} onPointerUp={onCellPointerUp} onPointerLeave={onCellPointerUp}>
     <title>Ladder topology from canonical IR; select an element to inspect it</title>
     <g stroke={ink} strokeWidth="2" fill="none">
-      <line x1="24" y1="20" x2="24" y2={layout.height - 20}/><line x1={layout.width - 24} y1="20" x2={layout.width - 24} y2={layout.height - 20}/>
+      <line x1="24" y1="20" x2="24" y2={layout.height - 20}/><line x1={displayWidth - 24} y1="20" x2={displayWidth - 24} y2={layout.height - 20}/>
       {layout.wires.map((w, i) => <line key={i} {...w}/>)}
     </g>
     {layout.cells.filter(cell => !cell.nodeId).map(cell => <g key={`cell-${cell.row}-${cell.column}`} role="button" tabIndex={onCellSelect ? 0 : undefined} aria-label={`${cell.kind === 'wire' ? 'Wire' : 'Empty cell'} row ${cell.row + 1} column ${cell.column}`} data-cell-row={cell.row} data-cell-column={cell.column} onPointerDown={e => { if (e.button !== 0) return; e.preventDefault(); onCellPointerDown?.(cell, e.shiftKey); }} onClick={e => onCellSelect?.(cell, e.shiftKey)} onDoubleClick={()=>onCellEdit?.(cell)} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.stopPropagation(); onCellSelect?.(cell, e.shiftKey); } }}>
-      <rect x={GRID_X + cell.column * COLUMN_WIDTH} y={GRID_Y + cell.row * ROW_HEIGHT} width={COLUMN_WIDTH} height={ROW_HEIGHT} fill={cursor?.row === cell.row && cursor.column === cell.column ? '#243e61' : 'transparent'} fillOpacity="0.65" stroke={cursor?.row === cell.row && cursor.column === cell.column ? '#60a5fa' : 'transparent'}/>
+      <rect x={GRID_X + cell.column * COLUMN_WIDTH} y={GRID_Y + cell.row * ROW_HEIGHT} width={COLUMN_WIDTH} height={ROW_HEIGHT} fill="transparent" stroke="transparent"/>
     </g>)}
     {layout.nodes.map(({ node, x, y, width, height }) => {
-      const children = childNodes(node); const selected = cursor ? !children?.length && cursor.row === (y - GRID_Y) / ROW_HEIGHT && cursor.column >= (x - GRID_X) / COLUMN_WIDTH && cursor.column < (x + width - GRID_X) / COLUMN_WIDTH : node.id === selectedId; const center = x + width / 2, baseline = y + 44;
+      const children = childNodes(node); const selected = cursor ? !children?.length && cursor.row === (y - GRID_Y) / ROW_HEIGHT && cursor.column >= (x - GRID_X) / COLUMN_WIDTH && cursor.column < (x + width - GRID_X) / COLUMN_WIDTH : node.id === selectedId; const highlighted = !cursor && selected; const center = x + width / 2, baseline = y + 44;
       if(node.kind==='series' && node.openEnd) return diagnosticNodeIds.includes(node.id) ? <rect key={node.id} data-node-id={node.id} className="diagnostic-error-node" x={x+2} y={y+4} width={width-4} height={height-8} fill="none" stroke="#f87171" strokeWidth="2" strokeDasharray="6 4" pointerEvents="none"/> : null;
-      if (children?.length) return selected || diagnosticNodeIds.includes(node.id) ? <rect key={node.id} x={x + 2} y={y + 4} width={width - 4} height={height - 8} rx="5" fill="none" stroke={diagnosticNodeIds.includes(node.id) ? "#f87171" : "#2563eb"} strokeWidth="2" strokeDasharray="6 4" pointerEvents="none"/> : null;
+      if (children?.length) return highlighted || diagnosticNodeIds.includes(node.id) ? <rect key={node.id} x={x + 2} y={y + 4} width={width - 4} height={height - 8} rx="5" fill="none" stroke={diagnosticNodeIds.includes(node.id) ? "#f87171" : "#2563eb"} strokeWidth="2" strokeDasharray="6 4" pointerEvents="none"/> : null;
       return <g key={node.id} data-node-id={node.id} data-cell-row={(y - GRID_Y) / ROW_HEIGHT} data-cell-column={(x - GRID_X) / COLUMN_WIDTH} data-cell-span={width / COLUMN_WIDTH} role="button" tabIndex={0} aria-label={`${nodeLabel(node)} · ${node.id}`} aria-pressed={selected} onPointerDown={e => { if (e.button !== 0 || !onCellPointerDown) return; const cell = cellFromClient(e.clientX, e.clientY, e.currentTarget.ownerSVGElement!); if (cell) { e.preventDefault(); onCellPointerDown(cell, e.shiftKey); } }} onClick={e => { if (onCellSelect) { const cell = cellFromClient(e.clientX, e.clientY, e.currentTarget.ownerSVGElement!) ?? layout.cells.find(c => c.nodeId === node.id)!; onCellSelect(cell, e.shiftKey); } else onSelect(node.id); }} onDoubleClick={() => onEdit?.(node.id)} onContextMenu={e => { e.preventDefault(); onContextMenu?.(node.id, e.clientX, e.clientY); }} onKeyDown={e => {
         if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.stopPropagation(); onSelect(node.id); if (e.key === 'Enter') onEdit?.(node.id); }
       }} className={diagnosticNodeIds.includes(node.id) ? "ladder-element diagnostic-error-node" : "ladder-element"}>
-        <rect x={x + 3} y={y + 3} width={width - 6} height="82" rx="5" fill={selected ? (theme === 'dark' ? '#243e61' : '#dbeafe') : 'transparent'} stroke={diagnosticNodeIds.includes(node.id) ? '#f87171' : selected ? '#2563eb' : 'transparent'}/>
+        <rect x={x + 3} y={y + 3} width={width - 6} height="82" rx="5" fill={highlighted ? (theme === 'dark' ? '#243e61' : '#dbeafe') : 'transparent'} stroke={diagnosticNodeIds.includes(node.id) ? '#f87171' : highlighted ? '#2563eb' : 'transparent'}/>
         <title>{`${nodeLabel(node)} · ${node.id}`}</title>
         {node.kind==='wire' && !node.connected && node.erased ? null : <g stroke={ink} strokeWidth="2" fill="none">
           <line x1={x} y1={baseline} x2={center - 26} y2={baseline}/><line x1={center + 26} y1={baseline} x2={x + width} y2={baseline}/>
@@ -67,6 +69,19 @@ export function LadderRenderer({ diagnosticNodeIds = [], root, selectedId, onSel
         {node.kind === 'contact' && node.edge && node.edge !== 'none' && <text x={center} y={baseline + 5} textAnchor="middle" fill={ink} fontSize="14">{node.edge === 'rising' ? '↑' : '↓'}</text>}
       </g>;
     })}
+    {cursor && <rect
+      className="cell-cursor"
+      data-cursor-row={cursor.row}
+      data-cursor-column={cursor.column}
+      x={GRID_X + cursor.column * COLUMN_WIDTH}
+      y={GRID_Y + cursor.row * ROW_HEIGHT}
+      width={COLUMN_WIDTH}
+      height={ROW_HEIGHT}
+      fill="#243e61"
+      fillOpacity="0.65"
+      stroke="#60a5fa"
+      pointerEvents="none"
+    />}
     {normalizedRange && (normalizedRange.left !== normalizedRange.right || normalizedRange.top !== normalizedRange.bottom) && <rect
       className="cell-range-selection"
       x={GRID_X + normalizedRange.left * COLUMN_WIDTH + 2}

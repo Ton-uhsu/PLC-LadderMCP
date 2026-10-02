@@ -54,7 +54,14 @@ export function EditorWorkspace() {
   const selection = nodes.find(n => n.node.id === selectedId) ?? nodes[0];
   useEffect(() => { const element = cursor ? stage.current?.querySelector(`.selected-rung [data-cell-row="${cursor.row}"][data-cell-column="${cursor.column}"]`) : selectedId ? stage.current?.querySelector(`[data-node-id="${CSS.escape(selectedId)}"]`) : null; element?.scrollIntoView({ block: 'nearest', inline: 'nearest' }); }, [selectedId, selectedNetworkId, cursor]);
   const grid = network ? layoutLadder(network.root) : null;
-  const cell = grid?.cells.find(c => cursor?.networkId === network?.id && c.row === cursor.row && c.column === cursor.column) ?? grid?.cells.find(c => c.nodeId === selection?.node.id);
+  const activeCursor = cursor?.networkId === network?.id ? cursor : null;
+  const edge = grid?.cells.find(c => c.row === activeCursor?.row && c.column === grid.columns - 1);
+  const cell: GridCell | undefined = activeCursor
+    ? grid?.cells.find(c => c.row === activeCursor.row && c.column === activeCursor.column) ?? {
+      row: activeCursor.row, column: activeCursor.column, kind: 'blank',
+      ...(edge?.nodeId ? {slot:{anchorId:edge.nodeId,side:'after',offset:0,count:1,connected:false}} : {}),
+    }
+    : grid?.cells.find(c => c.nodeId === selection?.node.id);
   const selectedCellCount = cellSelection ? rangeCellCount(cellSelection) : 0;
   const multipleCells = selectedCellCount > 1;
   function updateCellFocus(rungId: number, cell: GridCell) {

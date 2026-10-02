@@ -84,3 +84,20 @@ test('joining an open row to a tall neighbor adds one vertical cell and advances
  assert.deepEqual(horizontals(r.project),horizontals(p));
  assert.deepEqual(snapshotSchema.parse(r.project),r.project);
 });
+test('Right then Left, and Left then Right, address the same horizontal segment on normal rows',()=>{
+ for(const first of ['right','left'] as const){
+  const p=structuredClone(demoProject),id=ids(),cursor={row:0,column:4};
+  const r=editGridWire(p,0,cursor,first,id);
+  const restored=editGridWire(r.project,0,r.cursor,first==='right'?'left':'right',id);
+  assert.deepEqual(horizontals(restored.project),horizontals(p));
+  assert.deepEqual(restored.cursor,cursor);
+ }
+});
+test('Right on a blank normal row draws the crossed cell; reversing deletes it immediately',()=>{
+ const p=structuredClone(demoProject);p.programs[0].networks[0].root={kind:'series',id:'blank-root',children:[]};
+ const id=ids(),r=editGridWire(p,0,{row:0,column:3},'right',id);
+ assert.deepEqual([...horizontals(r.project)],['0:3']);
+ const deleted=editGridWire(r.project,0,r.cursor,'left',id);
+ assert.equal(horizontals(deleted.project).size,0);
+ assert.deepEqual(deleted.cursor,{row:0,column:3});
+});
