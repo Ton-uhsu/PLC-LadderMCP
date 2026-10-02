@@ -1,6 +1,7 @@
 import { childNodes, editStructured, listNodes, type LadderProjectV02 } from '@plc-ladder-mcp/ladder-ir';
 import { layoutLadder, COLUMN_WIDTH, GRID_X, GRID_Y, ROW_HEIGHT, type GridCell } from './layout';
 import { type WireDirection } from './wire-commands';
+import { setJunctionCell } from './junction-segments';
 export type CellCursor = { row: number; column: number };
 export function materializeCell(project: LadderProjectV02, networkId: number, cell: GridCell, id: () => string) {
   if (cell.nodeId) {
@@ -70,25 +71,35 @@ export function editGridWire(project: LadderProjectV02, networkId: number, curso
     const segment=layout.wires.some(w=>w.x1===x && w.x2===x && Math.min(w.y1,w.y2)<=GRID_Y+upper*ROW_HEIGHT+ROW_HEIGHT/2 && Math.max(w.y1,w.y2)>=GRID_Y+lower*ROW_HEIGHT+ROW_HEIGHT/2);
     // A break lives on the lower row, so Up and Down address the same undirected segment.
     const junctions=placements.filter(p=>p.node.kind==='parallel' && (x===p.x || x===p.x+p.width)).sort((a,b)=>a.height-b.height);
+    // Nested groups can share a visible stroke. Remove/restore that one
+    // geometric interval in every owner without touching neighboring intervals.
+    let editedProject=project,editedId='';
     for(const group of junctions){
       if(group.node.kind!=='parallel')continue;
       let row=(group.y-GRID_Y)/ROW_HEIGHT;
-      for(let i=0;i<group.node.branches.length;i++){
-        const child=group.node.branches[i];
-        if(i>0 && row===lower){
+      for(let i=1;i<group.node.branches.length;i++){
+        const above=group.node.branches[i-1],child=group.node.branches[i];
+        const span=(placements.find(p=>p.node.id===above.id)?.height??ROW_HEIGHT)/ROW_HEIGHT;
+        const end=row+span;
+        if(upper>=row && lower<=end){
           const side=x===group.x?'leftBreak':'rightBreak';
-          if(segment || child.kind==='series' && child[side]){
-            const next=structuredClone(project),parallel=listNodes(next.programs[0].networks.find(n=>n.id===networkId)!.root).find(l=>l.node.id===group.node.id)!.node;
+          const key=side==='leftBreak'?'leftBreakCells':'rightBreakCells';
+          const broken=child.kind==='series' && (child[side] || child[key]?.includes(upper-row));
+          const available=side==='leftBreak' || !(above.kind==='series' && above.openEnd) && !(child.kind==='series' && child.openEnd);
+          if(available && (segment ? !broken : broken)){
+            const next=structuredClone(editedProject),parallel=listNodes(next.programs[0].networks.find(n=>n.id===networkId)!.root).find(l=>l.node.id===group.node.id)!.node;
             if(parallel.kind!=='parallel')throw new Error('Select a branch junction.');
             let branch=parallel.branches[i];
             if(branch.kind!=='series'){branch={kind:'series',id:id(),children:[branch]};parallel.branches[i]=branch;}
-            if(segment)branch[side]=true;else delete branch[side];
-            return {project:next,selectedId:branch.id,cursor:destination};
+            setJunctionCell(branch,side,upper-row,span,segment);
+            editedProject=next;editedId=branch.id;
           }
         }
-        const childPlacement=placements.find(p=>p.node.id===child.id);row+=(childPlacement?.height??ROW_HEIGHT)/ROW_HEIGHT;
+        row=end;
       }
     }
+
+    if(editedId)return {project:editedProject,selectedId:editedId,cursor:destination};
 
     const emptyBranch=locations.find(l=>l.node.id===source?.slot?.parentId && l.node.kind==='series' && l.node.openEnd);
     const firstEmptyCell=emptyBranch && layout.cells.find(c=>c.row===cursor.row && c.slot?.parentId===emptyBranch.node.id);
@@ -99,7 +110,6 @@ export function editGridWire(project: LadderProjectV02, networkId: number, curso
       const group=placements.find(p=>p.node.id===owner.parent!.id)!;
       const neighbor=owner.parent.branches[owner.index+(direction==='down'?1:-1)];
       if(neighbor){
-        const target=placements.find(p=>p.node.id===neighbor.id);
         const end=(group.x+group.width-GRID_X)/COLUMN_WIDTH;
         if(cursor.column===end && !(neighbor.kind==='series' && neighbor.openEnd)){
           if(open!.node.kind==='series' && open!.node.wireOffset)throw new Error('The left extension is an open wire end. Connect its topology before Compile/Export.');
@@ -107,7 +117,18 @@ export function editGridWire(project: LadderProjectV02, networkId: number, curso
           if(!layout.cells.filter(c=>c.row===cursor.row && c.column>=start && c.column<end).every(c=>c.kind==='node' || c.kind==='wire' && c.connected))throw new Error('Complete the horizontal branch before joining its end.');
           const next=structuredClone(project),branch=listNodes(next.programs[0].networks.find(n=>n.id===networkId)!.root).find(l=>l.node.id===owner.node.id)!.node;
           if(branch.kind==='series')delete branch.openEnd;
-          return {project:next,selectedId:owner.node.id,cursor:{row:target?(target.y-GRID_Y)/ROW_HEIGHT:destination.row,column:cursor.column}};
+          const upperBranch=owner.parent.branches[Math.min(owner.index,owner.index+(direction==='down'?1:-1))];
+          const upperPlacement=placements.find(p=>p.node.id===upperBranch.id)!;
+          const startRow=(upperPlacement.y-GRID_Y)/ROW_HEIGHT,span=upperPlacement.height/ROW_HEIGHT;
+          const lowerIndex=Math.max(owner.index,owner.index+(direction==='down'?1:-1));
+          const targetGroup=listNodes(next.programs[0].networks.find(n=>n.id===networkId)!.root).find(l=>l.node.id===owner.parent!.id)!.node;
+          if(targetGroup.kind==='parallel' && span>1){
+            let lowerBranch=targetGroup.branches[lowerIndex];
+            if(lowerBranch.kind!=='series'){lowerBranch={kind:'series',id:id(),children:[lowerBranch]};targetGroup.branches[lowerIndex]=lowerBranch;}
+            lowerBranch.rightBreak=true;
+            setJunctionCell(lowerBranch,'rightBreak',upper-startRow,span,false);
+          }
+          return {project:next,selectedId:owner.node.id,cursor:destination};
         }
         if(cursor.column===(group.x-GRID_X)/COLUMN_WIDTH)return {project,selectedId:owner.node.id,cursor:destination,changed:false};
         throw new Error('Extend the branch to the matching right boundary, then draw Up/Down to join it.');
@@ -144,7 +165,7 @@ export function editGridWire(project: LadderProjectV02, networkId: number, curso
       const next = structuredClone(project);
       const branch = listNodes(next.programs[0].networks.find(n => n.id === networkId)!.root).find(l => l.node.id === openRow.node.id)!.node;
       if (branch.kind !== 'series') throw new Error('Select an open wire row.');
-      const wires = Array.from({length: start-column}, () => ({kind:'wire' as const,id:id(),connected:true}));
+      const wires = Array.from({length: start-column}, (_, i) => ({kind:'wire' as const,id:id(),connected:i===0,...(i===0?{}:{erased:true})}));
       branch.children.unshift(...wires);
       branch.wireOffset = (branch.wireOffset ?? 0) - wires.length;
       return {project:next,selectedId:wires[0].id,cursor:destination};
@@ -154,7 +175,7 @@ export function editGridWire(project: LadderProjectV02, networkId: number, curso
     if (!cell) throw new Error('Select a cell inside the current rung.');
     const at = materializeCell(project,networkId,cell,id), node = listNodes(at.project.programs[0].networks.find(n=>n.id===networkId)!.root).find(l=>l.node.id===at.selectedId)!.node;
     if (node.kind !== 'wire') throw new Error('Wire editing does not overwrite symbols.');
-    const result = node.connected ? at : editStructured(at.project,networkId,{kind:'update',nodeId:node.id,node:{...node,connected:true}});
+    const result = editStructured(at.project,networkId,{kind:'update',nodeId:node.id,node:{...node,connected:!node.connected,erased:node.connected}});
     return {...result,cursor:destination};
   }
   let cell = layout.cells.find(c => c.row === destination.row && c.column === destination.column);
@@ -175,8 +196,6 @@ export function editGridWire(project: LadderProjectV02, networkId: number, curso
   const materialized = materializeCell(project, networkId, cell, id);
   const node = listNodes(materialized.project.programs[0].networks.find(n => n.id === networkId)!.root).find(n => n.node.id === materialized.selectedId)!.node;
   if (node.kind !== 'wire') throw new Error('This cell contains a symbol. Wire editing does not overwrite contacts or outputs.');
-  const result = node.connected
-    ? { project: materialized.project, selectedId: node.id }
-    : editStructured(materialized.project, networkId, { kind: 'update', nodeId: node.id, node: { ...node, connected: true } });
+  const result = editStructured(materialized.project, networkId, { kind: 'update', nodeId: node.id, node: { ...node, connected: !node.connected, erased: node.connected } });
   return { ...result, cursor: destination };
 }

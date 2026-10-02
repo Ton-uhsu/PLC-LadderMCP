@@ -97,8 +97,11 @@ export function layoutLadder(root: LogicNode, _minWidth = 0): Layout {
       for(const child of children){starts.push(branchRow);branchRow+=sizes.get(child.id)!.rows;}
       for(let i=1;i<children.length;i++){
         const above=children[i-1],below=children[i];
-        if(!(below.kind==='series' && below.leftBreak))wire(x(column),y(starts[i-1])+ROW_HEIGHT/2,x(column),y(starts[i])+ROW_HEIGHT/2);
-        if(!(above.kind==='series' && above.openEnd) && !(below.kind==='series' && (below.openEnd || below.rightBreak)))wire(x(column+allocated),y(starts[i-1])+ROW_HEIGHT/2,x(column+allocated),y(starts[i])+ROW_HEIGHT/2);
+        for (let step = 0; step < starts[i] - starts[i-1]; step++) {
+          const from = y(starts[i-1] + step) + ROW_HEIGHT/2, to = from + ROW_HEIGHT;
+          if (!(below.kind === 'series' && (below.leftBreak || below.leftBreakCells?.includes(step)))) wire(x(column), from, x(column), to);
+          if (!(above.kind === 'series' && above.openEnd) && !(below.kind === 'series' && (below.openEnd || below.rightBreak || below.rightBreakCells?.includes(step)))) wire(x(column+allocated), from, x(column+allocated), to);
+        }
       }
     }
   }

@@ -131,3 +131,14 @@ Readiness: PASS for the new images and explicit user instruction to fix, commit 
 Layout now treats that remaining allocation as blank for open subtrees. Existing explicit wire children and junction positions are retained. The regression starts with an open row at column 2 under an output branch with a six-cell suffix, then presses Left. Only column 1 becomes a connected horizontal wire; all right-side cells remain blank, and the vertical junction/output coordinates are unchanged.
 
 Verified: 52 Web tests and production build, full Chromium local/PGlite regression including no inferred right-alignment wire, Undo/Redo and saved reload. A left-facing L screenshot was inspected. Earlier continuous drawing, one-block closed-branch drawing, Delete, clipboard, cursor, Compile/export and persistence workflows pass. No schema change or migration.
+
+
+## WORK-022 — one cell for every Ctrl-arrow wire edit (2026-10-02)
+
+Ctrl+Left/Right/Up/Down edits exactly one horizontal cell or one vertical row interval per key press. Existing horizontal wires now toggle to an erased blank cell rather than remaining connected. Drawing far to the left of an open junction creates blank placeholders for skipped columns and connects only the addressed cell. Reversing through an open horizontal draft erases the same cell, so the continuous-drawing acceptance now expects the three existing left cells to be cleared before drawing fifteen new right cells.
+
+Tall vertical junctions are rendered as individual row intervals. Optional series leftBreakCells/rightBreakCells store broken offsets relative to the preceding branch's first row; existing whole-leg break flags remain compatible. Each edit changes only its interval, including legacy whole-leg reconnection, coincident nested junctions and explicit joins to tall neighbors. Joining a tall neighbor advances one row and leaves other return intervals disconnected. Delete uses the same per-cell junction representation. All changes remain one undoable edit; unrelated horizontal paths, symbols and vertical intervals retain their coordinates.
+
+Partial junction breaks survive strict snapshots and logic hashes, and block shared validation, compilation and export until repaired. Compiler version is fx3u-v02-5. Update both Web and backend; no SQL migration. The existing structured-topology restrictions remain in force.
+
+Verified: 59 Web tests, Web/backend production builds, semantic smoke, embedded persistence 8 pass/2 native skipped, and Chromium local/PGlite editor flows. New browser acceptance checks one changed geometric cell per direction, stable perpendicular wires, atomic Undo and partial tall-junction saved reload/reconnect. Existing drawing, Delete, clipboard, cursor, Compile/export and saved-reload checks pass.

@@ -4,6 +4,11 @@
 
 
 ## Done
+- [x] WORK-022 | fix: limit every Ctrl-arrow wire addition/deletion to one cell | 2026-10-02 | fix | → owner: docs/designs/ladder-wire-editing.md
+  - Delivered: horizontal wires toggle to genuinely blank cells; skipped open-row columns remain blank. Tall vertical legs, shared nested strokes, reconnect and explicit joins edit one row interval with one-row cursor movement. Delete retains per-cell behavior.
+  - Verified: 59 Web tests; Web/backend builds; semantic smoke; embedded persistence 8 pass/2 native skipped; Chromium local/PGlite four-direction one-cell checks, Undo, partial-junction saved reload and prior editor regressions.
+  - Handoff: update both Web and backend for optional per-cell junction break offsets; compiler version fx3u-v02-5, no SQL migration.
+
 - [x] WORK-021 | fix: Ctrl+Left on an open branch never fills its right tail | 2026-10-02 | fix | → owner: docs/designs/ladder-wire-editing.md
   - Delivered: open rows and their enclosing groups no longer inherit connected right padding from series expansion or output suffix alignment. Left draws only its addressed cell; the existing vertical junction and unrelated output position remain stable.
   - Verified: 52 Web tests and production build; full Chromium local/PGlite one-left-cell/no-right-tail/Undo/Redo/saved-reload regression plus prior editor checks. Correct left-facing L screenshot inspected.

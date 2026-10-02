@@ -2,7 +2,7 @@ import { compileNetwork, type ListInstruction } from './fx3u-compiler.js';
 import { validateFx3uV02, type ValidationIssue } from './fx3u-validator.js';
 import { childNodes } from './structured-edit.js';
 import type { LadderProjectV02, LogicNode } from './v02.js';
-export const COMPILE_VERSION = 'fx3u-v02-4';
+export const COMPILE_VERSION = 'fx3u-v02-5';
 export type CompileDiagnostic = Omit<ValidationIssue,'severity'> & {severity:'error'|'warning'|'info';networkId?:number;nodeId?:string};
 export type CompileReport = {status:'PASS'|'FAIL';diagnostics:CompileDiagnostic[];instructions:ListInstruction[];compilerVersion:string};
 export function locateDiagnostic(project:LadderProjectV02,path:string) {

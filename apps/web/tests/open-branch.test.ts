@@ -78,7 +78,8 @@ test('horizontal open drafts extend left past their initial junction and right b
  for(let i=0;i<18;i++)r=editGridWire(r.project,0,r.cursor,'right',id);
  layout=layoutLadder(r.project.programs[0].networks[0].root);
  assert.deepEqual(r.cursor,{row:1,column:18});assert.ok(layout.columns>18);
- assert.ok(Array.from({length:18},(_,column)=>column).every(column=>layout.cells.some(c=>c.row===1&&c.column===column&&c.connected)));
+ assert.ok(Array.from({length:15},(_,column)=>column+3).every(column=>layout.cells.some(c=>c.row===1&&c.column===column&&c.connected)));
+ assert.ok([0,1,2].every(column=>layout.cells.some(c=>c.row===1&&c.column===column&&!c.connected)));
  assert.ok(layout.cells.some(c=>c.row===r.cursor.row&&c.column===r.cursor.column));
  assert.deepEqual(snapshotSchema.parse(r.project),r.project);
  assert.equal(compileWithDiagnostics(r.project).status,'FAIL');
