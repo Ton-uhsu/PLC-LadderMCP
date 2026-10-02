@@ -228,6 +228,18 @@ await openRung.locator('[data-cell-row="0"][data-cell-column="1"]').first().clic
  await page.getByRole('button',{name:'Redo edit',exact:true}).click();await page.waitForFunction(()=>document.querySelectorAll('.editor-rung [data-node-id][data-cell-row="1"][aria-label^="Wire"]').length===18);
  if(mode){await page.locator('.editor-save-state').filter({hasText:/saved/}).waitFor();await page.reload();await page.getByRole('heading',{name:'Continuous wire acceptance',exact:true}).waitFor();assert.equal(await continuous.locator('[data-node-id][data-cell-row="1"][aria-label^="Wire"]').count(),18);await continuous.locator('[data-cell-row="1"][data-cell-column="18"]').first().click();}
  await stage.evaluate(el=>el.scrollLeft=0);await page.screenshot({path:`${shots}/continuous-wire-${mode}.png`,fullPage:true});console.log(`PASS continuous wire ${mode?'database':'local'} left-past-junction/right-past-sheet/single-highlight/Undo/Redo${mode?'/saved-reload':''}`);
+ // Blank closed branches must not turn their inferred tail into a full-width wire.
+ page.once('dialog',d=>d.accept('One block wire acceptance'));await page.getByRole('button',{name:'New project',exact:true}).click();await page.getByRole('heading',{name:'One block wire acceptance',exact:true}).waitFor();
+ await page.evaluate(async()=>{const {useProjectStore}=await import('/PLC-LadderMCP/src/store.ts');const s=useProjectStore.getState(),p=structuredClone(s.project);p.programs[0].networks[0].root={kind:'series',id:'step-root',children:[{kind:'parallel',id:'step-group',branches:[{kind:'series',id:'step-top',children:Array.from({length:6},(_,i)=>({kind:'wire',id:`step-top-${i}`,connected:true}))},{kind:'series',id:'step-empty',children:[]}]}]};await s.editProject(p);});
+ const stepRung=page.locator('.editor-rung').first();
+ for(const [start,key,destination] of [[2,'Control+ArrowRight',3],[4,'Control+ArrowLeft',3],[1,'Control+ArrowLeft',0]]){
+  await stepRung.locator(`[data-cell-row="1"][data-cell-column="${start}"]`).first().click();await stage.focus();await stage.press(key);
+  await page.waitForFunction(column=>document.querySelector('.editor-statusbar').textContent.includes(`Row 2 · Column ${column}`),destination);
+  assert.equal(await stepRung.locator('[data-node-id][data-cell-row="1"][aria-label^="Wire"]').count(),1);
+  assert.equal(await stepRung.locator('svg').evaluate(svg=>[...svg.querySelectorAll(':scope > g:first-of-type > line')].filter(l=>l.getAttribute('y1')===l.getAttribute('y2') && l.getAttribute('y1')==='164').length),0);
+  await page.getByRole('button',{name:'Undo edit',exact:true}).click();await stepRung.locator('[data-node-id="step-empty"]').waitFor();
+ }
+ console.log(`PASS one-block wire ${mode?'database':'local'} left/right/first-cell/blank-tail/Undo`);
  // Legacy Gap reproduction: one Delete leaves a genuinely empty rendered cell.
  page.once('dialog',d=>d.accept('Erase acceptance'));await page.getByRole('button',{name:'New project',exact:true}).click();await page.getByRole('heading',{name:'Erase acceptance',exact:true}).waitFor();
  await page.evaluate(async()=>{const {useProjectStore}=await import('/PLC-LadderMCP/src/store.ts');const s=useProjectStore.getState(),p=structuredClone(s.project);p.programs[0].networks[0].root={kind:'series',id:'erase-root',children:[{kind:'wire',id:'gap-a',connected:false},{kind:'wire',id:'gap-b',connected:false},{kind:'parallel',id:'gap-branch',branches:[{kind:'wire',id:'gap-top',connected:false},{kind:'wire',id:'gap-middle',connected:false},{kind:'wire',id:'gap-bottom',connected:false}]}]};await s.editProject(p);});

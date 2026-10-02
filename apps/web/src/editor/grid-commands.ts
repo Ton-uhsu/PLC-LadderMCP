@@ -6,7 +6,18 @@ export function materializeCell(project: LadderProjectV02, networkId: number, ce
   if (cell.nodeId) {
     const root=project.programs[0].networks.find(n=>n.id===networkId)!.root;
     const node=listNodes(root).find(n=>n.node.id===cell.nodeId)!.node;
-    if(node.kind==='series' && !node.children.length) return editStructured(project,networkId,{kind:'insert',parentId:node.id,index:0,node:{kind:'wire',id:id(),connected:false}});
+    if(node.kind==='series' && !node.children.length) {
+      const padding = layoutLadder(root).cells.filter(c => c.slot?.parentId === node.id);
+      const location = listNodes(root).find(l => l.node.id === node.id)!;
+      const count = location.parent?.kind === 'parallel' && !node.openEnd ? Math.max(1, ...padding.map(c => c.slot!.count)) : 1;
+      let next = project, selectedId = '';
+      for (let i = 0; i < count; i++) {
+        const nodeId = id();
+        next = editStructured(next,networkId,{kind:'insert',parentId:node.id,index:i,node:{kind:'wire',id:nodeId,connected:false,erased:true}}).project;
+        if (i === 0) selectedId = nodeId;
+      }
+      return {project:next,selectedId};
+    }
     return { project, selectedId: cell.nodeId };
   }
   const slot = cell.slot;
@@ -23,9 +34,20 @@ export function materializeCell(project: LadderProjectV02, networkId: number, ce
   }
   if (!parentId) throw new Error('This cell has no structured insertion position.');
   let selectedId = '';
-  const count = slot.connected ? slot.count : slot.offset + 1;
+  // Preserve the entire blank allocation before inserting a wire. Otherwise
+  // layout infers connected padding from the new leaf and fills the rest of a branch.
+  const currentRoot = next.programs[0].networks.find(n => n.id === networkId)!.root;
+  const locations = listNodes(currentRoot);
+  let owner = locations.find(l => l.node.id === parentId);
+  let closedBranch = false;
+  while (owner) {
+    if (owner.node.kind === 'series' && owner.node.openEnd) break;
+    if (owner.parent?.kind === 'parallel') { closedBranch = true; break; }
+    owner = owner.parent ? locations.find(l => l.node.id === owner!.parent!.id) : undefined;
+  }
+  const count = slot.connected || closedBranch ? slot.count : slot.offset + 1;
   for (let i = 0; i < count; i++) {
-    const nodeId = id(); next = editStructured(next, networkId, { kind: 'insert', parentId, index: index + i, node: { kind: 'wire', id: nodeId, connected: slot.connected } }).project;
+    const nodeId = id(); next = editStructured(next, networkId, { kind: 'insert', parentId, index: index + i, node: { kind: 'wire', id: nodeId, connected: slot.connected, ...(!slot.connected ? {erased:true} : {}) } }).project;
     if (i === slot.offset) selectedId = nodeId;
   }
   return { project: next, selectedId };

@@ -89,3 +89,19 @@ test('coil branch can be wired, completed with an output, compiled/exported and 
   assert.deepEqual(compileProject(restored.project),compileProject(filled.project));
   assert.ok(listNodes(restored.project.programs[0].networks[0].root).some(n=>n.node.id==='out' && n.node.kind==='action' && n.node.action.id==='y'));
 });
+
+test('Ctrl horizontal draws one block in an empty closed branch and keeps its remaining tail blank',()=>{
+ const p=structuredClone(fixture);p.programs[0].networks[0].root={kind:'series',id:'root',children:[{kind:'parallel',id:'group',branches:[{kind:'series',id:'top',children:Array.from({length:6},(_,i)=>({kind:'wire',id:`top-${i}`,connected:true}))},{kind:'series',id:'empty-branch',children:[]}]}]};
+ for(const direction of ['left','right'] as const){
+  const start={row:1,column:direction==='left'?4:2};
+  const r=editGridWire(p,0,start,direction,id),grid=layout(r.project);
+  assert.equal(r.cursor.column,start.column+(direction==='left'?-1:1));
+  const filled=grid.cells.filter(c=>c.row===1&&c.connected);
+  assert.equal(filled.length,1);assert.equal(filled[0].column,r.cursor.column);
+  const again=editGridWire(r.project,0,r.cursor,direction,id);
+  assert.equal(layout(again.project).cells.filter(c=>c.row===1&&c.connected).length,2);
+  assert.equal(layout(again.project).nodes.find(n=>n.node.id==='top-0')!.x,layout(p).nodes.find(n=>n.node.id==='top-0')!.x);
+ }
+ const first=editGridWire(p,0,{row:1,column:1},'left',id);
+ assert.equal(layout(first.project).cells.filter(c=>c.row===1&&c.connected).length,1);
+});

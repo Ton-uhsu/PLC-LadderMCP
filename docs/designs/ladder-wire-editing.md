@@ -113,3 +113,12 @@ An open row now accepts Ctrl+Left before the original branch start. It prepends 
 wireOffset is an authoritative optional series draft field in snapshot validation/hashes. The renderer offsets only the open row's horizontal children; its measured right extent excludes the left overhang. Unresolved offsets block shared validation, compilation and normalization even if openEnd is accidentally removed. Joining an offset branch is rejected rather than claiming its floating left extension has valid structured topology. Full arbitrary graph reconnection remains separate work. Compiler version becomes fx3u-v02-4; update Web and server together, no SQL migration.
 
 Verified: 50 Web tests, Web/backend production builds, semantic smoke, and full Chromium local/PGlite regression. Continuation acceptance starts at column 3, draws left to column 0 and right through 18 cells, retaining the junction, the destination cell and one cursor. Undo/Redo and database saved reload retain draft coordinates. Dark screenshot inspected. Existing Delete, open-branch, clipboard, range highlight, Compile gating and export download scenarios still pass.
+
+
+## WORK-020 — one horizontal block per key (2026-10-02)
+
+Readiness: PASS for the report that Ctrl+Left/Right fills the entire remaining row rather than advancing block by block. The cursor already moves exactly one column. The fault occurs when an empty closed branch gains its first child: layout previously infers connected padding from the new short series, making the blank tail appear wired.
+
+Before drawing in that allocation, materialization retains its full span as explicit disconnected erased cells. Only the addressed cell becomes connected; all untouched cells stay blank with no Gap glyph. The first cell of an empty branch uses the same rule. Open drafts still materialize only through the addressed offset, so their end/junction geometry and continuous extension remain intact. Connected padding retains its already-existing connections. All work remains one atomic edit and uses the existing snapshot schema.
+
+Verified: 51 Web tests and Web production build; targeted tests exercise both directions, a second key press, the first branch cell, one-column cursor movement and preservation of unrelated coordinates. Full Chromium local/PGlite acceptance checks one visible wire glyph and zero inferred horizontal tail segments after each direction, with Undo, alongside the existing continuous-drawing, Delete, clipboard, Compile, export and saved-reload regressions.

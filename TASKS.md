@@ -4,6 +4,11 @@
 
 
 ## Done
+- [x] WORK-020 | fix: draw exactly one horizontal block per key press | 2026-10-02 | fix | → owner: docs/designs/ladder-wire-editing.md
+  - Delivered: blank closed-branch allocations become erased disconnected cells before drawing, preventing inferred padding from connecting the remaining row. Ctrl+Left/Right moves one column and connects one cell, including the first cell; open continuation and unrelated geometry stay intact.
+  - Verified: 51 Web tests and production build; full Chromium local/PGlite left/right/first-cell blank-tail/Undo acceptance and all prior cursor, drawing, clipboard, Delete, Compile/export and saved-reload regressions.
+  - Handoff: Web-only update using the existing erased draft marker; no schema migration.
+
 - [x] WORK-019 | fix: continuous horizontal drawing and a single cursor highlight | 2026-10-02 | fix | → owner: docs/designs/ladder-wire-editing.md
   - Delivered: open horizontal drafts extend left past their initial junction without moving it, and right beyond the old sheet with a spare cursor cell. One-cell selection uses only the main cursor; rectangular range overlay appears only for multiple cells.
   - Verified: 50 Web tests, Web/backend builds and semantic smoke; full Chromium local/PGlite left-past-junction/right-past-sheet continuation, one-highlight, Undo/Redo and saved reload, alongside all prior editor regressions. Dark continuation screenshot inspected.
@@ -23,9 +28,5 @@
   - Delivered: Ctrl+Up/Down draws only a vertical leg, Right extends an open L, and the return join is explicit. Traversing an existing vertical segment deletes only that junction; traversing its gap reconnects it. Horizontal segments, nested legs and symbol identities survive; incomplete drafts persist and block Compile/Export. Local project name changes reset stale cursor state.
   - Verified: 44 Web tests, including four open-branch regressions and the nested user-image reproduction; Web/backend builds, semantic smoke/HTTP E2E, persistence 8 pass/2 native skipped. Chromium local/PGlite drawing, reverse-delete/reconnect, explicit join, Compile gate, saved reload and Undo passed alongside cursor/clipboard/export regressions; dark screenshots inspected.
   - Handoff: update both server and Web for optional series draft-junction fields; no SQL migration. Arbitrary non-structured graph connections remain unsupported. No real Windows IDE/native database claim.
-
-- [x] WORK-015 | fix: restore original dark editor theme | 2026-10-02 | fix | → owner: docs/designs/ladder-wire-editing.md
-  - Delivered: original dark canvas/chrome/symbol palette restored; new menu, program tree and input modal match it. Cursor/input/clipboard/Compile behavior unchanged.
-  - Verified: Web production build and full Chromium editor workflow passed in local/PGlite modes; dark desktop, dialog and narrow captures inspected. No schema or requirement changes.
 
 Older records: [October work archive](docs/task-archive/2026-10.md).
