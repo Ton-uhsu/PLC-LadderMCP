@@ -25,6 +25,9 @@ export function EditorWorkspace() {
   const compileState = useCompileState();
   const compiledCurrent = currentCompile(state, compileState.run);
   const compileStatus = compiledCurrent ? compileState.run!.status : "Required";
+  const [dismissedCompile, setDismissedCompile] = useState<string | null>(null);
+  const hasCompileResults = !!compileState.run && compileState.run.contextKey === compileContext(state);
+  const showCompileResults = hasCompileResults && compileState.run!.id !== dismissedCompile;
   const [showProperties,setShowProperties] = useState(false);
   const [entryMode,setEntryMode] = useState<EntryMode>('overwrite');
   const clipboard = useEditorClipboard();
@@ -47,6 +50,11 @@ export function EditorWorkspace() {
   const [stageWidth, setStageWidth] = useState(980);
   const [zoom, setZoom] = useState(100), [comment, setComment] = useState(network?.comment ?? '');
   const stage = useRef<HTMLDivElement>(null), properties = useRef<HTMLElement>(null);
+  function closeCompileResults() {
+    setDismissedCompile(compileState.run?.id ?? null);
+    useCompileState.setState({error:''});
+    stage.current?.focus();
+  }
   const inputRef = useRef<HTMLInputElement>(null);
   useEffect(() => { if (!stage.current) return; const observer = new ResizeObserver(entries => setStageWidth(entries[0].contentRect.width)); observer.observe(stage.current); return () => observer.disconnect(); }, []);
   const sheetWidth = Math.max(700, stageWidth, ...networks.map(n => layoutLadder(n.root).width + 56));
@@ -236,6 +244,7 @@ export function EditorWorkspace() {
   const currentIndex = networks.findIndex(n => n.id === network?.id);
   return <section className="ladder-editor-workspace classic-editor" aria-label="Ladder editor" onKeyDown={e => {
     if (e.key === 'Escape' && (entry || editing)) { e.preventDefault(); setEntry(null); setEditing(null); stage.current?.focus(); return; }
+    if (e.key === 'Escape' && !menu && !finding && (showCompileResults || compileState.error)) { e.preventDefault(); closeCompileResults(); return; }
     if (e.key === 'Escape') { setEntry(null); setEditing(null); setMenu(null); setFinding(false); setCellSelection(null); setCursor(null); setSelectedId(null); stage.current?.focus(); return; }
     const target = e.target as HTMLElement;
     if (target.closest('[role="dialog"]')) return;
@@ -274,7 +283,7 @@ export function EditorWorkspace() {
       <div className="ide-menubar" aria-label="Editor menu">
         <details><summary>Edit</summary><div><button disabled={disabled} onClick={()=>copy()}>Copy · Ctrl+C</button><button disabled={disabled} onClick={()=>copy(true)}>Cut · Ctrl+X</button><button disabled={disabled || (!clipboard.clip && !rangeClip)} onClick={()=>paste()}>Paste · Ctrl+V</button><button disabled={disabled} onClick={remove}>Delete</button></div></details>
         <details><summary>Input</summary><div>{tools.map(t=><button key={t.tool} disabled={disabled || multipleCells} onClick={()=>openTool(t.tool)}>{t.label}</button>)}</div></details>
-        <details><summary>View</summary><div><button onClick={()=>setShowProperties(v=>!v)}>Properties</button><button onClick={()=>setZoom(100)}>Actual size · 100%</button></div></details>
+        <details><summary>View</summary><div><button onClick={()=>setShowProperties(v=>!v)}>Properties</button><button onClick={()=>setZoom(100)}>Actual size · 100%</button><button disabled={!hasCompileResults} onClick={e=>{setDismissedCompile(null);e.currentTarget.closest('details')?.removeAttribute('open');}}>Compile results</button></div></details>
         <button disabled={disabled || compileState.busy || state.dirty} onClick={()=>void compileState.compile()}>Compile</button>
         <span className="ide-menu-context">Main · Ladder</span>
       </div>
@@ -331,7 +340,7 @@ export function EditorWorkspace() {
           {networks.map((rung, index) => <article key={rung.id} className={rung.id === network?.id ? 'editor-rung selected-rung' : 'editor-rung'}>
             <button className="rung-gutter" aria-label={`Select network ${index + 1}`} aria-pressed={rung.id === network?.id} onClick={() => { selectNetwork(rung.id); setCellSelection(null); setCursor(null); setSelectedId(rung.root.id); }}><strong>{index + 1}</strong><small>N{rung.id}</small></button>
             <div className="rung-body"><button className="rung-comment" onClick={() => { selectNetwork(rung.id); setCellSelection(null); setCursor(null); setSelectedId(rung.root.id); }}>{rung.comment || `Network ${index + 1}`}</button>
-              <LadderRenderer root={rung.root} diagnosticNodeIds={compiledCurrent ? compileState.run!.diagnostics.filter(d=>d.networkId===rung.id && d.severity==='error').map(d=>d.nodeId!).filter(Boolean) : []} theme="dark" minWidth={sheetWidth - 56} selectedId={rung.id === network?.id ? selectedId : null} cursor={cursor?.networkId === rung.id ? cursor : null} selectionRange={cellSelection?.networkId === rung.id ? cellSelection : null} onCellSelect={(cell, extend) => selectCell(rung.id, cell, extend)} onCellEdit={cell=>{selectCell(rung.id,cell);openTool('contact','');}} onCellPointerDown={(cell, extend) => beginCellSelection(rung.id, cell, extend)} onCellPointerMove={cell => extendCellSelection(rung.id, cell)} onCellPointerUp={finishCellSelection} onSelect={id => { setCellSelection(null); setCursor(null); if (rung.id !== selectedNetworkId) { selectNetwork(rung.id); } setSelectedId(id); }} onEdit={id => editSymbol(rung.id, id, true)} onContextMenu={(id, x, y) => { const inRange=cellSelection?.networkId===rung.id && layoutLadder(rung.root).cells.some(c=>c.nodeId===id && cellIsInRange(c,cellSelection)); if(!inRange){setCellSelection(null);setCursor(null);setSelectedId(id);} selectNetwork(rung.id); setMenu({ x: Math.max(0, Math.min(x, window.innerWidth - 180)), y: Math.max(0, Math.min(y, window.innerHeight - 280)) }); }}/>
+              <LadderRenderer root={rung.root} diagnosticNodeIds={showCompileResults && compiledCurrent ? compileState.run!.diagnostics.filter(d=>d.networkId===rung.id && d.severity==='error').map(d=>d.nodeId!).filter(Boolean) : []} theme="dark" minWidth={sheetWidth - 56} selectedId={rung.id === network?.id ? selectedId : null} cursor={cursor?.networkId === rung.id ? cursor : null} selectionRange={cellSelection?.networkId === rung.id ? cellSelection : null} onCellSelect={(cell, extend) => selectCell(rung.id, cell, extend)} onCellEdit={cell=>{selectCell(rung.id,cell);openTool('contact','');}} onCellPointerDown={(cell, extend) => beginCellSelection(rung.id, cell, extend)} onCellPointerMove={cell => extendCellSelection(rung.id, cell)} onCellPointerUp={finishCellSelection} onSelect={id => { setCellSelection(null); setCursor(null); if (rung.id !== selectedNetworkId) { selectNetwork(rung.id); } setSelectedId(id); }} onEdit={id => editSymbol(rung.id, id, true)} onContextMenu={(id, x, y) => { const inRange=cellSelection?.networkId===rung.id && layoutLadder(rung.root).cells.some(c=>c.nodeId===id && cellIsInRange(c,cellSelection)); if(!inRange){setCellSelection(null);setCursor(null);setSelectedId(id);} selectNetwork(rung.id); setMenu({ x: Math.max(0, Math.min(x, window.innerWidth - 180)), y: Math.max(0, Math.min(y, window.innerHeight - 280)) }); }}/>
             </div>
           </article>)}
           <div className="editor-end"><span>END</span></div>
@@ -354,12 +363,16 @@ export function EditorWorkspace() {
       <button role="menuitem" onClick={() => editSymbol()}>Edit · Enter</button><button role="menuitem" onClick={() => copy()}>Copy · Ctrl+C</button><button role="menuitem" disabled={!selection?.parent} onClick={() => copy(true)}>Cut · Ctrl+X</button><button role="menuitem" disabled={!clipboard.clip && !rangeClip} onClick={() => paste()}>Paste · Ctrl+V</button><button role="menuitem" onClick={() => paste(true)}>Duplicate · Ctrl+D</button><button role="menuitem" disabled={!selection?.parent} onClick={() => { remove(); setMenu(null); }}>Delete</button><button role="menuitem" onClick={() => setMenu(null)}>Close · Esc</button>
     </div>}
     {dialogNode && <div className="editor-dialog-backdrop" onClick={e => { if (e.target === e.currentTarget) setEditing(null); }}><section className="editor-symbol-dialog" role="dialog" aria-modal="true" aria-label="Edit symbol" onKeyDown={e => { if (e.key === 'Tab') { const controls = Array.from(e.currentTarget.querySelectorAll<HTMLElement>('input,select,button')).filter(el => !el.hasAttribute('disabled')); const first = controls[0], last = controls.at(-1); if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last?.focus(); } else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first?.focus(); } } }}><h3>Edit {nodeLabel(dialogNode)}</h3><Inspector node={dialogNode} disabled={disabled} onUpdate={async node => { await perform((p, n) => editStructured(p, n, { kind: 'update', nodeId: node.id, node }), false); setEditing(null); stage.current?.focus(); }}/><button onClick={() => { setEditing(null); stage.current?.focus(); }}>Cancel</button></section></div>}
-    {compileState.error && <div role="alert" className="editor-error">{compileState.error}</div>}
-    {compileState.run && compileState.run.contextKey===compileContext(state) && <section className="compile-diagnostics" aria-label="Compile diagnostics">
-      <b>{compiledCurrent ? `Compile ${compileState.run.status}` : 'Compile Required · previous results are stale'}</b>
-      <span> {compileState.run.diagnostics.filter(d=>d.severity==='error').length} errors · {compileState.run.diagnostics.filter(d=>d.severity==='warning').length} warnings</span>
-      {compileState.run.diagnostics.map((d,i)=><button key={i} className={`diagnostic-${d.severity}`} disabled={!compiledCurrent || d.networkId===undefined} onClick={()=>compileState.locate(d.networkId!,d.nodeId)}><b>{d.severity.toUpperCase()} · {d.code}</b> {d.message}{d.networkId!==undefined?` · Network ${networks.findIndex(n=>n.id===d.networkId)+1}`:''}</button>)}
-      <details><summary>Compile history ({compileState.runs.length})</summary>{compileState.runs.map(r=><p key={r.id}>{r.startedAt} · {r.status} · {r.revision?`Revision ${r.revision}`:'Local snapshot'}</p>)}</details>
+    {compileState.error && <div role="alert" className="editor-error">{compileState.error}<button aria-label="Dismiss compile error" onClick={closeCompileResults}>Close ×</button></div>}
+    {showCompileResults && compileState.run && <section className="compile-diagnostics" aria-label="Compile diagnostics">
+      <div className="compile-diagnostics-header"><div><b>{compiledCurrent ? `Compile ${compileState.run.status}` : 'Compile Required · previous results are stale'}</b>
+        <span> {compileState.run.diagnostics.filter(d=>d.severity==='error').length} errors · {compileState.run.diagnostics.filter(d=>d.severity==='warning').length} warnings</span></div>
+        <button aria-label="Close compile results" title="Close compile results (Esc)" onClick={closeCompileResults}>Close ×</button>
+      </div>
+      <div className="compile-diagnostics-list">
+        {compileState.run.diagnostics.map((d,i)=><button key={i} className={`diagnostic-${d.severity}`} disabled={!compiledCurrent || d.networkId===undefined} onClick={()=>compileState.locate(d.networkId!,d.nodeId)}><b>{d.severity.toUpperCase()} · {d.code}</b> {d.message}{d.networkId!==undefined?` · Network ${networks.findIndex(n=>n.id===d.networkId)+1}`:''}</button>)}
+        <details><summary>Compile history ({compileState.runs.length})</summary>{compileState.runs.map(r=><p key={r.id}>{r.startedAt} · {r.status} · {r.revision?`Revision ${r.revision}`:'Local snapshot'}</p>)}</details>
+      </div>
     </section>}
     <div className="editor-statusbar"><span>{network ? `Main / Network ${currentIndex + 1}` : 'Main'}</span><span>{multipleCells ? `${selectedCellCount} cells selected` : cell ? `Row ${cell.row + 1} · Column ${cell.column}` : selection ? nodeLabel(selection.node) : 'Select a cell'}</span><span>Drag / Shift+click select · Shift+arrows select · Ctrl+C/X/V · F5/F6/F7/F8 input</span><span>Compile {compileStatus}</span></div>
   </section>;

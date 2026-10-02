@@ -24,6 +24,7 @@ for(let mode=0;mode<2;mode++){
  await context.addInitScript(api=>localStorage.setItem('plc-ladder-api',api),api); const page=await context.newPage(); const errors=[]; page.on('pageerror',e=>errors.push(e.message));
  await page.goto('http://127.0.0.1:5189/PLC-LadderMCP/'); await page.getByLabel('Username').fill('admin'); await page.getByLabel('Password').fill('test'); await page.getByRole('button',{name:'Enter workspace'}).click();
  await page.getByRole('button',{name:'New project',exact:true}).waitFor(); page.once('dialog',d=>d.accept('Conveyor control'));await page.getByRole('button',{name:'New project',exact:true}).click(); await page.getByRole('heading',{name:'Conveyor control',exact:true}).waitFor();
+ const sessionPosition=await page.locator('.auth-session-chip').boundingBox();assert.equal(sessionPosition.x,18);assert.equal(Math.round(sessionPosition.y+sessionPosition.height),966);
  await page.getByRole('button',{name:'Toggle entry mode',exact:true}).click(); await page.getByRole('button',{name:'Toggle properties',exact:true}).click();
  const add=async(tool,value)=>{await page.getByRole('button',{name:'Insert '+tool,exact:true}).click();await page.getByLabel('Element address or instruction').fill(value);await page.getByLabel('Element address or instruction').press('Enter');await page.locator('.editor-command-entry').waitFor({state:'hidden'});};
  await add('NO contact','X0'); await add('Output coil','Y0'); await add('Output coil','Y1');
@@ -150,6 +151,21 @@ for(let mode=0;mode<2;mode++){
  await diagnostics.getByRole('button').filter({hasText:'DISCONNECTED_WIRE'}).click();
  await destination.locator('.diagnostic-error-node').waitFor();
  await page.screenshot({path:`${shots}/compile-diagnostic-${mode}.png`,fullPage:true});
+ const failedCanvas=await stage.boundingBox();
+ const failedReport=await page.evaluate(async()=>{const {useCompileState}=await import('/PLC-LadderMCP/src/editor/compile-state.ts');return JSON.stringify(useCompileState.getState().run);});
+ await diagnostics.getByRole('button',{name:'Close compile results',exact:true}).click();await diagnostics.waitFor({state:'hidden'});
+ assert.equal(await page.locator('.diagnostic-error-node').count(),0);assert.ok((await stage.boundingBox()).height>failedCanvas.height);
+ assert.equal(await stage.evaluate(el=>el===document.activeElement),true);
+ assert.equal(await page.evaluate(async()=>{const {useCompileState}=await import('/PLC-LadderMCP/src/editor/compile-state.ts');return JSON.stringify(useCompileState.getState().run);}),failedReport);
+ await page.locator('.ide-menubar summary').getByText('View',{exact:true}).click();await page.getByRole('button',{name:'Compile results',exact:true}).click();await diagnostics.getByText('Compile FAIL',{exact:true}).waitFor();
+ await destination.locator('[data-cell-row="0"][data-cell-column="1"]').first().click();
+ const failedCursor=await page.locator('.cell-cursor').getAttribute('data-cursor-column');await stage.focus();await stage.press('Escape');await diagnostics.waitFor({state:'hidden'});
+ assert.equal(await page.locator('.cell-cursor').getAttribute('data-cursor-column'),failedCursor);
+ const compileRoute=/\/api\/(?:manual\/compile|persistence\/projects\/[^/]+\/compile)$/;
+ await page.route(compileRoute,route=>route.request().method()==='POST'?route.fulfill({status:503,contentType:'application/json',body:JSON.stringify({error:'Temporary compile test failure'})}):route.continue());
+ await page.getByRole('button',{name:'Compile project',exact:true}).click();await page.getByRole('alert').filter({hasText:'Temporary compile test failure'}).waitFor();
+ await page.getByRole('button',{name:'Dismiss compile error',exact:true}).click();await page.getByRole('alert').filter({hasText:'Temporary compile test failure'}).waitFor({state:'hidden'});assert.equal(await stage.evaluate(el=>el===document.activeElement),true);await page.unroute(compileRoute);
+ console.log(`PASS compile panel ${mode?'database':'local'} close/Escape/retain-selection/reopen/retain-report/dismiss-request-error/canvas-focus`);
  await page.getByRole('button',{name:'Undo edit',exact:true}).click();if(mode)await page.locator('.editor-save-state').filter({hasText:/saved/}).waitFor();
  await page.getByRole('button',{name:'Compile project',exact:true}).click();await diagnostics.getByText('Compile PASS',{exact:true}).waitFor();
  await page.getByRole('button',{name:'Project / Export',exact:true}).click();
@@ -306,7 +322,19 @@ await openRung.locator('[data-cell-row="0"][data-cell-column="1"]').first().clic
  await page.waitForFunction(()=>![...document.querySelectorAll('.editor-rung text')].some(n=>n.textContent==='Gap'));assert.equal(await erasedRung.locator('[data-node-id] line,[data-node-id] circle,[data-node-id] path').count(),0);assert.equal(await erasedRung.locator('svg').evaluate(svg=>svg.querySelectorAll(':scope > g:first-of-type > line').length),2);
  if(mode){await page.locator('.editor-save-state').filter({hasText:/saved/}).waitFor();await page.reload();await page.getByRole('heading',{name:'Erase acceptance',exact:true}).waitFor();assert.equal(await erasedRung.getByText('Gap',{exact:true}).count(),0);assert.equal(await erasedRung.locator('[data-node-id] line,[data-node-id] circle').count(),0);}
  await stage.evaluate(el=>el.scrollLeft=0);await page.screenshot({path:`${shots}/erase-blank-${mode}.png`,fullPage:true});console.log(`PASS erase ${mode?'database':'local'} legacy-Gap/one-Delete/no-glyphs/whole-branch-clear/Undo${mode?'/saved-reload':''}`);
+ // Long failed reports retain a visible Close button and allow immediate editing after dismissal.
+ page.once('dialog',d=>d.accept('Compile panel acceptance'));await page.getByRole('button',{name:'New project',exact:true}).click();await page.getByRole('heading',{name:'Compile panel acceptance',exact:true}).waitFor();
+ await page.evaluate(async()=>{const {useProjectStore}=await import('/PLC-LadderMCP/src/store.ts');const s=useProjectStore.getState(),p=structuredClone(s.project);p.programs[0].networks[0].root={kind:'series',id:'many-errors',children:Array.from({length:84},(_,i)=>({kind:'wire',id:`many-gap-${i}`,connected:false,erased:true}))};await s.editProject(p);});
+ if(mode)await page.locator('.editor-save-state').filter({hasText:/saved/}).waitFor();
+ await page.setViewportSize({width:1600,height:800});await page.getByRole('button',{name:'Compile project',exact:true}).click();await diagnostics.getByText('Compile FAIL',{exact:true}).waitFor();assert.ok(await diagnostics.locator('.diagnostic-error').count()>=84);
+ await diagnostics.locator('.compile-diagnostics-list').evaluate(el=>el.scrollTop=el.scrollHeight);await diagnostics.getByRole('button',{name:'Close compile results',exact:true}).waitFor({state:'visible'});
+ assert.ok((await diagnostics.boundingBox()).height<=240);await page.screenshot({path:`${shots}/compile-many-errors-${mode}.png`,fullPage:true});
+ await diagnostics.getByRole('button',{name:'Close compile results',exact:true}).click();await diagnostics.waitFor({state:'hidden'});await page.locator('[data-node-id="many-gap-0"]').click();await stage.focus();await stage.press('Control+ArrowRight');await page.locator('[data-node-id="many-gap-0"][aria-label^="Wire"]').waitFor();
+ if(mode)await page.locator('.editor-save-state').filter({hasText:/saved/}).waitFor();assert.equal(await diagnostics.count(),0);
+ await page.getByRole('button',{name:'Compile project',exact:true}).click();await diagnostics.getByText('Compile FAIL',{exact:true}).waitFor();await diagnostics.getByRole('button',{name:'Close compile results',exact:true}).press('Escape');await diagnostics.waitFor({state:'hidden'});
+ await page.screenshot({path:`${shots}/compile-closed-edit-${mode}.png`,fullPage:true});console.log(`PASS long compile ${mode?'database':'local'} 84-errors/bounded-panel/scroll-visible-close/immediate-wire-edit/new-run-reopens`);
  await page.setViewportSize({width:520,height:800}); await page.screenshot({path:`${shots}/editor-workspace-${mode}-520.png`,fullPage:true});
+ const mobileSession=await page.locator('.auth-session-chip').boundingBox();assert.equal(mobileSession.x,10);assert.equal(Math.round(mobileSession.y+mobileSession.height),766);
  await page.setViewportSize({width:1100,height:800}); await page.screenshot({path:`${shots}/editor-workspace-${mode}-1100.png`,fullPage:true});
  assert.deepEqual(errors,[]); console.log(`PASS browser ${mode?'PostgreSQL':'local'} insert/properties/branch/networks/clipboard/cut-identity/dialog/context-menu/duplicate/find/navigation/undo/redo/keyboard/zoom/cell-grid/coil-wires/ctrl-arrow-wires${mode?'/reload':'/old-backend-error'}`); await context.close();
 }

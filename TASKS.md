@@ -4,6 +4,11 @@
 
 
 ## Done
+- [x] WORK-025 | fix: dismiss compile results and move the session chip to bottom left | 2026-10-02 | fix | → owner: docs/designs/ladder-wire-editing.md
+  - Delivered: Close/Escape hides compile diagnostics and red highlights, returns canvas focus and retains selection/report/export validation. View reopens results; a new run opens automatically. A bounded panel keeps Close visible while scrolling. Request errors are dismissible; admin/Sign out sits at bottom left on desktop and narrow screens.
+  - Verified: 66 Web tests, production build and Chromium local/PGlite close/reopen/Escape/selection/report retention/request-error dismissal, 84-error scrolling/immediate wire edit/new-run reopening, desktop/narrow session coordinates and prior editor/export/persistence regressions. Screenshots inspected.
+  - Handoff: Web-only update and browser refresh; no backend/schema migration.
+
 - [x] WORK-024 | fix: extend Right past the branch return without shifting its leg or coil | 2026-10-02 | fix | → owner: docs/designs/ladder-wire-editing.md
   - Delivered: Ctrl+Right at a closed return creates one external draft cell; branch width, existing left stroke, vertical return and output coordinates stay fixed. Continuation and reverse deletion remain one cell each.
   - Verified: 66 Web tests, Web/backend builds, semantic smoke, embedded persistence 8 pass/2 native skipped, and Chromium local/PGlite fixed-return/fixed-coil/right-stroke/Undo/Redo/saved-reload acceptance plus prior regressions. Screenshots inspected.

@@ -328,7 +328,7 @@
 .auth-session-chip {
   position: fixed;
   z-index: 100;
-  right: 18px;
+  left: 18px;
   bottom: 18px;
   display: flex;
   align-items: center;
@@ -380,5 +380,5 @@
   .auth-flow { display: none; }
   .auth-login-panel { padding: 30px 18px 36px; }
   .auth-card { width: 100%; }
-  .auth-session-chip { right: 10px; bottom: 10px; }
+  .auth-session-chip { left: 10px; bottom: 10px; }
 }

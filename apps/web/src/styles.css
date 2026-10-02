@@ -217,9 +217,12 @@ body:has(.editor-mode) .auth-session-chip { bottom:34px; }
 .editor-symbol-dialog p { font-size: 12px; color: #abbacf; }
 
 .editor-ruler > span:first-child { position: sticky; left: 0; z-index: 4; background: #2b313b; }
-.compile-diagnostics{padding:12px 16px;background:#171c26;border-top:1px solid #344155;max-height:240px;overflow:auto;color:#d4dde9;font-size:12px}
-.compile-diagnostics>button{display:block;text-align:left;width:100%;padding:8px;margin-top:5px;background:#222b38;border:1px solid #344155;color:#d4dde9;border-radius:4px}
-.compile-diagnostics>.diagnostic-error{border-left:3px solid #f87171}.compile-diagnostics>.diagnostic-warning{border-left:3px solid #fbbf24}
+.compile-diagnostics{display:flex;flex-direction:column;flex:none;min-height:0;max-height:min(240px,30vh);box-sizing:border-box;background:#171c26;border-top:1px solid #344155;color:#d4dde9;font-size:12px}
+.compile-diagnostics-header{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:8px 16px;flex:none}
+.compile-diagnostics-header>button{flex:none;border:1px solid #48576b;border-radius:4px;padding:5px 9px;background:#222b38;color:#d4dde9}
+.compile-diagnostics-list{min-height:0;overflow:auto;padding:0 16px 12px}
+.compile-diagnostics-list>button{display:block;text-align:left;width:100%;padding:8px;margin-top:5px;background:#222b38;border:1px solid #344155;color:#d4dde9;border-radius:4px}
+.compile-diagnostics-list>.diagnostic-error{border-left:3px solid #f87171}.compile-diagnostics-list>.diagnostic-warning{border-left:3px solid #fbbf24}
 .compile-diagnostics button:disabled{opacity:.5}.diagnostic-error-node{filter:drop-shadow(0 0 3px #ef4444)}
 
 /* Compact IDE layout with the original dark workspace palette. */

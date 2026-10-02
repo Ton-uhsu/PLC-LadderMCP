@@ -1,6 +1,6 @@
 # Structured Ladder wire editing
 
-**Status:** Implemented editor slice, 2026-10-01 (WORK-008, WORK-009, WORK-011, WORK-012 / TASK-005).
+**Status:** Implemented editor slice, updated 2026-10-02 (through WORK-025 / TASK-005).
 **Requirements:** REQ-037, REQ-039, REQ-040, REQ-095, REQ-097, REQ-100, REQ-111, REQ-126, REQ-127. Requirements V1.0 is unchanged.
 
 ## Canonical representation
@@ -162,3 +162,12 @@ Right now creates an external horizontal draft cell after the fixed return bound
 Draft children retain real node identities, strict snapshot validation and logic hashes. rightExtension must leave the original branch body present. Shared validation/compilation rejects unresolved extensions as OPEN_BRANCH, consistent with other open wire drafts; arbitrary topology reconnection remains outside the structured editor. Compiler version is fx3u-v02-6. Update both Web and backend; no SQL migration.
 
 Verified: 66 Web tests, Web/backend builds, semantic smoke and embedded persistence (8 pass/2 native skipped). Chromium local/PGlite acceptance checks drawing on the right of the original return, unchanged vertical/coil coordinates, one-cell continuation/reverse-delete, Undo/Redo and saved reload, alongside all earlier cursor/clipboard/drawing/Compile/export/erase checks. The before/after right-return screenshots were inspected.
+
+
+## WORK-025 — dismiss Compile results and resume editing (2026-10-02)
+
+The result panel now has Close and Escape dismissal, including failed Compile requests. Dismissal hides diagnostic highlights and restores canvas focus without clearing the current cell/range, Compile report, history or export eligibility checks. View → Compile results reopens the retained report. A new Compile report opens automatically; revision changes do not reopen a dismissed report. Symbol dialogs and search/context menus keep their Escape priority.
+
+The panel is capped at the smaller of 240px and 30vh. Only the result list scrolls, so the header and Close remain visible even with 84 errors. The authenticated admin/Sign out chip moves to the bottom left, with existing clearance above the editor status bar and responsive offsets.
+
+Verified: 66 Web tests and production build; Chromium local/PGlite Close/Escape/reopen, retained report/selection, HTTP error dismissal, immediate wire editing after a long failed report, automatic reopening on the next run and desktop/narrow account coordinates. Earlier Compile stale/navigation/history/export and drawing/clipboard/persistence regressions pass. Long-report and resumed-edit screenshots inspected. Web-only update; no backend or SQL migration.
